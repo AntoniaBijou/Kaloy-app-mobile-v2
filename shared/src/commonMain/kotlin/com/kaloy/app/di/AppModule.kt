@@ -14,5 +14,5 @@ val appModule = module {
     single { AuthSessionManager(get()) }
     single { createHttpClient(get()) }
     single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
-    single<MeRepository> { MeRepositoryImpl(get()) }
+    single<MeRepository> { MeRepositoryImpl(get(), get()) }
 }

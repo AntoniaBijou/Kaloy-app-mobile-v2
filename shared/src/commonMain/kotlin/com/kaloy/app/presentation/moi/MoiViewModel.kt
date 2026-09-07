@@ -60,7 +60,12 @@ class MoiViewModel(
                     is ProfileData.Artist -> _uiState.value = MoiUiState.ArtistSuccess(data.profile)
                 }
             } catch (e: Exception) {
-                _uiState.value = MoiUiState.Error(UserErrorMessages.fromThrowable(e))
+                if (e.message == "SESSION_EXPIRED") {
+                    sessionManager.clear()
+                    _operationState.value = MoiOperationState.NeedsRelogin
+                } else {
+                    _uiState.value = MoiUiState.Error(UserErrorMessages.fromThrowable(e))
+                }
             }
         }
     }

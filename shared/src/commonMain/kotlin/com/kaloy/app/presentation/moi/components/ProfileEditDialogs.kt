@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.kaloy.app.presentation.moi.components
 
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -149,14 +152,17 @@ fun EditPhotoDialog(
         title = { Text("Photo de profil", color = KaloyTextPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                KaloyTextField(value = photoUrl, label = "URL de la photo", onValueChange = { photoUrl = it })
                 OutlinedButton(
                     onClick = { imagePicker() },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = KaloyPurple)
                 ) {
-                    Text("Choisir depuis la galerie")
+                    Text(if (photoUrl.isBlank()) "Choisir depuis la galerie" else "Changer la photo")
+                }
+                if (photoUrl.isNotBlank()) {
+                    Text("Photo sélectionnée", color = KaloyTextSecondary,
+                        style = MaterialTheme.typography.bodySmall)
                 }
                 errorMessage?.let {
                     Text(it, color = KaloyRed, style = MaterialTheme.typography.bodySmall)
@@ -347,6 +353,9 @@ fun AddMemberDialog(
     var selectedRoleId by remember { mutableStateOf<Long?>(null) }
     var expanded by remember { mutableStateOf(false) }
     val selectedRole = instrumentRoles.find { it.id == selectedRoleId }
+    val imagePicker = rememberSingleImagePicker { uri ->
+        if (!uri.isNullOrBlank()) photoUrl = uri
+    }
 
     AlertDialog(
         onDismissRequest = { if (!isLoading) onDismiss() },
@@ -386,7 +395,18 @@ fun AddMemberDialog(
                         }
                     }
                 }
-                KaloyTextField(value = photoUrl, label = "URL de la photo (optionnel)", onValueChange = { photoUrl = it })
+                OutlinedButton(
+                    onClick = { imagePicker() },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = KaloyPurple)
+                ) {
+                    Text(if (photoUrl.isBlank()) "Choisir une photo (optionnel)" else "Changer la photo")
+                }
+                if (photoUrl.isNotBlank()) {
+                    Text("Photo sélectionnée", color = KaloyTextSecondary,
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 errorMessage?.let {
                     Text(it, color = KaloyRed, style = MaterialTheme.typography.bodySmall)
                 }
@@ -424,6 +444,9 @@ fun EditMemberDialog(
     var selectedRoleId by remember { mutableStateOf(member.roleInstrumentId) }
     var expanded by remember { mutableStateOf(false) }
     val selectedRole = instrumentRoles.find { it.id == selectedRoleId }
+    val imagePicker = rememberSingleImagePicker { uri ->
+        if (!uri.isNullOrBlank()) photoUrl = uri
+    }
 
     AlertDialog(
         onDismissRequest = { if (!isLoading) onDismiss() },
@@ -463,7 +486,18 @@ fun EditMemberDialog(
                         }
                     }
                 }
-                KaloyTextField(value = photoUrl, label = "URL de la photo (optionnel)", onValueChange = { photoUrl = it })
+                OutlinedButton(
+                    onClick = { imagePicker() },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = KaloyPurple)
+                ) {
+                    Text(if (photoUrl.isBlank()) "Choisir une photo (optionnel)" else "Changer la photo")
+                }
+                if (photoUrl.isNotBlank()) {
+                    Text("Photo sélectionnée", color = KaloyTextSecondary,
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 errorMessage?.let {
                     Text(it, color = KaloyRed, style = MaterialTheme.typography.bodySmall)
                 }
