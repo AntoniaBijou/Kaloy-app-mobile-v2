@@ -14,6 +14,10 @@ const val BASE_URL = "https://latch-tummy-unfrosted.ngrok-free.dev/mozika"
 
 fun createHttpClient(sessionManager: AuthSessionManager): HttpClient = HttpClient {
     expectSuccess = false  // on gère les erreurs HTTP manuellement dans le repository
+    install(HttpRequestRetry) {
+        retryOnException(maxRetries = 2)
+        exponentialDelay()
+    }
     defaultRequest {
         val token = sessionManager.getToken()
         if (!token.isNullOrBlank()) {

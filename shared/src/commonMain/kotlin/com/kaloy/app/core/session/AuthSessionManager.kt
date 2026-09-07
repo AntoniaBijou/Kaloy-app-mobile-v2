@@ -4,20 +4,29 @@ import com.kaloy.app.data.dto.AuthResponse
 import com.russhwolf.settings.Settings
 
 class AuthSessionManager(private val settings: Settings) {
+    private var tokenInMemory: String? = null
+    private var userIdInMemory: Long? = null
+    private var emailInMemory: String? = null
+    private var roleInMemory: String? = null
+
     fun saveSession(response: AuthResponse) {
+        tokenInMemory = response.token
+        userIdInMemory = response.userId
+        emailInMemory = response.email
+        roleInMemory = response.role
         settings.putString(KEY_TOKEN, response.token)
         settings.putLong(KEY_USER_ID, response.userId)
         settings.putString(KEY_EMAIL, response.email)
         settings.putString(KEY_ROLE, response.role)
     }
 
-    fun getToken(): String? = settings.getStringOrNull(KEY_TOKEN)
+    fun getToken(): String? = tokenInMemory ?: settings.getStringOrNull(KEY_TOKEN)
 
-    fun getUserId(): Long = settings.getLong(KEY_USER_ID, -1L)
+    fun getUserId(): Long = userIdInMemory ?: settings.getLong(KEY_USER_ID, -1L)
 
-    fun getRole(): String? = settings.getStringOrNull(KEY_ROLE)
+    fun getRole(): String? = roleInMemory ?: settings.getStringOrNull(KEY_ROLE)
 
-    fun getEmail(): String? = settings.getStringOrNull(KEY_EMAIL)
+    fun getEmail(): String? = emailInMemory ?: settings.getStringOrNull(KEY_EMAIL)
 
     fun getDisplayName(): String {
         val email = settings.getStringOrNull(KEY_EMAIL)
@@ -27,6 +36,10 @@ class AuthSessionManager(private val settings: Settings) {
     fun isLoggedIn(): Boolean = !getToken().isNullOrBlank()
 
     fun clear() {
+        tokenInMemory = null
+        userIdInMemory = null
+        emailInMemory = null
+        roleInMemory = null
         settings.remove(KEY_TOKEN)
         settings.remove(KEY_USER_ID)
         settings.remove(KEY_EMAIL)

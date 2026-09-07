@@ -50,6 +50,11 @@ object UserErrorMessages {
             normalized.contains("network") || normalized.contains("timeout") || normalized.contains("unreachable") ->
                 "Le serveur est indisponible pour le moment. Veuillez réessayer."
 
+            normalized.contains("unexpected end of stream") ||
+                normalized.contains("connection reset") ||
+                normalized.contains("connection closed") ->
+                "La connexion au serveur a été interrompue. Vérifiez votre réseau et réessayez."
+
             normalized.contains("unauthorized") || normalized.contains("forbidden") ->
                 "Vous n'êtes pas autorisé à effectuer cette action."
 

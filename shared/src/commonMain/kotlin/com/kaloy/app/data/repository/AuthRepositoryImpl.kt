@@ -53,12 +53,15 @@ class AuthRepositoryImpl(
         }
 
         val data = rest.data ?: throw Exception("Une erreur est survenue. Veuillez réessayer.")
-        return Json.decodeFromJsonElement(kotlinx.serialization.serializer<AuthResponse>(), data)
+        val authResponse = Json.decodeFromJsonElement(
+            kotlinx.serialization.serializer<AuthResponse>(), data
+        )
+        sessionManager.saveSession(authResponse)
+        return authResponse
     }
 
     override suspend fun registerClient(request: RegisterClientRequest): RegisterResponse {
         return client.post("$BASE_URL/auth/register/client") {
-            contentType(ContentType.Application.Json)
             setBody(request)
         }.decodeData()
     }
@@ -71,10 +74,20 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun verifyOtp(request: OtpVerifyRequest): AuthResponse {
-        return client.post("$BASE_URL/auth/verify-otp") {
+        val response = client.post("$BASE_URL/auth/verify-otp") {
             contentType(ContentType.Application.Json)
             setBody(request)
-        }.decodeData()
+        }
+        val rest = response.body<RestResponse>()
+        if (response.status.value >= 400) {
+            throw Exception(UserErrorMessages.fromRawMessage(rest.message))
+        }
+        val data = rest.data ?: throw Exception("Une erreur est survenue. Veuillez réessayer.")
+        val authResponse = Json.decodeFromJsonElement(
+            kotlinx.serialization.serializer<AuthResponse>(), data
+        )
+        sessionManager.saveSession(authResponse)
+        return authResponse
     }
 
     override suspend fun resendOtp(request: ResendOtpRequest): String {
