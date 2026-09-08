@@ -5,7 +5,8 @@
     </domain-config>
     <!-- Autorise HTTP (cleartext) vers toutes les adresses locales en développement -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">192.168.1.191</domain>
+        <domain includeSubdomains="false">192.168.88.15</domain>
         <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
     </domain-config>
 </network-security-config>
