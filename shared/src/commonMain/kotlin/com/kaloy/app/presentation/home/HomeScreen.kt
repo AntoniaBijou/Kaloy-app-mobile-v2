@@ -35,6 +35,7 @@ import com.kaloy.app.data.api.UserIdDto
 import com.kaloy.app.data.model.*
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
+import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import com.kaloy.app.ui.components.*
@@ -282,7 +283,7 @@ data class HomeScreen(
                                             Column(
                                                 modifier = Modifier
                                                     .width(110.dp)
-                                                    .clickable { /* TODO: navigation chanson */ },
+                                                    .clickable { navigateur.push(LecteurScreen(songId = chanson.id)) },
                                                 horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
                                                 Box(
@@ -402,7 +403,7 @@ data class HomeScreen(
                                 SongRow(
                                     song = chanson,
                                     index = index,
-                                    onClick = { /* TODO: navigation chanson */ }
+                                    onClick = { navigateur.push(LecteurScreen(songId = chanson.id)) }
                                 )
                                 if (index < modeleVue.chansons.size - 1) {
                                     HorizontalDivider(
