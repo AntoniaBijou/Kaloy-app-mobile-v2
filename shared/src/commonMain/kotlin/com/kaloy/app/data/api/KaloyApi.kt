@@ -1,5 +1,6 @@
 package com.kaloy.app.data.api
 
+import com.kaloy.app.core.network.BASE_URL
 import com.kaloy.app.data.model.*
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -10,17 +11,10 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
-/**
- * Client API pour communiquer avec le backend Mozika.
- * 
- * L'URL de base est configurable. Sur un émulateur Android,
- * utiliser 10.0.2.2 au lieu de localhost.
- */
 class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
 
     companion object {
-        // Pour émulateur Android : 10.0.2.2 redirige vers localhost du PC
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:8087/mozika"
+        val DEFAULT_BASE_URL = BASE_URL
     }
 
     private val json = Json {
