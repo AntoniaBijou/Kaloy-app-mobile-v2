@@ -282,7 +282,7 @@ data class HomeScreen(
                                             Column(
                                                 modifier = Modifier
                                                     .width(110.dp)
-                                                    .clickable { /* TODO: navigation chanson */ },
+                                                    .clickable { navigateur.push(com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager(chanson.id)) },
                                                 horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
                                                 Box(
@@ -382,7 +382,7 @@ data class HomeScreen(
                                     items(modeleVue.albums) { album ->
                                         AlbumCard(
                                             album = album,
-                                            onClick = { /* TODO: navigation album */ }
+                                            onClick = { navigateur.push(com.kaloy.app.presentation.album.EcranDetailAlbumVoyager(album.id)) }
                                         )
                                     }
                                 }
@@ -402,7 +402,7 @@ data class HomeScreen(
                                 SongRow(
                                     song = chanson,
                                     index = index,
-                                    onClick = { /* TODO: navigation chanson */ }
+                                    onClick = { navigateur.push(com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager(chanson.id)) }
                                 )
                                 if (index < modeleVue.chansons.size - 1) {
                                     HorizontalDivider(

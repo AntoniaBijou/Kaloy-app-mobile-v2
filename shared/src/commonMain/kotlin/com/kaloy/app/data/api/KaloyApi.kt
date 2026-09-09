@@ -92,6 +92,14 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return client.get("$apiBaseUrl/albums/$id").body()
     }
 
+    suspend fun getAlbumSongs(albumId: Long, page: Int = 0, size: Int = 20): RestResponse<PageResponse<Song>> {
+        return client.get("$apiBaseUrl/albums/$albumId/songs") {
+            parameter("page", page)
+            parameter("size", size)
+        }.body()
+    }
+
+
     // ============================================================
     // Songs
     // ============================================================
