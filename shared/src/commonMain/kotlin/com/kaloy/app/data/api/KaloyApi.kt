@@ -86,6 +86,13 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return client.get("$apiBaseUrl/albums/$id").body()
     }
 
+    suspend fun getAlbumSongs(albumId: Long, page: Int = 0, size: Int = 20): RestResponse<PageResponse<Song>> {
+        return client.get("$apiBaseUrl/albums/$albumId/songs") {
+            parameter("page", page)
+            parameter("size", size)
+        }.body()
+    }
+
     // ============================================================
     // Songs
     // ============================================================
@@ -148,6 +155,70 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
             parameter("page", page)
             parameter("size", size)
             setBody(query)
+        }.body()
+    }
+
+    suspend fun rechercherChansons(query: SongSearch, page: Int = 0, size: Int = 20): RestResponse<PageResponse<Song>> {
+        return client.post("$apiBaseUrl/songs/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            setBody(query)
+        }.body()
+    }
+
+    suspend fun rechercherAlbums(query: AlbumSearch, page: Int = 0, size: Int = 20): RestResponse<PageResponse<Album>> {
+        return client.post("$apiBaseUrl/albums/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            setBody(query)
+        }.body()
+    }
+
+    suspend fun rechercherGenres(query: GenreSearch, page: Int = 0, size: Int = 20): RestResponse<PageResponse<Genre>> {
+        return client.post("$apiBaseUrl/genres/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            setBody(query)
+        }.body()
+    }
+
+    /** Chansons rattachees a un genre, via la table de liaison song_genres. */
+    suspend fun chansonsParGenre(idGenre: Long, page: Int = 0, size: Int = 50): RestResponse<PageResponse<SongGenre>> {
+        return client.post("$apiBaseUrl/songgenres/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            setBody(SongGenreSearch(genre = GenreIdDto(idGenre)))
+        }.body()
+    }
+
+    // ============================================================
+    // Historique de recherche
+    // ============================================================
+
+    suspend fun getHistoriqueRecherche(idUtilisateur: Long, page: Int = 0, size: Int = 10): RestResponse<PageResponse<SearchHistory>> {
+        return client.post("$apiBaseUrl/searchhistorys/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            parameter("sortParam", "searchedAt,desc")
+            setBody(SearchHistorySearch(user = UserIdDto(idUtilisateur)))
+        }.body()
+    }
+
+    suspend fun creerHistoriqueRecherche(idUtilisateur: Long, texte: String, horodatage: String): RestResponse<SearchHistory> {
+        return client.post("$apiBaseUrl/searchhistorys") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                SearchHistoryCreate(
+                    user = UserIdDto(idUtilisateur),
+                    queryText = texte,
+                    searchedAt = horodatage
+                )
+            )
         }.body()
     }
 
@@ -266,5 +337,48 @@ data class ListeningHistorySearchDto(
 @kotlinx.serialization.Serializable
 data class UserIdDto(
     val id: Long
+)
+
+// DTO de recherche pour POST /songs/search
+@kotlinx.serialization.Serializable
+data class SongSearch(
+    val title: String? = null
+)
+
+// DTO de recherche pour POST /albums/search
+@kotlinx.serialization.Serializable
+data class AlbumSearch(
+    val title: String? = null
+)
+
+// DTO de recherche pour POST /genres/search
+@kotlinx.serialization.Serializable
+data class GenreSearch(
+    val name: String? = null
+)
+
+// DTO de recherche pour POST /songgenres/search
+@kotlinx.serialization.Serializable
+data class SongGenreSearch(
+    @kotlinx.serialization.SerialName("genreidGenres") val genre: GenreIdDto? = null
+)
+
+@kotlinx.serialization.Serializable
+data class GenreIdDto(
+    val id: Long
+)
+
+// DTO de recherche pour POST /searchhistorys/search
+@kotlinx.serialization.Serializable
+data class SearchHistorySearch(
+    @kotlinx.serialization.SerialName("useridUsers") val user: UserIdDto? = null
+)
+
+// DTO de creation pour POST /searchhistorys
+@kotlinx.serialization.Serializable
+data class SearchHistoryCreate(
+    @kotlinx.serialization.SerialName("useridUsers") val user: UserIdDto? = null,
+    @kotlinx.serialization.SerialName("queryText") val queryText: String,
+    @kotlinx.serialization.SerialName("searchedAt") val searchedAt: String
 )
 

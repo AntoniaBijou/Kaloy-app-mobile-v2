@@ -4,6 +4,7 @@ import com.kaloy.app.core.network.createHttpClient
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.repository.AuthRepository
 import com.kaloy.app.data.repository.AuthRepositoryImpl
+import com.kaloy.app.data.repository.HistoriqueRechercheRepository
 import com.kaloy.app.data.repository.LecteurRepository
 import com.kaloy.app.data.repository.LecteurRepositoryImpl
 import com.kaloy.app.data.repository.MeRepository
@@ -18,4 +19,5 @@ val appModule = module {
     single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
     single<MeRepository> { MeRepositoryImpl(get(), get()) }
     single<LecteurRepository> { LecteurRepositoryImpl(get(), get()) }
+    single { HistoriqueRechercheRepository(get(), get()) }
 }
