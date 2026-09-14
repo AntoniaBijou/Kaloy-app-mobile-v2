@@ -247,7 +247,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                 items(modeleVue.albums) { album ->
                                     AlbumCard(
                                         album = album,
-                                        onClick = { navigateur.push(com.kaloy.app.presentation.album.EcranDetailAlbumVoyager(album.id)) }
+                                        onClick = { /* TODO: navigation album */ }
                                     )
                                 }
                             }
@@ -267,7 +267,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                             SongRow(
                                 song = chanson,
                                 index = index,
-                                onClick = { navigateur.push(com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager(chanson.id)) }
+                                onClick = { /* TODO: navigation chanson */ }
                             )
                             if (index < modeleVue.chansons.size - 1) {
                                 HorizontalDivider(

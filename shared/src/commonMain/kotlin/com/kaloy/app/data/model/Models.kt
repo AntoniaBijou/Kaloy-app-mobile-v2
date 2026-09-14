@@ -372,3 +372,34 @@ data class NotificationPreference(
     @SerialName("notificationtypeidNotificationTypes") val notificationType: NotificationType? = null,
     @SerialName("isEnabled") val isEnabled: Boolean = true
 )
+
+// ============================================================
+// Réponse du lecteur : métadonnées + URLs presignées MinIO
+// ============================================================
+
+@Serializable
+data class SongPlayerResponse(
+    val id: Long = 0,
+    val title: String = "",
+    val durationSeconds: Int? = null,
+    val language: String = "fr",
+    val releaseDate: String? = null,
+    val isDownloadable: Boolean = true,
+    val lyrics: String? = null,
+    val lyricsSyncData: String? = null,
+    val authorComposer: String? = null,
+    val musicalArranger: String? = null,
+    val artistId: Long = 0,
+    val artistStageName: String = "",
+    val artistPhotoUrl: String? = null,
+    val artistIsCertified: Boolean = false,
+    val albumId: Long? = null,
+    val albumTitle: String? = null,
+    val albumCoverUrl: String? = null,
+    val albumReleaseDate: String? = null,
+    val audioStreamUrl: String? = null,
+    val videoStreamUrl: String? = null,
+    val karaokeStreamUrl: String? = null,
+    val playbackStreamUrl: String? = null,
+    val solfaUrl: String? = null
+)
