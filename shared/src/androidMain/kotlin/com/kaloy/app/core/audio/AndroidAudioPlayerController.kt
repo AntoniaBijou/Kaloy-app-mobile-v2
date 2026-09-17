@@ -3,7 +3,9 @@ package com.kaloy.app.core.audio
 import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,18 +27,24 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    private val player: ExoPlayer = ExoPlayer.Builder(context).build().also { p ->
-        p.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                _isPlaying.value = isPlaying
-            }
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) {
-                    _durationMs.value = p.duration.coerceAtLeast(0L)
+    private val dataSourceFactory = DefaultHttpDataSource.Factory()
+        .setDefaultRequestProperties(mapOf("bypass-tunnel-reminder" to "true"))
+
+    private val player: ExoPlayer = ExoPlayer.Builder(context)
+        .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+        .build()
+        .also { p ->
+            p.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    _isPlaying.value = isPlaying
                 }
-            }
-        })
-    }
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        _durationMs.value = p.duration.coerceAtLeast(0L)
+                    }
+                }
+            })
+        }
 
     init {
         scope.launch {
