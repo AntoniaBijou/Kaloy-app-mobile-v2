@@ -48,6 +48,8 @@ data class LecteurScreen(val songId: Long) : Screen {
         val isPlaying by viewModel.isPlaying.collectAsState()
         val currentPositionMs by viewModel.currentPositionMs.collectAsState()
         val durationMs by viewModel.durationMs.collectAsState()
+        val errorMessage by viewModel.errorMessage.collectAsState()
+        val statusMessage by viewModel.statusMessage.collectAsState()
         val modeEcoute by viewModel.modeEcoute.collectAsState()
 
         DisposableEffect(songId) {
@@ -109,6 +111,8 @@ data class LecteurScreen(val songId: Long) : Screen {
                         isPlaying = isPlaying,
                         currentPositionMs = currentPositionMs,
                         durationMs = durationMs,
+                        errorMessage = errorMessage,
+                        statusMessage = statusMessage,
                         modeEcoute = modeEcoute,
                         onRetour = { navigateur.pop() },
                         onTogglePlay = { viewModel.togglePlayPause() },
@@ -127,6 +131,8 @@ private fun LecteurContenu(
     isPlaying: Boolean,
     currentPositionMs: Long,
     durationMs: Long,
+    errorMessage: String?,
+    statusMessage: String,
     modeEcoute: ModeEcoute,
     onRetour: () -> Unit,
     onTogglePlay: () -> Unit,
@@ -221,6 +227,7 @@ private fun LecteurContenu(
             Slider(
                 value = progress,
                 onValueChange = { onSeek((it * durationMs).toLong()) },
+                onValueChangeFinished = { },
                 modifier = Modifier.fillMaxWidth(),
                 colors = SliderDefaults.colors(
                     thumbColor = KaloyPurple,
@@ -235,6 +242,22 @@ private fun LecteurContenu(
                 Text(text = formatDuree(currentPositionMs), color = KaloyTextMuted, fontSize = 12.sp)
                 Text(text = formatDuree(durationMs), color = KaloyTextMuted, fontSize = 12.sp)
             }
+
+            if (errorMessage != null) {
+                Text(
+                    text = "Lecture impossible: $errorMessage",
+                    color = KaloyRed,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                )
+            }
+
+            Text(
+                text = statusMessage,
+                color = KaloyTextMuted,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
 
             Spacer(Modifier.height(20.dp))
 

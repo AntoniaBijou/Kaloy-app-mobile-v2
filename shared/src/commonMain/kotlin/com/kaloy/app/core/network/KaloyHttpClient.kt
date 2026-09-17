@@ -7,8 +7,8 @@ import io.ktor.client.plugins.logging.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
-// Téléphone physique (WiFi local — même réseau que le PC)
-const val BASE_URL = "http://192.168.1.129:8087/mozika"
+// Téléphone physique : adresse IPv4 Wi-Fi du PC
+const val BASE_URL = "http://172.16.0.26:8087/mozika"
 // Émulateur Android  → "http://10.0.2.2:8087/mozika"
 // LocalTunnel        → "https://<subdomain>.loca.lt/mozika"
 
