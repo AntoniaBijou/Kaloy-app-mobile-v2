@@ -2,6 +2,7 @@ package com.kaloy.app.data.api
 
 import com.kaloy.app.core.network.BASE_URL
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.core.util.maintenantIso
 import com.kaloy.app.data.model.*
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -259,8 +260,15 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         }.body()
     }
 
-    suspend fun deleteFollow(id: Long): RestResponse<Any> {
-        return client.delete("$apiBaseUrl/follows/$id").body()
+    // Volontairement sans deserialisation : RestResponse<Any> n'est pas
+    // serialisable, et tenter de lire le corps levait une exception APRES que
+    // le serveur avait supprime la ligne. L'ecran revenait alors a « Suivi »
+    // alors que le desabonnement avait bien eu lieu. On se fie au statut HTTP.
+    suspend fun deleteFollow(id: Long) {
+        val reponse = client.delete("$apiBaseUrl/follows/$id")
+        if (!reponse.status.isSuccess()) {
+            throw IllegalStateException("Echec du desabonnement (${reponse.status.value})")
+        }
     }
 
     // --- Sprint 3 : follow / unfollow depuis la fiche artiste ---
@@ -286,15 +294,26 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
     // l'objet Follow complet : le backend valide l'entité et un Artist partiel
     // ferait échouer la création.
     suspend fun creerFollow(idUtilisateur: Long, idArtiste: Long): RestResponse<Follow> {
-        return client.post("$apiBaseUrl/follows") {
+        val reponse: RestResponse<Follow> = client.post("$apiBaseUrl/follows") {
             contentType(ContentType.Application.Json)
             setBody(
                 FollowCreate(
                     clientUser = UserIdDto(idUtilisateur),
-                    artist = ArtistIdDto(idArtiste)
+                    artist = ArtistIdDto(idArtiste),
+                    // Le backend refuse la creation sans createdAt
+                    // (« Validation failed : CreatedAt cannot be null »).
+                    createdAt = maintenantIso()
                 )
             )
         }.body()
+
+        // expectSuccess est a false : une 400 ne leve pas d'exception et se
+        // deserialise dans la meme enveloppe. Sans ce controle, l'ecran
+        // afficherait « Suivi » alors que rien n'a ete enregistre.
+        if (reponse.status !in 200..299) {
+            throw IllegalStateException("Echec de l'abonnement (${reponse.status}) : ${reponse.message}")
+        }
+        return reponse
     }
 
     // ============================================================
@@ -447,7 +466,8 @@ data class FollowSearch(
 @kotlinx.serialization.Serializable
 data class FollowCreate(
     @kotlinx.serialization.SerialName("clientuseridUsers") val clientUser: UserIdDto,
-    @kotlinx.serialization.SerialName("artistidArtists") val artist: ArtistIdDto
+    @kotlinx.serialization.SerialName("artistidArtists") val artist: ArtistIdDto,
+    @kotlinx.serialization.SerialName("createdAt") val createdAt: String
 )
 
 @kotlinx.serialization.Serializable

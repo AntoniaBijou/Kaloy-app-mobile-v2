@@ -231,7 +231,10 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(280.dp)
+                                // 360dp et non 280 : l'en-tete doit loger le bouton
+                                // retour, le bloc avatar/nom ET le bouton d'abonnement.
+                                // A 280dp ce dernier debordait et restait invisible.
+                                .height(360.dp)
                                 .background(
                                     Brush.verticalGradient(
                                         colors = listOf(
