@@ -38,6 +38,10 @@ import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
+import com.kaloy.app.presentation.queue.MiniPlayer
+import com.kaloy.app.presentation.queue.UpNextSheet
+import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -126,6 +130,12 @@ data class HomeScreen(
         val gestionSession = koinInject<AuthSessionManager>()
         val nomAffiche = if (isVisitor) username else gestionSession.getDisplayName().ifBlank { username }
         val modeleVue: AccueilViewModel = viewModel { AccueilViewModel() }
+        val fileAttente = koinInject<QueueManager>()
+        val lecteurAudio = koinInject<AudioPlayerController>()
+        val chansonCourante by fileAttente.currentSong.collectAsState()
+        val chansonsSuivantes by fileAttente.upNext.collectAsState()
+        val lectureActive by lecteurAudio.isPlaying.collectAsState()
+        var afficherFile by remember { mutableStateOf(false) }
 
         // Onglet sélectionné dans la barre de navigation
         var ongletSelectionne by remember { mutableStateOf(0) }
@@ -139,7 +149,19 @@ data class HomeScreen(
         Scaffold(
             bottomBar = {
                 if (!isVisitor) {
-                    NavigationBar(containerColor = KaloyDarkSurface) {
+                    Column {
+                        chansonCourante?.let { chanson ->
+                            MiniPlayer(
+                                song = chanson,
+                                isPlaying = lectureActive,
+                                onClick = { navigateur.push(LecteurScreen(chanson.id)) },
+                                onTogglePlay = {
+                                    if (lectureActive) lecteurAudio.pause() else lecteurAudio.resume()
+                                },
+                                onQueueClick = { afficherFile = true }
+                            )
+                        }
+                        NavigationBar(containerColor = KaloyDarkSurface) {
                         NavigationBarItem(
                             selected = ongletSelectionne == 0,
                             onClick = { ongletSelectionne = 0 },
@@ -187,6 +209,7 @@ data class HomeScreen(
                                 unselectedTextColor = KaloyTextMuted
                             )
                         )
+                        }
                     }
                 }
             },
@@ -403,7 +426,19 @@ data class HomeScreen(
                                 SongRow(
                                     song = chanson,
                                     index = index,
-                                    onClick = { navigateur.push(LecteurScreen(songId = chanson.id)) }
+                                    onClick = {
+                                        fileAttente.playNow(chanson)
+                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                    },
+                                    onMoreClick = {
+                                        fileAttente.playNow(chanson)
+                                    },
+                                    onPlayNow = {
+                                        fileAttente.playNow(chanson)
+                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                    },
+                                    onAddNext = { fileAttente.addNext(chanson) },
+                                    onAddToQueue = { fileAttente.addToQueue(chanson) }
                                 )
                                 if (index < modeleVue.chansons.size - 1) {
                                     HorizontalDivider(
@@ -438,6 +473,20 @@ data class HomeScreen(
                     }
                 }
             }
+        }
+        if (afficherFile) {
+            UpNextSheet(
+                currentSong = chansonCourante,
+                songs = chansonsSuivantes,
+                onDismiss = { afficherFile = false },
+                onPlay = { chanson ->
+                    fileAttente.playFromQueue(chanson)
+                    afficherFile = false
+                    navigateur.push(LecteurScreen(chanson.id))
+                },
+                onRemove = fileAttente::remove,
+                onClear = fileAttente::clear
+            )
         }
     }
 }
