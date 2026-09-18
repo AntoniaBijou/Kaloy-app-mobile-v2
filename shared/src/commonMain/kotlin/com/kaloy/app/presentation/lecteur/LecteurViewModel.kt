@@ -1,6 +1,7 @@
 package com.kaloy.app.presentation.lecteur
 
 import com.kaloy.app.core.audio.AudioPlayerController
+import com.kaloy.app.core.audio.MediaMetadata
 import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.data.repository.LecteurRepository
 import kotlinx.coroutines.CoroutineScope
@@ -17,7 +18,7 @@ sealed class LecteurUiState {
     data class Error(val message: String) : LecteurUiState()
 }
 
-enum class ModeEcoute { AUDIO, KARAOKE, PLAYBACK }
+enum class ModeEcoute { AUDIO, VIDEO, KARAOKE, PLAYBACK }
 
 class LecteurViewModel(
     private val repository: LecteurRepository,
@@ -34,6 +35,8 @@ class LecteurViewModel(
     val isPlaying: StateFlow<Boolean> = audioPlayer.isPlaying
     val currentPositionMs: StateFlow<Long> = audioPlayer.currentPositionMs
     val durationMs: StateFlow<Long> = audioPlayer.durationMs
+    val errorMessage: StateFlow<String?> = audioPlayer.errorMessage
+    val statusMessage: StateFlow<String> = audioPlayer.statusMessage
 
     fun charger(songId: Long) {
         scope.launch {
@@ -57,6 +60,7 @@ class LecteurViewModel(
     }
 
     fun changerMode(mode: ModeEcoute) {
+        if (mode == _modeEcoute.value) return
         val currentSong = (_uiState.value as? LecteurUiState.Success)?.song ?: return
         _modeEcoute.value = mode
         lancerLecture(currentSong, mode)
@@ -64,11 +68,24 @@ class LecteurViewModel(
 
     private fun lancerLecture(song: SongPlayerResponse, mode: ModeEcoute) {
         val url = when (mode) {
-            ModeEcoute.AUDIO -> song.audioStreamUrl
-            ModeEcoute.KARAOKE -> song.karaokeStreamUrl ?: song.audioStreamUrl
+            ModeEcoute.AUDIO    -> song.audioStreamUrl
+            ModeEcoute.VIDEO    -> null  // YouTube géré par WebView
+            ModeEcoute.KARAOKE  -> null  // Vidéo MP4 géré par ExoVideoPlayerComposable
             ModeEcoute.PLAYBACK -> song.playbackStreamUrl ?: song.audioStreamUrl
         }
-        url?.let { audioPlayer.play(it) }
+        if (url != null) {
+            audioPlayer.play(
+                url,
+                MediaMetadata(
+                    title = song.title,
+                    artist = song.artistStageName,
+                    artworkUrl = song.albumCoverUrl ?: song.artistPhotoUrl,
+                    durationMs = (song.durationSeconds ?: 0) * 1000L
+                )
+            )
+        } else {
+            audioPlayer.pause()
+        }
     }
 
     fun dispose() {

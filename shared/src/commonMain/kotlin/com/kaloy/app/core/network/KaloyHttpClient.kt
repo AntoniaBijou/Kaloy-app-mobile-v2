@@ -7,10 +7,10 @@ import io.ktor.client.plugins.logging.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
-// Émulateur Android  → BASE_URL = "http://10.0.2.2:8087/mozika"
-const val BASE_URL = "https://latch-tummy-unfrosted.ngrok-free.dev/mozika"
-// Téléphone physique → BASE_URL = "http://192.168.88.15:8087/mozika"
-// const val BASE_URL = "http://192.168.88.15:8087/mozika"
+// Téléphone physique : adresse IPv4 Wi-Fi du PC
+const val BASE_URL = "http://172.16.0.26:8087/mozika"
+// Émulateur Android  → "http://10.0.2.2:8087/mozika"
+// LocalTunnel        → "https://<subdomain>.loca.lt/mozika"
 
 fun createHttpClient(sessionManager: AuthSessionManager): HttpClient = HttpClient {
     expectSuccess = false
