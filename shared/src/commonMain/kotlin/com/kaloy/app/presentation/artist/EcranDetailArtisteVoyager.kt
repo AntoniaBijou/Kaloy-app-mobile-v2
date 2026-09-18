@@ -23,11 +23,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.data.api.ArtistIdDto
+import com.kaloy.app.data.api.FollowSearch
 import com.kaloy.app.data.api.KaloyApi
+import com.kaloy.app.data.api.UserIdDto
 import com.kaloy.app.data.model.*
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
+import org.koin.mp.KoinPlatform
 
 // ============================================================
 // ViewModel détail artiste (variables en français)
@@ -35,6 +40,7 @@ import kotlinx.coroutines.launch
 
 class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
     private val api = KaloyApi()
+    private val gestionSession: AuthSessionManager = KoinPlatform.getKoin().get()
 
     var artiste by mutableStateOf<Artist?>(null)
         private set
@@ -48,6 +54,20 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
         private set
     var erreur by mutableStateOf<String?>(null)
         private set
+
+    // --- Sprint 3 : follow / unfollow ---
+    var estAbonne by mutableStateOf(false)
+        private set
+    var nombreAbonnes by mutableStateOf(0L)
+        private set
+    var basculeEnCours by mutableStateOf(false)
+        private set
+
+    // Id du follow existant, nécessaire pour le DELETE. Null si on ne suit pas.
+    private var idFollow: Long? = null
+
+    /** Un visiteur non connecté ne peut pas suivre : on masque le bouton. */
+    val peutSuivre: Boolean get() = gestionSession.isLoggedIn()
 
     init {
         chargerArtiste()
@@ -66,10 +86,95 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
 
                 val resultatChansons = try { api.getArtistSongs(idArtiste, size = 30) } catch (_: Exception) { null }
                 chansons = resultatChansons?.data?.content ?: emptyList()
+
+                chargerEtatAbonnement()
             } catch (e: Exception) {
                 erreur = "Impossible de charger l'artiste: ${e.message}"
             } finally {
                 enChargement = false
+            }
+        }
+    }
+
+    /**
+     * Renseigne le compteur d'abonnés et, si l'utilisateur est connecte, indique
+     * s'il suit deja cet artiste. Les deux informations viennent du meme endpoint
+     * /follows/search, avec un filtre plus ou moins restrictif.
+     *
+     * Un echec ici ne doit pas faire echouer l'affichage de la fiche : on
+     * retombe silencieusement sur « non abonne, 0 abonne ».
+     */
+    private suspend fun chargerEtatAbonnement() {
+        // Compteur : on ne veut que le total, d'ou size = 1.
+        nombreAbonnes = try {
+            api.rechercherFollows(
+                FollowSearch(artist = ArtistIdDto(idArtiste)),
+                size = 1
+            ).data?.totalElements ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+
+        if (!peutSuivre) {
+            estAbonne = false
+            idFollow = null
+            return
+        }
+
+        val monFollow = try {
+            api.rechercherFollows(
+                FollowSearch(
+                    clientUser = UserIdDto(gestionSession.getUserId()),
+                    artist = ArtistIdDto(idArtiste)
+                ),
+                size = 1
+            ).data?.content?.firstOrNull()
+        } catch (_: Exception) {
+            null
+        }
+
+        idFollow = monFollow?.id
+        estAbonne = monFollow != null
+    }
+
+    /**
+     * Bascule l'abonnement. L'interface est mise a jour immediatement, puis
+     * remise dans son etat precedent si l'appel reseau echoue.
+     */
+    fun basculerAbonnement() {
+        if (!peutSuivre || basculeEnCours) return
+
+        viewModelScope.launch {
+            basculeEnCours = true
+
+            val etatPrecedent = estAbonne
+            val followPrecedent = idFollow
+            val comptePrecedent = nombreAbonnes
+
+            // Mise a jour optimiste
+            estAbonne = !etatPrecedent
+            nombreAbonnes = if (etatPrecedent) (comptePrecedent - 1).coerceAtLeast(0) else comptePrecedent + 1
+
+            try {
+                if (etatPrecedent) {
+                    val aSupprimer = followPrecedent
+                        ?: throw IllegalStateException("Abonnement introuvable")
+                    api.deleteFollow(aSupprimer)
+                    idFollow = null
+                } else {
+                    val cree = api.creerFollow(
+                        idUtilisateur = gestionSession.getUserId(),
+                        idArtiste = idArtiste
+                    )
+                    idFollow = cree.data?.id
+                }
+            } catch (_: Exception) {
+                // Retour a l'etat d'avant le clic
+                estAbonne = etatPrecedent
+                idFollow = followPrecedent
+                nombreAbonnes = comptePrecedent
+            } finally {
+                basculeEnCours = false
             }
         }
     }
@@ -208,6 +313,17 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                         }
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // ---- Abonnement (Sprint 3) ----
+                                BoutonAbonnement(
+                                    estAbonne = modeleVue.estAbonne,
+                                    nombreAbonnes = modeleVue.nombreAbonnes,
+                                    peutSuivre = modeleVue.peutSuivre,
+                                    enCours = modeleVue.basculeEnCours,
+                                    onClick = { modeleVue.basculerAbonnement() }
+                                )
                             }
                         }
                     }
@@ -282,6 +398,66 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                     item {
                         Spacer(modifier = Modifier.height(80.dp))
                     }
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
+// Bouton d'abonnement + compteur (Sprint 3)
+// ============================================================
+
+@Composable
+private fun BoutonAbonnement(
+    estAbonne: Boolean,
+    nombreAbonnes: Long,
+    peutSuivre: Boolean,
+    enCours: Boolean,
+    onClick: () -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // Le compteur reste visible meme pour un visiteur non connecte.
+        Column {
+            Text(
+                text = "$nombreAbonnes",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = if (nombreAbonnes > 1) "abonnés" else "abonné",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.6f)
+            )
+        }
+
+        if (peutSuivre) {
+            Spacer(modifier = Modifier.width(20.dp))
+
+            Button(
+                onClick = onClick,
+                enabled = !enCours,
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(
+                    // Abonne : bouton discret. Non abonne : appel a l'action.
+                    containerColor = if (estAbonne) Color.White.copy(alpha = 0.15f) else Color.White,
+                    contentColor = if (estAbonne) Color.White else KaloyPurple,
+                    disabledContainerColor = Color.White.copy(alpha = 0.15f),
+                    disabledContentColor = Color.White.copy(alpha = 0.5f)
+                )
+            ) {
+                if (enCours) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                } else {
+                    Text(
+                        text = if (estAbonne) "Suivi ✓" else "Suivre",
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }

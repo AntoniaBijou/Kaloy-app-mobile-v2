@@ -1,15 +1,18 @@
 package com.kaloy.app.data.api
 
 import com.kaloy.app.core.network.BASE_URL
+import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.model.*
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
+import org.koin.mp.KoinPlatform
 
 class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
 
@@ -24,12 +27,28 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         encodeDefaults = true
     }
 
+    // Le backend n'ouvre que /auth/** : toute autre route exige un jeton JWT.
+    // On le relit à chaque requête plutôt que de le capturer à la construction,
+    // pour qu'une connexion ou une déconnexion soit prise en compte aussitôt.
+    private fun jetonCourant(): String? = try {
+        KoinPlatform.getKoin().get<AuthSessionManager>().getToken()
+    } catch (_: Exception) {
+        // Koin pas encore démarré (aperçus Compose, tests) : requête anonyme.
+        null
+    }
+
     private val client = HttpClient {
         install(ContentNegotiation) {
             json(this@KaloyApi.json)
         }
         install(Logging) {
             level = LogLevel.BODY
+        }
+        install(DefaultRequest) {
+            val jeton = jetonCourant()
+            if (!jeton.isNullOrBlank()) {
+                header(HttpHeaders.Authorization, "Bearer $jeton")
+            }
         }
     }
 
@@ -244,6 +263,40 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return client.delete("$apiBaseUrl/follows/$id").body()
     }
 
+    // --- Sprint 3 : follow / unfollow depuis la fiche artiste ---
+
+    // Sert à deux usages selon le filtre passé :
+    //  - artiste seul                → compter les abonnés (totalElements)
+    //  - artiste + utilisateur       → savoir si l'utilisateur suit déjà, et
+    //                                  récupérer l'id du follow pour le supprimer
+    suspend fun rechercherFollows(
+        requete: FollowSearch,
+        page: Int = 0,
+        size: Int = 1
+    ): RestResponse<PageResponse<Follow>> {
+        return client.post("$apiBaseUrl/follows/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            setBody(requete)
+        }.body()
+    }
+
+    // On envoie volontairement un corps minimal (deux identifiants) plutôt que
+    // l'objet Follow complet : le backend valide l'entité et un Artist partiel
+    // ferait échouer la création.
+    suspend fun creerFollow(idUtilisateur: Long, idArtiste: Long): RestResponse<Follow> {
+        return client.post("$apiBaseUrl/follows") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                FollowCreate(
+                    clientUser = UserIdDto(idUtilisateur),
+                    artist = ArtistIdDto(idArtiste)
+                )
+            )
+        }.body()
+    }
+
     // ============================================================
     // Comments
     // ============================================================
@@ -382,3 +435,22 @@ data class SearchHistoryCreate(
     @kotlinx.serialization.SerialName("searchedAt") val searchedAt: String
 )
 
+
+// DTO de recherche pour POST /follows/search (Sprint 3)
+@kotlinx.serialization.Serializable
+data class FollowSearch(
+    @kotlinx.serialization.SerialName("clientuseridUsers") val clientUser: UserIdDto? = null,
+    @kotlinx.serialization.SerialName("artistidArtists") val artist: ArtistIdDto? = null
+)
+
+// DTO de creation pour POST /follows (Sprint 3)
+@kotlinx.serialization.Serializable
+data class FollowCreate(
+    @kotlinx.serialization.SerialName("clientuseridUsers") val clientUser: UserIdDto,
+    @kotlinx.serialization.SerialName("artistidArtists") val artist: ArtistIdDto
+)
+
+@kotlinx.serialization.Serializable
+data class ArtistIdDto(
+    val id: Long
+)
