@@ -23,7 +23,22 @@ data class PageResponse<T>(
     val size: Int = 0,
     val first: Boolean = true,
     val last: Boolean = true,
-    val empty: Boolean = true
+    val empty: Boolean = true,
+    // Le backend (Spring Data, PagedModel) range les totaux dans un sous-objet
+    // « page » et non a la racine : { "content": [...], "page": { "totalElements": 4 } }.
+    // Sans ce champ, totalElements restait a 0 et tous les compteurs etaient faux.
+    val page: PageMeta? = null
+) {
+    /** Nombre total d'elements, quelle que soit la forme de la reponse. */
+    val nombreTotal: Long get() = page?.totalElements ?: totalElements
+}
+
+@Serializable
+data class PageMeta(
+    val size: Int = 0,
+    val number: Int = 0,
+    val totalElements: Long = 0,
+    val totalPages: Int = 0
 )
 
 // ============================================================
@@ -227,6 +242,17 @@ data class Venue(
     val id: Long = 0,
     val name: String = "",
     val location: String? = null
+)
+
+// Media (photo ou video) publie apres un evenement — galerie post-evenement.
+@Serializable
+data class EventMedia(
+    val id: Long = 0,
+    @SerialName("eventidEvents") val event: Event? = null,
+    @SerialName("uploaderuseridUsers") val uploader: User? = null,
+    @SerialName("mediatypeidMediaTypes") val mediaType: MediaType? = null,
+    val url: String = "",
+    @SerialName("createdAt") val createdAt: String? = null
 )
 
 @Serializable
