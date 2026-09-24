@@ -25,6 +25,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Expose a l'application Appareil photo le fichier ou ecrire la prise
+             de vue. Sans lui, Android refuse de partager un chemin interne. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <service
             android:name="com.kaloy.app.core.audio.KaloyMediaSessionService"
             android:exported="true"

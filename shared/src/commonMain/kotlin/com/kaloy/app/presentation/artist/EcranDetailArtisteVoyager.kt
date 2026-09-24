@@ -1,6 +1,7 @@
 package com.kaloy.app.presentation.artist
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,12 +25,16 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.core.util.maintenantIso
 import com.kaloy.app.data.api.ArtistIdDto
+import com.kaloy.app.data.api.ConcertSearch
+import com.kaloy.app.data.api.StatutParticipationIdDto
 import com.kaloy.app.data.api.FollowSearch
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.api.UserIdDto
 import com.kaloy.app.data.model.*
 import com.kaloy.app.ui.components.*
+import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
 import org.koin.mp.KoinPlatform
@@ -66,6 +71,12 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
     // Id du follow existant, nécessaire pour le DELETE. Null si on ne suit pas.
     private var idFollow: Long? = null
 
+    // --- Sprint 4 : calendrier (concerts confirmes de l'artiste) ---
+    var concertsAVenir by mutableStateOf<List<Concert>>(emptyList())
+        private set
+    var concertsPasses by mutableStateOf<List<Concert>>(emptyList())
+        private set
+
     /** Un visiteur non connecté ne peut pas suivre : on masque le bouton. */
     val peutSuivre: Boolean get() = gestionSession.isLoggedIn()
 
@@ -88,11 +99,66 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
                 chansons = resultatChansons?.data?.content ?: emptyList()
 
                 chargerEtatAbonnement()
+                chargerConcerts()
             } catch (e: Exception) {
                 erreur = "Impossible de charger l'artiste: ${e.message}"
             } finally {
                 enChargement = false
             }
+        }
+    }
+
+    /**
+     * Calendrier de l'artiste (Sprint 4).
+     *
+     * Un concert est le creneau d'un artiste dans un evenement, et porte aussi
+     * le statut de sa participation. On ne montre donc que les CONFIRMED : un
+     * PENDING est une invitation non repondue, un DECLINED un refus.
+     *
+     * Le decoupage passe / a venir se fait en deux appels bornes sur
+     * startTimeMin / startTimeMax, plutot qu'en rapatriant tout pour trier ici.
+     * Un echec reste silencieux : le calendrier est secondaire sur cette fiche.
+     */
+    private suspend fun chargerConcerts() {
+        // L'id de CONFIRMED est lu depuis la table de reference plutot que code
+        // en dur : rien ne garantit l'ordre des insertions en base.
+        val idConfirme = try {
+            api.getStatutsParticipation().data?.content
+                ?.firstOrNull { it.name == STATUT_CONFIRME }?.id
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        val maintenant = maintenantIso()
+
+        concertsAVenir = try {
+            api.rechercherConcerts(
+                ConcertSearch(
+                    artist = ArtistIdDto(idArtiste),
+                    statut = StatutParticipationIdDto(idConfirme),
+                    debutMin = maintenant
+                ),
+                size = 20,
+                sortParam = "startTime,asc"
+            ).data?.content ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        concertsPasses = try {
+            api.rechercherConcerts(
+                ConcertSearch(
+                    artist = ArtistIdDto(idArtiste),
+                    statut = StatutParticipationIdDto(idConfirme),
+                    debutMax = maintenant
+                ),
+                size = 20,
+                // Les plus recents d'abord : un concert d'il y a un mois
+                // interesse davantage qu'un concert d'il y a trois ans.
+                sortParam = "startTime,desc"
+            ).data?.content ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
@@ -110,7 +176,7 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
             api.rechercherFollows(
                 FollowSearch(artist = ArtistIdDto(idArtiste)),
                 size = 1
-            ).data?.totalElements ?: 0L
+            ).data?.nombreTotal ?: 0L
         } catch (_: Exception) {
             0L
         }
@@ -177,6 +243,10 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
                 basculeEnCours = false
             }
         }
+    }
+
+    companion object {
+        private const val STATUT_CONFIRME = "CONFIRMED"
     }
 }
 
@@ -397,6 +467,41 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         }
                     }
 
+                    // ---- Calendrier : concerts confirmés (Sprint 4) ----
+                    if (modeleVue.concertsAVenir.isNotEmpty()) {
+                        item {
+                            SectionHeader(title = "📅 Concerts à venir (${modeleVue.concertsAVenir.size})")
+                        }
+                        items(modeleVue.concertsAVenir, key = { it.id }) { concert ->
+                            LigneConcert(
+                                concert = concert,
+                                estAVenir = true,
+                                onClick = {
+                                    concert.event?.let {
+                                        navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    if (modeleVue.concertsPasses.isNotEmpty()) {
+                        item {
+                            SectionHeader(title = "🕘 Concerts passés (${modeleVue.concertsPasses.size})")
+                        }
+                        items(modeleVue.concertsPasses, key = { it.id }) { concert ->
+                            LigneConcert(
+                                concert = concert,
+                                estAVenir = false,
+                                onClick = {
+                                    concert.event?.let {
+                                        navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
+                                    }
+                                }
+                            )
+                        }
+                    }
+
                     // Espacement en bas
                     item {
                         Spacer(modifier = Modifier.height(80.dp))
@@ -465,4 +570,96 @@ private fun BoutonAbonnement(
             }
         }
     }
+}
+
+// ============================================================
+// Ligne de concert du calendrier (Sprint 4)
+// ============================================================
+
+@Composable
+private fun LigneConcert(
+    concert: Concert,
+    estAVenir: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Pastille de date : les concerts a venir ressortent en violet, les
+        // passes restent en gris pour ne pas attirer l'oeil inutilement.
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (estAVenir) {
+                        Brush.linearGradient(listOf(KaloyPurple, KaloyPink))
+                    } else {
+                        Brush.linearGradient(listOf(KaloyDarkElevated, KaloyDarkCard))
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            val (jour, mois) = jourEtMois(concert.startTime)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = jour,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (estAVenir) Color.White else KaloyTextSecondary,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = mois,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (estAVenir) Color.White.copy(alpha = 0.8f) else KaloyTextMuted
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                // Le titre du concert est facultatif : on retombe alors sur le
+                // nom de l'evenement parent, toujours renseigne.
+                text = concert.title ?: concert.event?.name ?: "Concert",
+                style = MaterialTheme.typography.bodyMedium,
+                color = KaloyTextPrimary,
+                fontWeight = FontWeight.SemiBold
+            )
+            val lieu = concert.venue?.let { v ->
+                if (v.location.isNullOrBlank()) v.name else "${v.name} — ${v.location}"
+            }
+            if (!lieu.isNullOrBlank()) {
+                Text(
+                    text = "📍 $lieu",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = KaloyTextSecondary
+                )
+            }
+        }
+
+        Text("›", color = KaloyTextMuted, fontSize = 20.sp)
+    }
+}
+
+/**
+ * Extrait le jour et le mois abrege d'un horodatage ISO (« 2026-06-14T20:00 »).
+ * Renvoie des tirets si la date est absente ou mal formee, plutot que de
+ * laisser planter l'affichage.
+ */
+private fun jourEtMois(iso: String?): Pair<String, String> {
+    if (iso.isNullOrBlank()) return "--" to "---"
+    val morceaux = iso.substringBefore('T').split("-")
+    if (morceaux.size != 3) return "--" to "---"
+    val mois = listOf(
+        "JAN", "FÉV", "MAR", "AVR", "MAI", "JUIN",
+        "JUIL", "AOÛT", "SEP", "OCT", "NOV", "DÉC"
+    )
+    val indexMois = morceaux[1].toIntOrNull()?.minus(1) ?: return morceaux[2] to "---"
+    return morceaux[2] to (mois.getOrNull(indexMois) ?: "---")
 }
