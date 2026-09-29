@@ -34,6 +34,8 @@ import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.api.UserIdDto
 import com.kaloy.app.data.model.*
 import com.kaloy.app.ui.components.*
+import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
+import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -95,8 +97,15 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
                 val resultatAlbums = try { api.getArtistAlbums(idArtiste, size = 20) } catch (_: Exception) { null }
                 albums = resultatAlbums?.data?.content ?: emptyList()
 
-                val resultatChansons = try { api.getArtistSongs(idArtiste, size = 30) } catch (_: Exception) { null }
-                chansons = resultatChansons?.data?.content ?: emptyList()
+                // Seules les 5 chansons les plus ecoutees sont affichees, et
+                // c'est le serveur qui les classe : compter les ecoutes ici
+                // aurait demande une requete par chanson.
+                val resultatChansons = try {
+                    api.getTopChansonsArtiste(idArtiste, limite = NOMBRE_CHANSONS_AFFICHEES)
+                } catch (_: Exception) {
+                    null
+                }
+                chansons = resultatChansons?.data ?: emptyList()
 
                 chargerEtatAbonnement()
                 chargerConcerts()
@@ -247,6 +256,9 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
 
     companion object {
         private const val STATUT_CONFIRME = "CONFIRMED"
+
+        /** La fiche ne montre qu'un apercu, pas tout le catalogue. */
+        const val NOMBRE_CHANSONS_AFFICHEES = 5
     }
 }
 
@@ -436,7 +448,9 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                 items(modeleVue.albums) { album ->
                                     AlbumCard(
                                         album = album,
-                                        onClick = { /* TODO: navigation album */ }
+                                        onClick = {
+                                            navigateur.push(EcranDetailAlbumVoyager(idAlbum = album.id))
+                                        }
                                     )
                                 }
                             }
@@ -446,7 +460,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                     // ---- Chansons ----
                     if (modeleVue.chansons.isNotEmpty()) {
                         item {
-                            SectionHeader(title = "🎵 Chansons (${modeleVue.chansons.size})")
+                            SectionHeader(title = "🎵 Les plus écoutées")
                         }
                         items(
                             count = modeleVue.chansons.size,
@@ -456,7 +470,9 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                             SongRow(
                                 song = chanson,
                                 index = index,
-                                onClick = { /* TODO: navigation chanson */ }
+                                onClick = {
+                                    navigateur.push(EcranDetailChansonVoyager(chanson.id))
+                                }
                             )
                             if (index < modeleVue.chansons.size - 1) {
                                 HorizontalDivider(

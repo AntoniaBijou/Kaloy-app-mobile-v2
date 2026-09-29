@@ -14,6 +14,11 @@
         <domain includeSubdomains="false">192.168.88.15</domain>
         <domain includeSubdomains="false">localhost</domain>
         <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- Version 1.0 : adresse du PC sur le Wi-Fi -->
+        <!-- Conf ITC-->
+        <domain includeSubdomains="false">192.168.0.157</domain>
+        <!-- Fifaaaaa-->
+        <domain includeSubdomains="false">10.16.27.150</domain>
     </domain-config>
     
     <!-- Autoriser tous les certificats en développement -->

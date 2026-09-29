@@ -86,6 +86,22 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         }.body()
     }
 
+    /**
+     * Chansons les plus ecoutees d'un artiste, deja triees par le serveur.
+     *
+     * Le comptage des ecoutes est fait en base : le mobile ne recoit que la
+     * liste finale. Les chansons jamais ecoutees figurent quand meme, apres
+     * les autres, de la plus recente a la plus ancienne — la section n'est
+     * donc jamais vide, meme pour un artiste qui debute.
+     *
+     * La reponse est une liste, pas une page : il n'y a rien a paginer.
+     */
+    suspend fun getTopChansonsArtiste(artistId: Long, limite: Int = 5): RestResponse<List<Song>> {
+        return client.get("$apiBaseUrl/artists/$artistId/top-songs") {
+            parameter("limit", limite)
+        }.body()
+    }
+
     suspend fun getArtistFollows(artistId: Long, page: Int = 0, size: Int = 10): RestResponse<PageResponse<Follow>> {
         return client.get("$apiBaseUrl/artists/$artistId/follows") {
             parameter("page", page)
