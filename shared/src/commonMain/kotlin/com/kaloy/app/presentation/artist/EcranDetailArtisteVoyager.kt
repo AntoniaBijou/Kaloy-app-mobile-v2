@@ -35,7 +35,7 @@ import com.kaloy.app.data.api.UserIdDto
 import com.kaloy.app.data.model.*
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
-import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
+import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -471,7 +471,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                 song = chanson,
                                 index = index,
                                 onClick = {
-                                    navigateur.push(EcranDetailChansonVoyager(chanson.id))
+                                    navigateur.push(LecteurScreen(songId = chanson.id))
                                 }
                             )
                             if (index < modeleVue.chansons.size - 1) {

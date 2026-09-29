@@ -20,7 +20,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Song
-import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
+import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.ui.components.EmptyState
 import com.kaloy.app.ui.components.ErrorState
 import com.kaloy.app.ui.components.LoadingIndicator
@@ -132,7 +132,7 @@ data class EcranGenreVoyager(
                         SongRow(
                             song = chanson,
                             index = index,
-                            onClick = { navigateur.push(EcranDetailChansonVoyager(chanson.id)) }
+                            onClick = { navigateur.push(LecteurScreen(songId = chanson.id)) }
                         )
                     }
                     item { Spacer(modifier = Modifier.height(80.dp)) }
