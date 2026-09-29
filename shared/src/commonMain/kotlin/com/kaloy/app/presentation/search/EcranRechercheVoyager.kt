@@ -41,7 +41,7 @@ import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.repository.HistoriqueRechercheRepository
 import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
-import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
+import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.genre.EcranGenreVoyager
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
@@ -376,7 +376,7 @@ class EcranRechercheVoyager : Screen {
                         else -> ListeResultats(
                             modeleVue = modeleVue,
                             onArtiste = { ouvrir(EcranDetailArtisteVoyager(idArtiste = it.id)) },
-                            onChanson = { ouvrir(EcranDetailChansonVoyager(idChanson = it.id)) },
+                            onChanson = { ouvrir(LecteurScreen(songId = it.id)) },
                             onAlbum = { ouvrir(EcranDetailAlbumVoyager(idAlbum = it.id)) },
                             onGenre = { ouvrir(EcranGenreVoyager(idGenre = it.id, nomGenre = it.name)) }
                         )

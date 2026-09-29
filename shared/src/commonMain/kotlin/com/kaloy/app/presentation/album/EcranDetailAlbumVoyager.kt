@@ -24,7 +24,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Album
 import com.kaloy.app.data.model.Song
-import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
+import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.ui.components.ErrorState
 import com.kaloy.app.ui.components.LoadingIndicator
 import com.kaloy.app.ui.components.SectionHeader
@@ -203,7 +203,7 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
                                 song = chanson,
                                 index = index,
                                 onClick = { 
-                                    navigateur.push(EcranDetailChansonVoyager(chanson.id)) 
+                                    navigateur.push(LecteurScreen(songId = chanson.id))
                                 }
                             )
                             if (index < modeleVue.chansons.size - 1) {
