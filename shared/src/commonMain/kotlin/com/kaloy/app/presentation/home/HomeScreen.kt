@@ -79,7 +79,11 @@ class AccueilViewModel : ViewModel() {
             try {
                 val resultatArtistes = try { api.getArtists(size = 20) } catch (e: Exception) { null }
                 val resultatAlbums = try { api.getAlbums(size = 10) } catch (e: Exception) { null }
-                val resultatChansons = try { api.getSongs(size = 15) } catch (e: Exception) { null }
+                // Classement de la semaine, a la place de la liste brute des
+                // chansons : le serveur compte les ecoutes et renvoie le tri.
+                val resultatChansons = try {
+                    api.getClassement(jours = JOURS_CLASSEMENT, limite = TAILLE_CLASSEMENT)
+                } catch (e: Exception) { null }
                 val resultatPlaylists = try { api.getEditorialPlaylists(size = 10) } catch (e: Exception) { null }
 
                 // Simuler utilisateur ID = 1
@@ -92,7 +96,7 @@ class AccueilViewModel : ViewModel() {
 
                 artistes = resultatArtistes?.data?.content ?: emptyList()
                 albums = resultatAlbums?.data?.content ?: emptyList()
-                chansons = resultatChansons?.data?.content ?: emptyList()
+                chansons = resultatChansons?.data ?: emptyList()
                 playlistsEditoriales = resultatPlaylists?.data?.content ?: emptyList()
 
                 // Garder les chansons uniques dans l'historique
@@ -108,6 +112,12 @@ class AccueilViewModel : ViewModel() {
                 enChargement = false
             }
         }
+    }
+
+    companion object {
+        /** Fenetre glissante du classement : « la semaine » = 7 derniers jours. */
+        const val JOURS_CLASSEMENT = 7
+        const val TAILLE_CLASSEMENT = 10
     }
 }
 
@@ -393,7 +403,7 @@ data class HomeScreen(
                         // Chansons
                         if (modeleVue.chansons.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🎵 Chansons")
+                                SectionHeader(title = "🏆 Top de la semaine")
                             }
                             items(
                                 count = modeleVue.chansons.size,

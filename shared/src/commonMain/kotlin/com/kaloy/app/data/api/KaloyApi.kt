@@ -142,6 +142,29 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         }.body()
     }
 
+    /**
+     * Classement des chansons les plus ecoutees sur les derniers jours.
+     *
+     * La fenetre est glissante : « la semaine » compte les sept derniers jours
+     * a partir de maintenant, et non depuis le lundi — un classement vide le
+     * lundi matin n'aurait pas de sens.
+     *
+     * Seules les chansons reellement ecoutees sur la periode y figurent : la
+     * liste peut donc etre vide sur une base neuve, et la section est alors
+     * masquee plutot qu'affichee sans contenu.
+     */
+    suspend fun getClassement(
+        jours: Int = 7,
+        limite: Int = 10,
+        idGenre: Long? = null
+    ): RestResponse<List<Song>> {
+        return client.get("$apiBaseUrl/songs/top") {
+            parameter("jours", jours)
+            parameter("limit", limite)
+            if (idGenre != null) parameter("genreId", idGenre)
+        }.body()
+    }
+
     suspend fun getSongById(id: Long): RestResponse<Song> {
         return client.get("$apiBaseUrl/songs/$id").body()
     }
