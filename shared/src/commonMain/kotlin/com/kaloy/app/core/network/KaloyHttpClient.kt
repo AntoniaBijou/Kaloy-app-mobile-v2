@@ -12,9 +12,11 @@ import kotlinx.serialization.json.Json
 // VERSION 1.0 : adresse du PC sur le Wi-Fi. Le telephone doit etre connecte
 // au meme reseau, et le backend doit tourner. Cette adresse change si le PC
 // change de reseau — a verifier avant de reconstruire un APK.
-// TEST EMULATEUR EN COURS — remettre l'adresse Wi-Fi ci-dessous avant de
-// reconstruire un APK destine a un telephone.
+// Adresse du PC sur le Wi-Fi : c'est celle qu'embarquent les APK installes sur
+// un telephone. A verifier avant chaque build de release, elle change avec le
+// reseau. Pour tester sur l'emulateur, basculer sur la ligne 10.0.2.2.
 const val BASE_URL = "http://10.16.27.150:8087/mozika"
+// Emulateur Android → const val BASE_URL = "http://10.0.2.2:8087/mozika"
 //Fifa
 // Version 1.0 (APK) → const val BASE_URL = "http://192.168.0.157:8087/mozika"
 // Tunnel ngrok       → const val BASE_URL = "https://latch-tummy-unfrosted.ngrok-free.dev/mozika"
