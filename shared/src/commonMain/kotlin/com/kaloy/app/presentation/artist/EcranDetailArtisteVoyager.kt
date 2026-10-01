@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -25,7 +26,8 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.session.AuthSessionManager
-import com.kaloy.app.core.util.maintenantIso
+import com.kaloy.app.core.util.Calendrier
+import com.kaloy.app.core.util.aujourdHuiLocal
 import com.kaloy.app.data.api.ArtistIdDto
 import com.kaloy.app.data.api.ConcertSearch
 import com.kaloy.app.data.api.StatutParticipationIdDto
@@ -73,16 +75,43 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
     // Id du follow existant, nécessaire pour le DELETE. Null si on ne suit pas.
     private var idFollow: Long? = null
 
-    // --- Sprint 4 : calendrier (concerts confirmes de l'artiste) ---
-    var concertsAVenir by mutableStateOf<List<Concert>>(emptyList())
+    // --- Sprint 4 : calendrier mensuel (concerts confirmes de l'artiste) ---
+
+    /**
+     * Concerts regroupes par date « AAAA-MM-JJ ».
+     *
+     * La grille interroge chacune de ses cases pour savoir s'il s'y passe
+     * quelque chose : une table indexee par date evite de reparcourir toute la
+     * liste des concerts une trentaine de fois par mois affiche.
+     */
+    var concertsParDate by mutableStateOf<Map<String, List<Concert>>>(emptyMap())
         private set
-    var concertsPasses by mutableStateOf<List<Concert>>(emptyList())
+
+    /** Mois affiche par la grille ; on ouvre sur le mois courant. */
+    var anneeAffichee by mutableStateOf(0)
         private set
+    var moisAffiche by mutableStateOf(1)
+        private set
+
+    /** Jour sur lequel l'utilisateur a appuye, null tant qu'il n'a rien touche. */
+    var dateSelectionnee by mutableStateOf<String?>(null)
+        private set
+
+    /** Date du jour dans le fuseau du telephone : repere entre passe et a venir. */
+    val aujourdHui: String = aujourdHuiLocal()
 
     /** Un visiteur non connecté ne peut pas suivre : on masque le bouton. */
     val peutSuivre: Boolean get() = gestionSession.isLoggedIn()
 
     init {
+        // Le mois d'ouverture se deduit de la date du jour. Si celle-ci etait
+        // illisible, la grille resterait sur janvier de l'an 0 plutot que de
+        // planter : ce repli ne devrait jamais servir.
+        val dateDuJour = Calendrier.decouper(aujourdHui)
+        if (dateDuJour != null) {
+            anneeAffichee = dateDuJour.first
+            moisAffiche = dateDuJour.second
+        }
         chargerArtiste()
     }
 
@@ -124,8 +153,12 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
      * le statut de sa participation. On ne montre donc que les CONFIRMED : un
      * PENDING est une invitation non repondue, un DECLINED un refus.
      *
-     * Le decoupage passe / a venir se fait en deux appels bornes sur
-     * startTimeMin / startTimeMax, plutot qu'en rapatriant tout pour trier ici.
+     * La version precedente affichait deux listes et faisait deux appels bornes
+     * sur startTimeMin / startTimeMax. La grille, elle, doit pouvoir montrer
+     * n'importe quel mois : on rapatrie donc tous les concerts en une fois, puis
+     * on les regroupe par jour. Le volume le permet — un artiste joue quelques
+     * dizaines de fois — et cela evite un appel reseau a chaque coup de fleche.
+     *
      * Un echec reste silencieux : le calendrier est secondaire sur cette fiche.
      */
     private suspend fun chargerConcerts() {
@@ -138,38 +171,50 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
             null
         } ?: return
 
-        val maintenant = maintenantIso()
-
-        concertsAVenir = try {
+        val concerts = try {
             api.rechercherConcerts(
                 ConcertSearch(
                     artist = ArtistIdDto(idArtiste),
-                    statut = StatutParticipationIdDto(idConfirme),
-                    debutMin = maintenant
+                    statut = StatutParticipationIdDto(idConfirme)
                 ),
-                size = 20,
+                size = TAILLE_PAGE_CONCERTS,
                 sortParam = "startTime,asc"
             ).data?.content ?: emptyList()
         } catch (_: Exception) {
             emptyList()
         }
 
-        concertsPasses = try {
-            api.rechercherConcerts(
-                ConcertSearch(
-                    artist = ArtistIdDto(idArtiste),
-                    statut = StatutParticipationIdDto(idConfirme),
-                    debutMax = maintenant
-                ),
-                size = 20,
-                // Les plus recents d'abord : un concert d'il y a un mois
-                // interesse davantage qu'un concert d'il y a trois ans.
-                sortParam = "startTime,desc"
-            ).data?.content ?: emptyList()
-        } catch (_: Exception) {
-            emptyList()
-        }
+        // Un concert sans horaire n'a pas de case ou aller : on l'ecarte plutot
+        // que de l'accrocher a une date arbitraire.
+        concertsParDate = concerts
+            .filter { !it.startTime.isNullOrBlank() }
+            .groupBy { it.startTime!!.substringBefore('T') }
     }
+
+    fun afficherMoisPrecedent() {
+        val (annee, mois) = Calendrier.moisPrecedent(anneeAffichee, moisAffiche)
+        changerMois(annee, mois)
+    }
+
+    fun afficherMoisSuivant() {
+        val (annee, mois) = Calendrier.moisSuivant(anneeAffichee, moisAffiche)
+        changerMois(annee, mois)
+    }
+
+    private fun changerMois(annee: Int, mois: Int) {
+        anneeAffichee = annee
+        moisAffiche = mois
+        // La date selectionnee appartenait au mois qu'on quitte : la conserver
+        // afficherait sous la grille un jour qui n'y figure plus.
+        dateSelectionnee = null
+    }
+
+    /** Un second appui sur le meme jour replie le detail. */
+    fun selectionnerDate(date: String) {
+        dateSelectionnee = if (dateSelectionnee == date) null else date
+    }
+
+    fun concertsDuJour(date: String): List<Concert> = concertsParDate[date] ?: emptyList()
 
     /**
      * Renseigne le compteur d'abonnés et, si l'utilisateur est connecte, indique
@@ -256,6 +301,13 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
 
     companion object {
         private const val STATUT_CONFIRME = "CONFIRMED"
+
+        /**
+         * Tous les concerts de l'artiste doivent tenir dans une seule page :
+         * 200 est large au regard de la realite (quelques dizaines de dates) et
+         * dispense de gerer la pagination pour une grille qu'on veut complete.
+         */
+        private const val TAILLE_PAGE_CONCERTS = 200
 
         /** La fiche ne montre qu'un apercu, pas tout le catalogue. */
         const val NOMBRE_CHANSONS_AFFICHEES = 5
@@ -483,38 +535,61 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         }
                     }
 
-                    // ---- Calendrier : concerts confirmés (Sprint 4) ----
-                    if (modeleVue.concertsAVenir.isNotEmpty()) {
-                        item {
-                            SectionHeader(title = "📅 Concerts à venir (${modeleVue.concertsAVenir.size})")
-                        }
-                        items(modeleVue.concertsAVenir, key = { it.id }) { concert ->
-                            LigneConcert(
-                                concert = concert,
-                                estAVenir = true,
-                                onClick = {
-                                    concert.event?.let {
-                                        navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
-                                    }
+                    // ---- Calendrier mensuel des concerts confirmés (Sprint 4) ----
+                    item {
+                        SectionHeader(title = "📅 Calendrier")
+                    }
+                    item {
+                        CalendrierMensuel(
+                            annee = modeleVue.anneeAffichee,
+                            mois = modeleVue.moisAffiche,
+                            aujourdHui = modeleVue.aujourdHui,
+                            datesOccupees = modeleVue.concertsParDate.keys,
+                            dateSelectionnee = modeleVue.dateSelectionnee,
+                            onMoisPrecedent = { modeleVue.afficherMoisPrecedent() },
+                            onMoisSuivant = { modeleVue.afficherMoisSuivant() },
+                            onJourClique = { date ->
+                                modeleVue.selectionnerDate(date)
+
+                                // Un seul événement ce jour-là : on ouvre sa fiche
+                                // directement, l'utilisateur n'a rien à choisir.
+                                // S'il y en a plusieurs, le détail sous la grille
+                                // lui laisse le choix.
+                                val evenements = modeleVue.concertsDuJour(date)
+                                    .mapNotNull { it.event }
+                                    .distinctBy { it.id }
+                                if (evenements.size == 1) {
+                                    navigateur.push(
+                                        EcranDetailEvenementVoyager(idEvenement = evenements.first().id)
+                                    )
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
 
-                    if (modeleVue.concertsPasses.isNotEmpty()) {
-                        item {
-                            SectionHeader(title = "🕘 Concerts passés (${modeleVue.concertsPasses.size})")
-                        }
-                        items(modeleVue.concertsPasses, key = { it.id }) { concert ->
-                            LigneConcert(
-                                concert = concert,
-                                estAVenir = false,
-                                onClick = {
-                                    concert.event?.let {
-                                        navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
+                    // ---- Détail du jour sélectionné ----
+                    modeleVue.dateSelectionnee?.let { dateChoisie ->
+                        val concertsDuJour = modeleVue.concertsDuJour(dateChoisie)
+                        if (concertsDuJour.isEmpty()) {
+                            item { MessageAucunEvenement() }
+                        } else {
+                            items(
+                                items = concertsDuJour,
+                                // Prefixe obligatoire : les identifiants de concert
+                                // et de chanson se croisent dans la meme LazyColumn,
+                                // et deux clés identiques la feraient planter.
+                                key = { "concert_${it.id}" }
+                            ) { concert ->
+                                LigneConcert(
+                                    concert = concert,
+                                    estAVenir = dateChoisie >= modeleVue.aujourdHui,
+                                    onClick = {
+                                        concert.event?.let {
+                                            navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
 
@@ -586,6 +661,196 @@ private fun BoutonAbonnement(
             }
         }
     }
+}
+
+// ============================================================
+// Calendrier mensuel (Sprint 4)
+// ============================================================
+
+/**
+ * Grille du mois, avec une pastille sur les jours ou l'artiste joue.
+ *
+ * Une seule pastille par date, quel que soit le nombre de concerts : c'est la
+ * fiche de l'evenement qui detaille le programme de la journee.
+ */
+@Composable
+private fun CalendrierMensuel(
+    annee: Int,
+    mois: Int,
+    aujourdHui: String,
+    datesOccupees: Set<String>,
+    dateSelectionnee: String?,
+    onMoisPrecedent: () -> Unit,
+    onMoisSuivant: () -> Unit,
+    onJourClique: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+
+        // En-tete : mois affiche, encadre par les deux fleches de navigation.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onMoisPrecedent) {
+                Text("‹", fontSize = 24.sp, color = KaloyTextPrimary)
+            }
+            Text(
+                text = "${Calendrier.nomDuMois(mois)} $annee",
+                style = MaterialTheme.typography.titleMedium,
+                color = KaloyTextPrimary,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onMoisSuivant) {
+                Text("›", fontSize = 24.sp, color = KaloyTextPrimary)
+            }
+        }
+
+        // Initiales des jours, semaine commencant le lundi.
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Calendrier.JOURS_SEMAINE.forEach { initiale ->
+                Text(
+                    text = initiale,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = KaloyTextMuted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // La grille est assemblee a la main, ligne par ligne. Un
+        // LazyVerticalGrid ne peut pas etre imbrique dans la LazyColumn de la
+        // fiche : deux defilements verticaux l'un dans l'autre sont interdits.
+        val decalage = Calendrier.jourSemaineDuPremier(annee, mois)
+        val nombreJours = Calendrier.joursDansMois(annee, mois)
+        val nombreSemaines = (decalage + nombreJours + 6) / 7
+
+        for (semaine in 0 until nombreSemaines) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                for (position in 0 until 7) {
+                    // Les cases situees avant le 1er ou apres le dernier jour du
+                    // mois restent vides : elles alignent la grille sur les
+                    // jours de la semaine.
+                    val jour = semaine * 7 + position - decalage + 1
+                    Box(
+                        modifier = Modifier.weight(1f).aspectRatio(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (jour in 1..nombreJours) {
+                            val date = Calendrier.formater(annee, mois, jour)
+                            CaseJour(
+                                jour = jour,
+                                estAujourdHui = date == aujourdHui,
+                                estSelectionnee = date == dateSelectionnee,
+                                aUnEvenement = date in datesOccupees,
+                                // Comparaison de chaines : au format AAAA-MM-JJ,
+                                // l'ordre alphabetique est l'ordre chronologique.
+                                estPasse = date < aujourdHui,
+                                onClick = { onJourClique(date) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        LegendeCalendrier()
+    }
+}
+
+@Composable
+private fun CaseJour(
+    jour: Int,
+    estAujourdHui: Boolean,
+    estSelectionnee: Boolean,
+    aUnEvenement: Boolean,
+    estPasse: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (estSelectionnee) KaloyPurple.copy(alpha = 0.25f) else Color.Transparent
+            )
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "$jour",
+            style = MaterialTheme.typography.bodyMedium,
+            color = when {
+                estAujourdHui -> KaloyCyan
+                estPasse -> KaloyTextMuted
+                else -> KaloyTextPrimary
+            },
+            fontWeight = if (estAujourdHui || estSelectionnee) FontWeight.Bold else FontWeight.Normal
+        )
+
+        Spacer(modifier = Modifier.height(3.dp))
+
+        // La pastille garde sa place meme quand il n'y a rien : sans cela, les
+        // chiffres des jours occupes et des jours vides ne seraient pas alignes.
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(
+                    when {
+                        !aUnEvenement -> Color.Transparent
+                        estPasse -> KaloyTextMuted
+                        else -> KaloyPurple
+                    }
+                )
+        )
+    }
+}
+
+@Composable
+private fun LegendeCalendrier() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        EntreeLegende(couleur = KaloyPurple, libelle = "À venir")
+        Spacer(modifier = Modifier.width(16.dp))
+        EntreeLegende(couleur = KaloyTextMuted, libelle = "Passé")
+    }
+}
+
+@Composable
+private fun EntreeLegende(couleur: Color, libelle: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(couleur)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = libelle,
+            style = MaterialTheme.typography.bodySmall,
+            color = KaloyTextMuted
+        )
+    }
+}
+
+@Composable
+private fun MessageAucunEvenement() {
+    Text(
+        text = "Aucun événement ni concert prévu",
+        style = MaterialTheme.typography.bodyMedium,
+        color = KaloyTextSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 20.dp)
+    )
 }
 
 // ============================================================
