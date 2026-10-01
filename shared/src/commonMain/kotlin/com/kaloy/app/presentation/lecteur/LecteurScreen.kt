@@ -27,6 +27,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
 import com.kaloy.app.data.model.SongPlayerResponse
+import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.repository.LecteurRepository
 import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
@@ -41,8 +42,9 @@ data class LecteurScreen(val songId: Long) : Screen {
         val navigateur = LocalNavigator.currentOrThrow
         val repository = koinInject<LecteurRepository>()
         val audioPlayer = koinInject<AudioPlayerController>()
+        val queueManager = koinInject<QueueManager>()
 
-        val viewModel = remember { LecteurViewModel(repository, audioPlayer) }
+        val viewModel = remember { LecteurViewModel(repository, audioPlayer, queueManager) }
 
         val uiState by viewModel.uiState.collectAsState()
         val isPlaying by viewModel.isPlaying.collectAsState()
@@ -51,6 +53,8 @@ data class LecteurScreen(val songId: Long) : Screen {
         val errorMessage by viewModel.errorMessage.collectAsState()
         val statusMessage by viewModel.statusMessage.collectAsState()
         val modeEcoute by viewModel.modeEcoute.collectAsState()
+        val upNext by viewModel.upNext.collectAsState()
+        val history by viewModel.history.collectAsState()
 
         DisposableEffect(songId) {
             viewModel.charger(songId)
@@ -114,10 +118,14 @@ data class LecteurScreen(val songId: Long) : Screen {
                         errorMessage = errorMessage,
                         statusMessage = statusMessage,
                         modeEcoute = modeEcoute,
+                        aSuivant = upNext.isNotEmpty(),
+                        aPrecedent = history.isNotEmpty(),
                         onRetour = { navigateur.pop() },
                         onTogglePlay = { viewModel.togglePlayPause() },
                         onSeek = { viewModel.seekTo(it) },
-                        onChangerMode = { viewModel.changerMode(it) }
+                        onChangerMode = { viewModel.changerMode(it) },
+                        onSuivant = { viewModel.jouerSuivant() },
+                        onPrecedent = { viewModel.jouerPrecedent() }
                     )
                 }
             }
@@ -134,10 +142,14 @@ private fun LecteurContenu(
     errorMessage: String?,
     statusMessage: String,
     modeEcoute: ModeEcoute,
+    aSuivant: Boolean,
+    aPrecedent: Boolean,
     onRetour: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
-    onChangerMode: (ModeEcoute) -> Unit
+    onChangerMode: (ModeEcoute) -> Unit,
+    onSuivant: () -> Unit,
+    onPrecedent: () -> Unit
 ) {
     val launchBrowser = rememberBrowserLauncher()
 
@@ -268,12 +280,12 @@ private fun LecteurContenu(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { onSeek(0L) },
+                    onClick = onPrecedent,
                     modifier = Modifier.size(52.dp)
                 ) {
                     Icon(
                         Icons.Default.SkipPrevious,
-                        contentDescription = "Début",
+                        contentDescription = "Précédent",
                         tint = KaloyTextSecondary,
                         modifier = Modifier.size(36.dp)
                     )
@@ -297,7 +309,7 @@ private fun LecteurContenu(
                 }
 
                 IconButton(
-                    onClick = { /* TODO: chanson suivante */ },
+                    onClick = onSuivant,
                     modifier = Modifier.size(52.dp)
                 ) {
                     Icon(

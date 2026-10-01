@@ -2,6 +2,8 @@ package com.kaloy.app.presentation.lecteur
 
 import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.audio.MediaMetadata
+import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.data.repository.LecteurRepository
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +24,8 @@ enum class ModeEcoute { AUDIO, VIDEO, KARAOKE, PLAYBACK }
 
 class LecteurViewModel(
     private val repository: LecteurRepository,
-    private val audioPlayer: AudioPlayerController
+    private val audioPlayer: AudioPlayerController,
+    private val queueManager: QueueManager
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -32,15 +35,18 @@ class LecteurViewModel(
     private val _modeEcoute = MutableStateFlow(ModeEcoute.AUDIO)
     val modeEcoute: StateFlow<ModeEcoute> = _modeEcoute
 
+    val upNext: StateFlow<List<Song>> = queueManager.upNext
+    val history: StateFlow<List<Song>> = queueManager.history
+
     val isPlaying: StateFlow<Boolean> = audioPlayer.isPlaying
     val currentPositionMs: StateFlow<Long> = audioPlayer.currentPositionMs
     val durationMs: StateFlow<Long> = audioPlayer.durationMs
     val errorMessage: StateFlow<String?> = audioPlayer.errorMessage
     val statusMessage: StateFlow<String> = audioPlayer.statusMessage
 
-    fun charger(songId: Long) {
+    fun charger(songId: Long, silencieux: Boolean = false) {
         scope.launch {
-            _uiState.value = LecteurUiState.Loading
+            if (!silencieux) _uiState.value = LecteurUiState.Loading
             try {
                 val song = repository.getSongPlayerDetails(songId)
                 _uiState.value = LecteurUiState.Success(song)
@@ -86,6 +92,24 @@ class LecteurViewModel(
         } else {
             audioPlayer.pause()
         }
+    }
+
+    fun jouerSuivant() {
+        val nextSong = queueManager.upNext.value.firstOrNull() ?: return
+        queueManager.playFromQueue(nextSong)
+        charger(nextSong.id, silencieux = true)
+    }
+
+    fun jouerPrecedent() {
+        if (currentPositionMs.value > 3_000L) {
+            seekTo(0L)
+            return
+        }
+        val prevSong = queueManager.playPrevious() ?: run {
+            seekTo(0L)
+            return
+        }
+        charger(prevSong.id, silencieux = true)
     }
 
     fun dispose() {

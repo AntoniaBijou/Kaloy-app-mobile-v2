@@ -427,14 +427,14 @@ data class HomeScreen(
                                     song = chanson,
                                     index = index,
                                     onClick = {
-                                        fileAttente.playNow(chanson)
+                                        fileAttente.setContext(modeleVue.chansons, chanson)
                                         navigateur.push(LecteurScreen(songId = chanson.id))
                                     },
                                     onMoreClick = {
                                         fileAttente.playNow(chanson)
                                     },
                                     onPlayNow = {
-                                        fileAttente.playNow(chanson)
+                                        fileAttente.setContext(modeleVue.chansons, chanson)
                                         navigateur.push(LecteurScreen(songId = chanson.id))
                                     },
                                     onAddNext = { fileAttente.addNext(chanson) },
