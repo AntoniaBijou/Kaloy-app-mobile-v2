@@ -220,6 +220,43 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
     }
 
     // ============================================================
+    // Invitations recues par un artiste
+    // ============================================================
+
+    /**
+     * Invitations en attente de l'artiste connecte.
+     *
+     * Aucun identifiant d'artiste n'est transmis : le serveur le deduit du
+     * jeton. C'est volontaire — passer l'artiste en parametre aurait permis de
+     * consulter les invitations de quelqu'un d'autre.
+     *
+     * Le serveur ecarte deja les invitations dont la date est passee et trie de
+     * la plus proche a la plus lointaine : il n'y a rien a refaire ici.
+     */
+    suspend fun getMesInvitations(): RestResponse<List<Concert>> {
+        return client.get("$apiBaseUrl/invitations").body()
+    }
+
+    /**
+     * Accepte ou refuse une invitation. [statut] vaut STATUT_ACCEPTE ou
+     * STATUT_REFUSE.
+     *
+     * On ne passe pas par PUT /concerts/{id} : celui-ci remplace la ligne
+     * entiere, donc les champs absents du corps envoye seraient effaces, dont
+     * l'organisateur de l'evenement.
+     */
+    suspend fun repondreInvitation(idConcert: Long, statut: String): RestResponse<Concert> {
+        val reponse = client.patch("$apiBaseUrl/invitations/$idConcert") {
+            contentType(ContentType.Application.Json)
+            setBody(ReponseInvitationDto(statut = statut))
+        }
+        // expectSuccess vaut false : un 403 ou un 409 se deserialise dans la
+        // meme enveloppe qu'un succes. Sans ce controle, un refus du serveur
+        // passerait pour une reponse enregistree.
+        return reponse.body<RestResponse<Concert>>().exigerSucces("Reponse a l'invitation")
+    }
+
+    // ============================================================
     // Envoi de fichiers (Sprint 5)
     // ============================================================
 
@@ -808,6 +845,12 @@ data class ConcertSearch(
     @kotlinx.serialization.SerialName("statusidParticipationStatuses") val statut: StatutParticipationIdDto? = null,
     @kotlinx.serialization.SerialName("startTimeMin") val debutMin: String? = null,
     @kotlinx.serialization.SerialName("startTimeMax") val debutMax: String? = null
+)
+
+// PATCH /invitations/{idConcert}
+@kotlinx.serialization.Serializable
+data class ReponseInvitationDto(
+    val statut: String
 )
 
 // POST /eventmedias/search
