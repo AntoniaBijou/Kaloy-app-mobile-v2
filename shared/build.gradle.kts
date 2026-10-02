@@ -6,7 +6,13 @@ val localProps = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }
         ?.inputStream()?.use { load(it) }
 }
-val adresseIp: String = localProps.getProperty("adresse_ip", "192.168.4.221")
+val adresseIp: String = localProps.getProperty("adresse_ip")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: throw GradleException(
+        "Configurez adresse_ip dans local.properties avec l'adresse IPv4 Wi-Fi du PC " +
+            "(pas l'adresse de l'interface virtuelle WSL)."
+    )
 
 // Génère NetworkConfig.kt dans commonMain avec SERVER_IP = adresseIp
 val generateNetworkConfig by tasks.registering {

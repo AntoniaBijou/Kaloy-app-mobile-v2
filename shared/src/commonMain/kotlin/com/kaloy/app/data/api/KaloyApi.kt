@@ -319,6 +319,22 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
             setBody(query)
         }.body()
     }
+
+    suspend fun getMyListeningHistory(
+        token: String,
+        period: String,
+        search: String,
+        page: Int = 0,
+        size: Int = 50
+    ): RestResponse<PageResponse<ListeningHistoryItem>> {
+        return client.get("$apiBaseUrl/listeninghistorys/me") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            parameter("period", period)
+            if (search.isNotBlank()) parameter("search", search)
+            parameter("page", page)
+            parameter("size", size)
+        }.body()
+    }
 }
 
 // DTO de recherche pour POST /artists/search
@@ -381,4 +397,3 @@ data class SearchHistoryCreate(
     @kotlinx.serialization.SerialName("queryText") val queryText: String,
     @kotlinx.serialization.SerialName("searchedAt") val searchedAt: String
 )
-

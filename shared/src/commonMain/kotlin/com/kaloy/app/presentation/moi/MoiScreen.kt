@@ -38,6 +38,13 @@ private sealed class ActiveDialog {
     data object ConfirmDeleteAccount : ActiveDialog()
 }
 
+private enum class MoiTab(val label: String, val emptyMessage: String) {
+    PROFILE("Profil", ""),
+    ACTIVITY("Activité", "Votre activité apparaîtra ici."),
+    FAVORITES("Favoris", "Vos favoris apparaîtront ici."),
+    OFFLINE("Offline", "Vos contenus disponibles hors ligne apparaîtront ici.")
+}
+
 // ── Ecran ─────────────────────────────────────────────────────────────────────
 
 class MoiScreen : Screen {
@@ -55,6 +62,8 @@ class MoiScreen : Screen {
 
         var activeDialog by remember { mutableStateOf<ActiveDialog?>(null) }
         var operationError by remember { mutableStateOf<String?>(null) }
+        var selectedTab by remember { mutableStateOf(MoiTab.PROFILE) }
+        var selectedActivitySection by remember { mutableStateOf<ActivitySection?>(null) }
 
         DisposableEffect(Unit) {
             onDispose { viewModel.dispose() }
@@ -95,21 +104,65 @@ class MoiScreen : Screen {
 
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Text("Mon profil", fontWeight = FontWeight.Bold, color = KaloyTextPrimary)
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Retour",
-                                tint = KaloyTextPrimary
+                Column {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                selectedActivitySection?.let {
+                                    if (it == ActivitySection.RECENTLY_PLAYED) "Historique d'écoute" else it.title
+                                } ?: "Mon profil",
+                                fontWeight = FontWeight.Bold,
+                                color = KaloyTextPrimary
                             )
+                        },
+                        navigationIcon = {
+                            IconButton(
+                                onClick = {
+                                    if (selectedActivitySection != null) {
+                                        selectedActivitySection = null
+                                    } else {
+                                        navigator.pop()
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Retour",
+                                    tint = KaloyTextPrimary
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkSurface)
+                    )
+                    if (selectedActivitySection == null) {
+                        SecondaryScrollableTabRow(
+                            selectedTabIndex = selectedTab.ordinal,
+                            containerColor = KaloyDarkSurface,
+                            contentColor = KaloyPurpleLight,
+                            edgePadding = 16.dp,
+                            divider = { HorizontalDivider(color = KaloyDarkElevated) }
+                        ) {
+                            MoiTab.entries.forEach { tab ->
+                                Tab(
+                                    selected = tab == selectedTab,
+                                    onClick = {
+                                        selectedTab = tab
+                                        selectedActivitySection = null
+                                    },
+                                    text = {
+                                        Text(
+                                            text = tab.label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (tab == selectedTab) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    selectedContentColor = KaloyPurpleLight,
+                                    unselectedContentColor = KaloyTextMuted
+                                )
+                            }
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkSurface)
-                )
+                    }
+                }
             },
             containerColor = KaloyDarkBg
         ) { innerPadding ->
@@ -149,30 +202,48 @@ class MoiScreen : Screen {
 
                 is MoiUiState.ClientSuccess -> {
                     val profile = state.profile
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding).background(KaloyDarkBg),
-                        contentPadding = PaddingValues(bottom = 16.dp)
-                    ) {
-                        item {
-                            ProfileHeader(
-                                displayName = listOfNotNull(profile.firstName, profile.lastName)
-                                    .joinToString(" ")
-                                    .ifBlank { profile.userName ?: profile.email.substringBefore("@") },
-                                photoUrl = profile.photoUrl,
-                                emailVerificationStatus = profile.emailVerificationStatus,
-                                phoneVerificationStatus = profile.phone?.let { profile.phoneVerificationStatus },
-                                accountStatus = profile.accountStatus,
-                                onEditPhoto = { activeDialog = ActiveDialog.EditPhoto }
+                    if (selectedActivitySection != null) {
+                        ActivityDetailScreen(
+                            section = selectedActivitySection!!,
+                            sessionManager = sessionManager,
+                            modifier = Modifier.fillMaxSize().padding(innerPadding)
+                        )
+                    } else {
+                        when (selectedTab) {
+                            MoiTab.PROFILE -> LazyColumn(
+                                modifier = Modifier.fillMaxSize().padding(innerPadding).background(KaloyDarkBg),
+                                contentPadding = PaddingValues(bottom = 16.dp)
+                            ) {
+                                item {
+                                    ProfileHeader(
+                                        displayName = listOfNotNull(profile.firstName, profile.lastName)
+                                            .joinToString(" ")
+                                            .ifBlank { profile.userName ?: profile.email.substringBefore("@") },
+                                        photoUrl = profile.photoUrl,
+                                        emailVerificationStatus = profile.emailVerificationStatus,
+                                        phoneVerificationStatus = profile.phone?.let { profile.phoneVerificationStatus },
+                                        accountStatus = profile.accountStatus,
+                                        onEditPhoto = { activeDialog = ActiveDialog.EditPhoto }
+                                    )
+                                }
+                                item {
+                                    ClientProfileContent(
+                                        profile = profile,
+                                        onEditPersonalInfo = { activeDialog = ActiveDialog.EditPersonalInfo },
+                                        onChangeEmail = { activeDialog = ActiveDialog.ChangeEmail() },
+                                        onChangePhone = { activeDialog = ActiveDialog.ChangePhone() },
+                                        onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
+                                        onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
+                                    )
+                                }
+                            }
+                            MoiTab.ACTIVITY -> ActivityOverview(
+                                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                                onOpenSection = { selectedActivitySection = it }
                             )
-                        }
-                        item {
-                            ClientProfileContent(
-                                profile = profile,
-                                onEditPersonalInfo = { activeDialog = ActiveDialog.EditPersonalInfo },
-                                onChangeEmail = { activeDialog = ActiveDialog.ChangeEmail() },
-                                onChangePhone = { activeDialog = ActiveDialog.ChangePhone() },
-                                onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
-                                onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
+                            else -> MoiTabPlaceholder(
+                                tab = selectedTab,
+                                modifier = Modifier.fillMaxSize().padding(innerPadding)
                             )
                         }
                     }
@@ -180,43 +251,61 @@ class MoiScreen : Screen {
 
                 is MoiUiState.ArtistSuccess -> {
                     val profile = state.profile
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding).background(KaloyDarkBg),
-                        contentPadding = PaddingValues(bottom = 16.dp)
-                    ) {
-                        item {
-                            ProfileHeader(
-                                displayName = profile.stageName.ifBlank { profile.email.substringBefore("@") },
-                                photoUrl = profile.photoUrl,
-                                emailVerificationStatus = profile.emailVerificationStatus,
-                                phoneVerificationStatus = profile.phone?.let { profile.phoneVerificationStatus },
-                                accountStatus = profile.accountStatus,
-                                onEditPhoto = { activeDialog = ActiveDialog.EditPhoto }
+                    if (selectedActivitySection != null) {
+                        ActivityDetailScreen(
+                            section = selectedActivitySection!!,
+                            sessionManager = sessionManager,
+                            modifier = Modifier.fillMaxSize().padding(innerPadding)
+                        )
+                    } else {
+                        when (selectedTab) {
+                            MoiTab.PROFILE -> LazyColumn(
+                                modifier = Modifier.fillMaxSize().padding(innerPadding).background(KaloyDarkBg),
+                                contentPadding = PaddingValues(bottom = 16.dp)
+                            ) {
+                                item {
+                                    ProfileHeader(
+                                        displayName = profile.stageName.ifBlank { profile.email.substringBefore("@") },
+                                        photoUrl = profile.photoUrl,
+                                        emailVerificationStatus = profile.emailVerificationStatus,
+                                        phoneVerificationStatus = profile.phone?.let { profile.phoneVerificationStatus },
+                                        accountStatus = profile.accountStatus,
+                                        onEditPhoto = { activeDialog = ActiveDialog.EditPhoto }
+                                    )
+                                }
+                                item {
+                                    ArtistProfileContent(
+                                        profile = profile,
+                                        instrumentRoles = instrumentRoles,
+                                        onEditArtistProfile = { activeDialog = ActiveDialog.EditArtistProfile },
+                                        onRequestVerification = { viewModel.requestVerification() },
+                                        onChangeEmail = { activeDialog = ActiveDialog.ChangeEmail() },
+                                        onChangePhone = { activeDialog = ActiveDialog.ChangePhone() },
+                                        onAddMember = { activeDialog = ActiveDialog.AddMember },
+                                        onEditMember = { id ->
+                                            profile.members.find { it.id == id }
+                                                ?.let { activeDialog = ActiveDialog.EditMember(it) }
+                                        },
+                                        onChangeMemberStatus = { id ->
+                                            profile.members.find { it.id == id }
+                                                ?.let { activeDialog = ActiveDialog.ChangeMemberStatus(it) }
+                                        },
+                                        onDeleteMember = { id ->
+                                            profile.members.find { it.id == id }
+                                                ?.let { activeDialog = ActiveDialog.DeleteMember(it) }
+                                        },
+                                        onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
+                                        onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
+                                    )
+                                }
+                            }
+                            MoiTab.ACTIVITY -> ActivityOverview(
+                                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                                onOpenSection = { selectedActivitySection = it }
                             )
-                        }
-                        item {
-                            ArtistProfileContent(
-                                profile = profile,
-                                instrumentRoles = instrumentRoles,
-                                onEditArtistProfile = { activeDialog = ActiveDialog.EditArtistProfile },
-                                onRequestVerification = { viewModel.requestVerification() },
-                                onChangeEmail = { activeDialog = ActiveDialog.ChangeEmail() },
-                                onChangePhone = { activeDialog = ActiveDialog.ChangePhone() },
-                                onAddMember = { activeDialog = ActiveDialog.AddMember },
-                                onEditMember = { id ->
-                                    profile.members.find { it.id == id }
-                                        ?.let { activeDialog = ActiveDialog.EditMember(it) }
-                                },
-                                onChangeMemberStatus = { id ->
-                                    profile.members.find { it.id == id }
-                                        ?.let { activeDialog = ActiveDialog.ChangeMemberStatus(it) }
-                                },
-                                onDeleteMember = { id ->
-                                    profile.members.find { it.id == id }
-                                        ?.let { activeDialog = ActiveDialog.DeleteMember(it) }
-                                },
-                                onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
-                                onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
+                            else -> MoiTabPlaceholder(
+                                tab = selectedTab,
+                                modifier = Modifier.fillMaxSize().padding(innerPadding)
                             )
                         }
                     }
@@ -333,6 +422,20 @@ class MoiScreen : Screen {
             )
 
             null -> {}
+        }
+    }
+
+    @Composable
+    private fun MoiTabPlaceholder(tab: MoiTab, modifier: Modifier = Modifier) {
+        Box(
+            modifier = modifier.background(KaloyDarkBg).padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = tab.emptyMessage,
+                color = KaloyTextSecondary,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
