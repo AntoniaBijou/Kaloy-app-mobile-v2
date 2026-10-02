@@ -19,6 +19,8 @@
         <domain includeSubdomains="false">192.168.0.157</domain>
         <!-- Fifaaaaa-->
         <domain includeSubdomains="false">10.16.27.150</domain>
+        <!-- Salle 4-->
+        <domain includeSubdomains="false">169.254.44.68</domain>
     </domain-config>
     
     <!-- Autoriser tous les certificats en développement -->

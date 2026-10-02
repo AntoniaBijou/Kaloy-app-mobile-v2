@@ -19,7 +19,16 @@ class MeRepositoryImpl(
     private val sessionManager: AuthSessionManager
 ) : MeRepository {
 
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    // coerceInputValues : le backend renvoie « members: null » pour un artiste
+    // sans membres de groupe, alors que le DTO declare une liste non nullable.
+    // Sans cette option, la deserialisation echoue et tout l'onglet « Moi »
+    // affiche « Une erreur est survenue » — pour tous les comptes artiste.
+    // KaloyApi utilise deja ce reglage ; ce client ne l'avait pas.
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true
+    }
 
     private fun io.ktor.client.request.HttpRequestBuilder.withSessionToken() {
         val token = sessionManager.getToken()
