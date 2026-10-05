@@ -1,6 +1,7 @@
 package com.kaloy.app.presentation.moi
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,6 +75,8 @@ import com.kaloy.app.ui.theme.KaloyTextPrimary
 import com.kaloy.app.ui.theme.KaloyTextSecondary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 private enum class HistoryPeriod(val label: String) {
     TODAY("Aujourd'hui"),
@@ -85,6 +88,7 @@ private enum class HistoryPeriod(val label: String) {
 
 private data class ListeningEntry(
     val id: Long,
+    val songId: Long,
     val title: String,
     val artist: String,
     val time: String,
@@ -103,6 +107,7 @@ private fun toListeningEntry(item: ListeningHistoryItem): ListeningEntry {
     val songDuration = item.songDurationSeconds ?: 0
     return ListeningEntry(
         id = item.id,
+        songId = item.songId,
         title = item.songTitle.ifBlank { "Titre inconnu" },
         artist = item.artistName.ifBlank { "Artiste inconnu" },
         time = item.listenedAt.substringAfter("T", "").take(5).ifBlank { "—" },
@@ -132,8 +137,12 @@ private fun formatDayTitle(date: String, period: HistoryPeriod): String {
 @Composable
 fun RecentListeningHistory(
     sessionManager: AuthSessionManager,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAddToQueue: ((songId: Long, title: String, artistName: String) -> Unit)? = null,
+    onNavigateToSong: ((songId: Long) -> Unit)? = null,
+    onPlay: ((songId: Long) -> Unit)? = null
 ) {
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var selectedPeriod by remember { mutableStateOf(HistoryPeriod.TODAY) }
     var openMenuFor by remember { mutableStateOf<Long?>(null) }
@@ -225,7 +234,7 @@ fun RecentListeningHistory(
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     HistoryStatCard(
                         modifier = Modifier.weight(1f),
-                        value = totalElements.toString(),
+                        value = entries.size.toString(),
                         label = "Chansons\nécoutées",
                         icon = Icons.Default.MusicNote
                     )
@@ -307,7 +316,22 @@ fun RecentListeningHistory(
                         menuExpanded = openMenuFor == entry.id,
                         onMenuOpen = { openMenuFor = entry.id },
                         onMenuDismiss = { openMenuFor = null },
-                        onRemove = { openMenuFor = null }
+                        onPlay = { onPlay?.invoke(entry.songId) },
+                        onAddToQueue = {
+                            onAddToQueue?.invoke(entry.songId, entry.title, entry.artist)
+                            openMenuFor = null
+                        },
+                        onNavigateToSong = {
+                            onNavigateToSong?.invoke(entry.songId)
+                            openMenuFor = null
+                        },
+                        onDelete = {
+                            scope.launch {
+                                runCatching { repository.deleteEntry(entry.id) }
+                                entries = entries.filterNot { it.id == entry.id }
+                                openMenuFor = null
+                            }
+                        }
                     )
                 }
             }
@@ -339,10 +363,17 @@ fun RecentListeningHistory(
         AlertDialog(
             onDismissRequest = { showClearConfirmation = false },
             title = { Text("Effacer l'historique ?") },
-            text = { Text("La suppression de l'historique sera activée lors de l'ajout de l'endpoint correspondant.") },
+            text = { Text("Toutes vos entrées d'historique seront supprimées définitivement.") },
             confirmButton = {
-                TextButton(onClick = { showClearConfirmation = false }) {
-                    Text("Compris", color = KaloyPurpleLight)
+                TextButton(onClick = {
+                    scope.launch {
+                        val toDelete = entries.toList()
+                        toDelete.forEach { entry -> runCatching { repository.deleteEntry(entry.id) } }
+                        entries = emptyList()
+                        showClearConfirmation = false
+                    }
+                }) {
+                    Text("Supprimer tout", color = KaloyRed)
                 }
             },
             dismissButton = {
@@ -475,7 +506,10 @@ private fun ListeningHistoryRow(
     menuExpanded: Boolean,
     onMenuOpen: () -> Unit,
     onMenuDismiss: () -> Unit,
-    onRemove: () -> Unit
+    onPlay: () -> Unit = {},
+    onAddToQueue: () -> Unit = {},
+    onNavigateToSong: () -> Unit = {},
+    onDelete: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -489,7 +523,9 @@ private fun ListeningHistoryRow(
             Icon(Icons.Default.MusicNote, contentDescription = null, tint = KaloyPurpleLight, modifier = Modifier.size(25.dp))
         }
         Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .clickable { onNavigateToSong() },
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
@@ -513,7 +549,7 @@ private fun ListeningHistoryRow(
                 style = MaterialTheme.typography.labelSmall
             )
         }
-        IconButton(onClick = {}) {
+        IconButton(onClick = onPlay) {
             Icon(Icons.Default.PlayArrow, contentDescription = "Lire ${entry.title}", tint = KaloyPurpleLight)
         }
         Box {
@@ -522,14 +558,19 @@ private fun ListeningHistoryRow(
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = onMenuDismiss) {
                 DropdownMenuItem(
-                    text = { Text("Rejouer maintenant") },
-                    leadingIcon = { Icon(Icons.Default.PlayArrow, null, tint = KaloyPurpleLight) },
-                    onClick = onMenuDismiss
-                )
-                DropdownMenuItem(
                     text = { Text("Ajouter à la file d'attente") },
                     leadingIcon = { Icon(Icons.Default.Add, null, tint = KaloyPurpleLight) },
-                    onClick = onMenuDismiss
+                    onClick = onAddToQueue
+                )
+                DropdownMenuItem(
+                    text = { Text("Supprimer de l'historique") },
+                    leadingIcon = { Icon(Icons.Default.DeleteOutline, null, tint = KaloyRed) },
+                    onClick = onDelete
+                )
+                DropdownMenuItem(
+                    text = { Text("Voir la fiche chanson") },
+                    leadingIcon = { Icon(Icons.Default.Info, null, tint = KaloyCyan) },
+                    onClick = onNavigateToSong
                 )
                 DropdownMenuItem(
                     text = { Text("Ajouter aux favoris") },
@@ -539,16 +580,6 @@ private fun ListeningHistoryRow(
                 DropdownMenuItem(
                     text = { Text("Ajouter à une playlist") },
                     leadingIcon = { Icon(Icons.Default.PlaylistAdd, null, tint = KaloyPurpleLight) },
-                    onClick = onMenuDismiss
-                )
-                DropdownMenuItem(
-                    text = { Text("Supprimer de l'historique") },
-                    leadingIcon = { Icon(Icons.Default.DeleteOutline, null, tint = KaloyRed) },
-                    onClick = onRemove
-                )
-                DropdownMenuItem(
-                    text = { Text("Voir la fiche chanson") },
-                    leadingIcon = { Icon(Icons.Default.Info, null, tint = KaloyCyan) },
                     onClick = onMenuDismiss
                 )
             }

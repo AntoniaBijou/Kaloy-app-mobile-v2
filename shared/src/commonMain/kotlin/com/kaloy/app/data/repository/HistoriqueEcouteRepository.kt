@@ -26,6 +26,25 @@ class HistoriqueEcouteRepository(
             ?: throw IllegalStateException("La réponse du serveur ne contient pas l'historique.")
         return HistoryPage(data.content, data.totalElements)
     }
+
+    suspend fun deleteEntry(id: Long) {
+        val token = sessionManager.getToken()
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("SESSION_EXPIRED")
+        api.deleteMyListeningHistory(token, id)
+    }
+
+    suspend fun getMonthStats(): Pair<Int, Int> {
+        val result = getHistory(period = "MONTH", search = "", page = 0, size = 500)
+        val totalSecs = result.entries.sumOf { it.durationListenedSeconds ?: 0 }
+        return result.entries.size to totalSecs
+    }
+
+    suspend fun getFollowsCount(): Int {
+        val token = sessionManager.getToken()?.takeIf { it.isNotBlank() } ?: return 0
+        val response = api.getMyFollowsCount(token)
+        return response.data?.toInt() ?: 0
+    }
 }
 
 data class HistoryPage(

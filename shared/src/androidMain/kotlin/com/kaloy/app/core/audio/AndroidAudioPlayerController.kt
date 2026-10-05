@@ -6,11 +6,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class AndroidAudioPlayerController(private val context: Context) : AudioPlayerController {
+
+    companion object {
+        val skipToNext = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val skipToPrevious = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    }
 
     private val _isPlaying = MutableStateFlow(false)
     private val _currentPositionMs = MutableStateFlow(0L)
@@ -26,8 +32,24 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val controller = AndroidMediaPlayerController(context)
+    private var onTrackCompletedCallback: () -> Unit = {}
+    private var onSkipToPreviousCallback: () -> Unit = {}
+
+    override fun setOnTrackCompleted(callback: () -> Unit) {
+        onTrackCompletedCallback = callback
+    }
+
+    override fun setOnSkipToPrevious(callback: () -> Unit) {
+        onSkipToPreviousCallback = callback
+    }
 
     init {
+        scope.launch {
+            skipToNext.collect { onTrackCompletedCallback() }
+        }
+        scope.launch {
+            skipToPrevious.collect { onSkipToPreviousCallback() }
+        }
         scope.launch {
             controller.state.collect { state ->
                 when (state) {
@@ -43,6 +65,11 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
                         _isPlaying.value = false
                         _currentPositionMs.value = state.positionMs
                         _durationMs.value = state.durationMs
+                    }
+                    is MediaPlayerStatus.Completed -> {
+                        _statusMessage.value = "Lecture terminée"
+                        _isPlaying.value = false
+                        onTrackCompletedCallback()
                     }
                     is MediaPlayerStatus.Error -> {
                         _statusMessage.value = "Erreur Media3"

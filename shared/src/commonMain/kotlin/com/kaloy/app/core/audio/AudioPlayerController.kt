@@ -17,4 +17,6 @@ interface AudioPlayerController {
     fun resume()
     fun seekTo(positionMs: Long)
     fun release()
+    fun setOnTrackCompleted(callback: () -> Unit) {}
+    fun setOnSkipToPrevious(callback: () -> Unit) {}
 }

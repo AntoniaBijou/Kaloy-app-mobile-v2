@@ -35,7 +35,7 @@ import com.kaloy.app.presentation.common.rememberBrowserLauncher
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
 
-data class LecteurScreen(val songId: Long) : Screen {
+data class LecteurScreen(val songId: Long, val startMode: ModeEcoute = ModeEcoute.AUDIO) : Screen {
 
     @Composable
     override fun Content() {
@@ -57,8 +57,22 @@ data class LecteurScreen(val songId: Long) : Screen {
         val history by viewModel.history.collectAsState()
 
         DisposableEffect(songId) {
-            viewModel.charger(songId)
+            viewModel.charger(songId, startMode = startMode)
             onDispose { viewModel.dispose() }
+        }
+
+        LaunchedEffect(Unit) {
+            var prevPlaying = false
+            viewModel.isPlaying.collect { playing ->
+                if (prevPlaying && !playing) {
+                    val pos = viewModel.currentPositionMs.value
+                    val dur = viewModel.durationMs.value
+                    if (dur > 0 && pos >= dur - 2000) {
+                        viewModel.jouerSuivant()
+                    }
+                }
+                prevPlaying = playing
+            }
         }
 
         Box(
@@ -213,8 +227,7 @@ private fun LecteurContenu(
                     .clip(RoundedCornerShape(20.dp))
                     .background(
                         Brush.linearGradient(listOf(KaloyPurple, KaloyPink))
-                    ),
-                contentAlignment = Alignment.Center
+                    )
             ) {
                 if (song.albumCoverUrl != null) {
                     AsyncImage(
@@ -224,7 +237,30 @@ private fun LecteurContenu(
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    Text(text = "♪", color = Color.White, fontSize = 80.sp)
+                    Text(
+                        text = "♪",
+                        color = Color.White,
+                        fontSize = 80.sp,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 8.dp)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(onClick = onSuivant, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            Icons.Default.SkipNext,
+                            contentDescription = "Suivant",
+                            tint = Color.White.copy(alpha = if (aSuivant) 1f else 0.4f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
 

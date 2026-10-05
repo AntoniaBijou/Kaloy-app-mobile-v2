@@ -335,6 +335,18 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
             parameter("size", size)
         }.body()
     }
+
+    suspend fun deleteMyListeningHistory(token: String, id: Long) {
+        client.delete("$apiBaseUrl/listeninghistorys/me/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+    }
+
+    suspend fun getMyFollowsCount(token: String): RestResponse<Long> {
+        return client.get("$apiBaseUrl/follows/me/count") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body()
+    }
 }
 
 // DTO de recherche pour POST /artists/search

@@ -18,6 +18,8 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.me.GroupMemberDto
 import com.kaloy.app.data.repository.MeRepository
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
+import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
+import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.components.*
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
@@ -206,7 +208,9 @@ class MoiScreen : Screen {
                         ActivityDetailScreen(
                             section = selectedActivitySection!!,
                             sessionManager = sessionManager,
-                            modifier = Modifier.fillMaxSize().padding(innerPadding)
+                            modifier = Modifier.fillMaxSize().padding(innerPadding),
+                            onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
+                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
                         )
                     } else {
                         when (selectedTab) {
@@ -239,7 +243,10 @@ class MoiScreen : Screen {
                             }
                             MoiTab.ACTIVITY -> ActivityOverview(
                                 modifier = Modifier.fillMaxSize().padding(innerPadding),
-                                onOpenSection = { selectedActivitySection = it }
+                                sessionManager = sessionManager,
+                                onOpenSection = { selectedActivitySection = it },
+                                onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
+                                onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
                             )
                             else -> MoiTabPlaceholder(
                                 tab = selectedTab,
@@ -255,7 +262,9 @@ class MoiScreen : Screen {
                         ActivityDetailScreen(
                             section = selectedActivitySection!!,
                             sessionManager = sessionManager,
-                            modifier = Modifier.fillMaxSize().padding(innerPadding)
+                            modifier = Modifier.fillMaxSize().padding(innerPadding),
+                            onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
+                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
                         )
                     } else {
                         when (selectedTab) {
@@ -301,7 +310,10 @@ class MoiScreen : Screen {
                             }
                             MoiTab.ACTIVITY -> ActivityOverview(
                                 modifier = Modifier.fillMaxSize().padding(innerPadding),
-                                onOpenSection = { selectedActivitySection = it }
+                                sessionManager = sessionManager,
+                                onOpenSection = { selectedActivitySection = it },
+                                onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
+                                onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
                             )
                             else -> MoiTabPlaceholder(
                                 tab = selectedTab,

@@ -4,4 +4,5 @@ import com.kaloy.app.data.model.SongPlayerResponse
 
 interface LecteurRepository {
     suspend fun getSongPlayerDetails(songId: Long): SongPlayerResponse
+    suspend fun saveListeningHistory(songId: Long, playModeId: Long, durationListenedSeconds: Int, completed: Boolean)
 }

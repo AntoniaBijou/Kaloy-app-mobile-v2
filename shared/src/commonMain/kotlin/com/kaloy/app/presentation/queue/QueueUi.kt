@@ -9,10 +9,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -121,6 +124,7 @@ fun UpNextSheet(
 
 @Composable
 private fun QueueSongRow(song: Song, current: Boolean, onClick: () -> Unit, onRemove: (() -> Unit)? = null) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         SongArtwork(song, Modifier.size(48.dp))
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
@@ -128,11 +132,38 @@ private fun QueueSongRow(song: Song, current: Boolean, onClick: () -> Unit, onRe
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(song.artist?.stageName ?: "", color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
         }
-        if (current) Icon(Icons.Default.PlayArrow, contentDescription = "En cours", tint = KaloyPurple)
-        else {
+        if (current) {
+            Icon(Icons.Default.PlayArrow, contentDescription = "En cours", tint = KaloyPurple)
+        } else {
             song.durationSeconds?.let { Text("${it / 60}:${(it % 60).toString().padStart(2, '0')}", color = KaloyTextMuted) }
-            if (onRemove != null) IconButton(onClick = onRemove) {
-                Icon(Icons.Default.MoreVert, contentDescription = "Actions", tint = KaloyTextSecondary)
+            if (onRemove != null) {
+                Box {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Actions", tint = KaloyTextSecondary)
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        containerColor = KaloyDarkCard
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Ajouter à une playlist", color = KaloyTextPrimary) },
+                            leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = KaloyTextSecondary) },
+                            onClick = { menuExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Ajouter aux favoris", color = KaloyTextPrimary) },
+                            leadingIcon = { Icon(Icons.Default.FavoriteBorder, contentDescription = null, tint = KaloyTextSecondary) },
+                            onClick = { menuExpanded = false }
+                        )
+                        HorizontalDivider(color = KaloyTextMuted.copy(alpha = 0.2f))
+                        DropdownMenuItem(
+                            text = { Text("Retirer de la file d'attente", color = KaloyRed) },
+                            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, contentDescription = null, tint = KaloyRed) },
+                            onClick = { menuExpanded = false; onRemove() }
+                        )
+                    }
+                }
             }
         }
     }

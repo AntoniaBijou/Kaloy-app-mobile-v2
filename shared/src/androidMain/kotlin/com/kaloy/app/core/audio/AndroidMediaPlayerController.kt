@@ -40,12 +40,18 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
                     Log.d("KaloyAudio", "MediaController connecté au service")
                     if (released) return@also
                     connectedController.addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) = updateState()
-                    override fun onPlaybackStateChanged(playbackState: Int) = updateState()
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        _state.value = MediaPlayerStatus.Error(error.message ?: "Erreur de lecture")
-                    }
-                })
+                        override fun onIsPlayingChanged(isPlaying: Boolean) = updateState()
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            if (playbackState == Player.STATE_ENDED) {
+                                _state.value = MediaPlayerStatus.Completed
+                            } else {
+                                updateState()
+                            }
+                        }
+                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            _state.value = MediaPlayerStatus.Error(error.message ?: "Erreur de lecture")
+                        }
+                    })
                     updateState()
                     pendingMedia?.let { mediaItem ->
                         connectedController.setMediaItem(mediaItem)
@@ -119,6 +125,7 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
         _state.value = when {
             connectedController.isPlaying -> MediaPlayerStatus.Playing(positionMs, durationMs)
             connectedController.playbackState == Player.STATE_BUFFERING -> MediaPlayerStatus.Loading
+            connectedController.playbackState == Player.STATE_ENDED -> MediaPlayerStatus.Completed
             connectedController.currentMediaItem != null -> MediaPlayerStatus.Paused(positionMs, durationMs)
             else -> MediaPlayerStatus.Idle
         }

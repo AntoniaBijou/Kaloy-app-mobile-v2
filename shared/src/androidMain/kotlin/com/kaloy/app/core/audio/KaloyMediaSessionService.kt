@@ -10,6 +10,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
 import android.util.Log
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -74,7 +75,30 @@ class KaloyMediaSessionService : MediaSessionService() {
                 }
             })
         }
-        mediaSession = MediaSession.Builder(this, player).build()
+        val notificationPlayer = object : ForwardingPlayer(player) {
+            override fun getAvailableCommands(): Player.Commands =
+                super.getAvailableCommands().buildUpon()
+                    .add(Player.COMMAND_SEEK_TO_NEXT)
+                    .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                    .build()
+
+            override fun seekToNext() {
+                AndroidAudioPlayerController.skipToNext.tryEmit(Unit)
+            }
+
+            override fun seekToNextMediaItem() {
+                AndroidAudioPlayerController.skipToNext.tryEmit(Unit)
+            }
+
+            override fun seekToPrevious() {
+                AndroidAudioPlayerController.skipToPrevious.tryEmit(Unit)
+            }
+
+            override fun seekToPreviousMediaItem() {
+                AndroidAudioPlayerController.skipToPrevious.tryEmit(Unit)
+            }
+        }
+        mediaSession = MediaSession.Builder(this, notificationPlayer).build()
         audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(
                 AudioAttributes.Builder()

@@ -52,7 +52,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.data.repository.HistoriqueEcouteRepository
 import com.kaloy.app.ui.theme.KaloyCyan
 import com.kaloy.app.ui.theme.KaloyDarkBg
 import com.kaloy.app.ui.theme.KaloyDarkCard
@@ -80,13 +86,8 @@ enum class ActivitySection(
 private data class ActivitySong(
     val title: String,
     val artist: String,
-    val detail: String
-)
-
-private val recentSongs = listOf(
-    ActivitySong("Eh sambatra sy tretrika", "Artiste Test Kaloy", "Il y a 5 min • 3:35"),
-    ActivitySong("Gasy Tsara", "Reko Band", "Il y a 2 h • 4:12"),
-    ActivitySong("Premier Pas", "Artiste Test Kaloy", "Hier • 3:45")
+    val detail: String,
+    val songId: Long = 0
 )
 
 private val queuedSongs = listOf(
@@ -95,11 +96,50 @@ private val queuedSongs = listOf(
     ActivitySong("Premier Pas", "Artiste Test Kaloy", "3:45")
 )
 
+private fun formatTrackDuration(seconds: Int): String =
+    "${seconds.coerceAtLeast(0) / 60}:${(seconds.coerceAtLeast(0) % 60).toString().padStart(2, '0')}"
+
+private fun formatListenedAt(listenedAt: String): String =
+    listenedAt.substringAfter("T", "").take(5).ifBlank { "—" }
+
 @Composable
 fun ActivityOverview(
     modifier: Modifier = Modifier,
-    onOpenSection: (ActivitySection) -> Unit
+    sessionManager: AuthSessionManager,
+    onOpenSection: (ActivitySection) -> Unit,
+    onPlay: ((songId: Long) -> Unit)? = null,
+    onNavigateToSong: ((songId: Long) -> Unit)? = null
 ) {
+    var songsCeMois by remember { mutableStateOf("—") }
+    var ecouteTotale by remember { mutableStateOf("—") }
+    var artistesSuivis by remember { mutableStateOf("—") }
+    var recentSongs by remember { mutableStateOf<List<ActivitySong>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        val repo = HistoriqueEcouteRepository(sessionManager)
+        runCatching {
+            val (count, totalSecs) = repo.getMonthStats()
+            songsCeMois = count.toString()
+            val h = totalSecs / 3600
+            val m = (totalSecs % 3600) / 60
+            ecouteTotale = if (h > 0) "$h h $m" else "$m min"
+        }
+        runCatching {
+            artistesSuivis = repo.getFollowsCount().toString()
+        }
+        runCatching {
+            val history = repo.getHistory(period = "ALL", search = "", page = 0, size = 3)
+            recentSongs = history.entries.map { item ->
+                ActivitySong(
+                    title = item.songTitle.ifBlank { "Titre inconnu" },
+                    artist = item.artistName.ifBlank { "Artiste inconnu" },
+                    detail = "${formatListenedAt(item.listenedAt)} • ${formatTrackDuration(item.songDurationSeconds ?: 0)}",
+                    songId = item.songId
+                )
+            }
+        }
+    }
+
     LazyColumn(
         modifier = modifier.background(KaloyDarkBg),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
@@ -124,21 +164,21 @@ fun ActivityOverview(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ActivityStatCard(
                     modifier = Modifier.weight(1f),
-                    value = "127",
+                    value = songsCeMois,
                     label = "Chansons\nce mois",
                     icon = Icons.Default.MusicNote,
                     accent = KaloyPurpleLight
                 )
                 ActivityStatCard(
                     modifier = Modifier.weight(1f),
-                    value = "8 h 32",
+                    value = ecouteTotale,
                     label = "Écoute\ntotale",
                     icon = Icons.Default.AccessTime,
                     accent = KaloyCyan
                 )
                 ActivityStatCard(
                     modifier = Modifier.weight(1f),
-                    value = "23",
+                    value = artistesSuivis,
                     label = "Artistes\nsuivis",
                     icon = Icons.Default.People,
                     accent = KaloyGreen
@@ -150,8 +190,19 @@ fun ActivityOverview(
                 section = ActivitySection.RECENTLY_PLAYED,
                 onOpenSection = onOpenSection
             ) {
-                recentSongs.forEach { song ->
-                    ActivitySongRow(song = song)
+                if (recentSongs.isEmpty()) {
+                    Text(
+                        "Aucune chanson récente",
+                        color = KaloyTextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    recentSongs.forEach { song ->
+                        ActivitySongRow(
+                            song = song,
+                            onPlay = { onPlay?.invoke(song.songId) }
+                        )
+                    }
                 }
             }
         }
@@ -296,7 +347,7 @@ private fun ActivityBlock(
 }
 
 @Composable
-private fun ActivitySongRow(song: ActivitySong, showMore: Boolean = false) {
+private fun ActivitySongRow(song: ActivitySong, showMore: Boolean = false, onPlay: () -> Unit = {}) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -326,7 +377,7 @@ private fun ActivitySongRow(song: ActivitySong, showMore: Boolean = false) {
             )
             Text(song.detail, color = KaloyTextMuted, style = MaterialTheme.typography.labelSmall)
         }
-        IconButton(onClick = {}) {
+        IconButton(onClick = if (showMore) ({}) else onPlay) {
             Icon(
                 if (showMore) Icons.Default.MoreVert else Icons.Default.PlayArrow,
                 contentDescription = if (showMore) "Autres options" else "Lire",
@@ -417,10 +468,17 @@ private fun ArtistActivityRow(name: String, activity: String) {
 fun ActivityDetailScreen(
     section: ActivitySection,
     sessionManager: AuthSessionManager,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onPlay: ((songId: Long) -> Unit)? = null,
+    onNavigateToSong: ((songId: Long) -> Unit)? = null
 ) {
     if (section == ActivitySection.RECENTLY_PLAYED) {
-        RecentListeningHistory(sessionManager = sessionManager, modifier = modifier)
+        RecentListeningHistory(
+            sessionManager = sessionManager,
+            modifier = modifier,
+            onPlay = onPlay,
+            onNavigateToSong = onNavigateToSong
+        )
         return
     }
 
@@ -451,10 +509,7 @@ fun ActivityDetailScreen(
         }
         when (section) {
             ActivitySection.RECENTLY_PLAYED -> {
-                Text("Écoutés récemment", color = KaloyTextPrimary, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                recentSongs.forEach { ActivitySongRow(it) }
-                ActivitySongRow(ActivitySong("Misia", "Reko Band", "Avant-hier • 5:01"))
-                ActivitySongRow(ActivitySong("Gasy Tsara", "Reko Band", "Avant-hier • 4:12"))
+                // handled above by early return to RecentListeningHistory
             }
             ActivitySection.QUEUE -> {
                 Text("3 chansons en attente", color = KaloyTextSecondary, style = MaterialTheme.typography.bodyMedium)
