@@ -257,6 +257,49 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
     }
 
     // ============================================================
+    // Evenements que j'organise
+    // ============================================================
+
+    /** Evenements dont l'artiste connecte est l'organisateur, du plus recent au plus ancien. */
+    suspend fun getMesEvenements(): RestResponse<List<Event>> {
+        return client.get("$apiBaseUrl/mes-evenements").body()
+    }
+
+    /** Creneaux d'un de mes evenements, avec le statut de chaque artiste invite. */
+    suspend fun getProgrammation(idEvenement: Long): RestResponse<List<Concert>> {
+        return client.get("$apiBaseUrl/mes-evenements/$idEvenement/programmation").body()
+    }
+
+    /**
+     * Cree un evenement et, si des creneaux sont fournis, les invitations
+     * correspondantes. Le serveur deduit l'organisateur du jeton.
+     */
+    suspend fun creerEvenement(requete: CreerEvenementDto): RestResponse<Event> {
+        val reponse = client.post("$apiBaseUrl/mes-evenements") {
+            contentType(ContentType.Application.Json)
+            setBody(requete)
+        }
+        return reponse.body<RestResponse<Event>>().exigerSucces("Creation de l'evenement")
+    }
+
+    /** Ajoute des creneaux a un evenement deja cree : complement d'affiche ou remplacement. */
+    suspend fun inviterArtistes(idEvenement: Long, creneaux: List<CreneauDto>): RestResponse<List<Concert>> {
+        val reponse = client.post("$apiBaseUrl/mes-evenements/$idEvenement/invitations") {
+            contentType(ContentType.Application.Json)
+            setBody(creneaux)
+        }
+        return reponse.body<RestResponse<List<Concert>>>().exigerSucces("Envoi des invitations")
+    }
+
+    /** Lieux deja enregistres, proposes au choix avant d'en creer un nouveau. */
+    suspend fun getLieux(size: Int = 50): RestResponse<PageResponse<Venue>> {
+        return client.get("$apiBaseUrl/venues") {
+            parameter("page", 0)
+            parameter("size", size)
+        }.body()
+    }
+
+    // ============================================================
     // Envoi de fichiers (Sprint 5)
     // ============================================================
 
@@ -851,6 +894,39 @@ data class ConcertSearch(
 @kotlinx.serialization.Serializable
 data class ReponseInvitationDto(
     val statut: String
+)
+
+// POST /mes-evenements
+@kotlinx.serialization.Serializable
+data class CreerEvenementDto(
+    val nom: String,
+    val description: String? = null,
+    val dateDebut: String,
+    val dateFin: String,
+    val creneaux: List<CreneauDto> = emptyList()
+)
+
+/**
+ * Un creneau de la programmation.
+ *
+ * Le lieu se designe par [idLieu] pour une salle connue, ou par [nouveauLieu]
+ * pour une salle a creer — l'un ou l'autre, jamais les deux : le serveur refuse
+ * les deux a la fois comme il refuse aucun des deux.
+ */
+@kotlinx.serialization.Serializable
+data class CreneauDto(
+    val idArtiste: Long,
+    val idLieu: Long? = null,
+    val nouveauLieu: NouveauLieuDto? = null,
+    val debut: String,
+    val fin: String? = null,
+    val titre: String? = null
+)
+
+@kotlinx.serialization.Serializable
+data class NouveauLieuDto(
+    val nom: String,
+    val localisation: String? = null
 )
 
 // POST /eventmedias/search
