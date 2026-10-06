@@ -20,6 +20,7 @@ import com.kaloy.app.data.repository.MeRepository
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.moi.components.*
 import com.kaloy.app.presentation.notifications.EcranNotificationsVoyager
+import com.kaloy.app.presentation.organisation.EcranMesEvenementsVoyager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
@@ -61,14 +62,21 @@ class MoiScreen : Screen {
         // Nombre d'invitations en attente, pour la pastille. Recharge a chaque
         // retour sur l'onglet : l'artiste vient peut-etre d'en traiter une.
         var invitationsEnAttente by remember { mutableStateOf(0) }
+        var evenementsOrganises by remember { mutableStateOf(0) }
         val etatProfil = uiState
         LaunchedEffect(etatProfil) {
             if (etatProfil is MoiUiState.ArtistSuccess) {
+                val api = KaloyApi()
                 invitationsEnAttente = try {
-                    KaloyApi().getMesInvitations().data?.size ?: 0
+                    api.getMesInvitations().data?.size ?: 0
                 } catch (_: Exception) {
                     // Un echec ici ne doit pas empecher l'affichage du profil :
                     // la pastille disparait, l'ecran reste utilisable.
+                    0
+                }
+                evenementsOrganises = try {
+                    api.getMesEvenements().data?.size ?: 0
+                } catch (_: Exception) {
                     0
                 }
             }
@@ -218,6 +226,15 @@ class MoiScreen : Screen {
                             CarteNotifications(
                                 nombreEnAttente = invitationsEnAttente,
                                 onClick = { navigator.push(EcranNotificationsVoyager()) }
+                            )
+                        }
+                        // Organiser est l'autre moitie de la vie evenementielle
+                        // d'un artiste : il recoit des invitations, et il en
+                        // emet. Les deux cartes se suivent naturellement.
+                        item {
+                            CarteMesEvenements(
+                                nombreEvenements = evenementsOrganises,
+                                onClick = { navigator.push(EcranMesEvenementsVoyager()) }
                             )
                         }
                         item {
