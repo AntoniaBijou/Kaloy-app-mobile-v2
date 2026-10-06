@@ -21,6 +21,7 @@ import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.moi.components.*
 import com.kaloy.app.presentation.notifications.EcranNotificationsVoyager
 import com.kaloy.app.presentation.organisation.EcranMesEvenementsVoyager
+import com.kaloy.app.presentation.calendrier.EcranMonCalendrierVoyager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
@@ -63,6 +64,7 @@ class MoiScreen : Screen {
         // retour sur l'onglet : l'artiste vient peut-etre d'en traiter une.
         var invitationsEnAttente by remember { mutableStateOf(0) }
         var evenementsOrganises by remember { mutableStateOf(0) }
+        var concertsConfirmes by remember { mutableStateOf(0) }
         val etatProfil = uiState
         LaunchedEffect(etatProfil) {
             if (etatProfil is MoiUiState.ArtistSuccess) {
@@ -76,6 +78,11 @@ class MoiScreen : Screen {
                 }
                 evenementsOrganises = try {
                     api.getMesEvenements().data?.size ?: 0
+                } catch (_: Exception) {
+                    0
+                }
+                concertsConfirmes = try {
+                    api.getMonCalendrier().data?.size ?: 0
                 } catch (_: Exception) {
                     0
                 }
@@ -235,6 +242,13 @@ class MoiScreen : Screen {
                             CarteMesEvenements(
                                 nombreEvenements = evenementsOrganises,
                                 onClick = { navigator.push(EcranMesEvenementsVoyager()) }
+                            )
+                        }
+                        // Son agenda : ce qu'il a accepte, invitations comprises.
+                        item {
+                            CarteMonCalendrier(
+                                nombreConcerts = concertsConfirmes,
+                                onClick = { navigator.push(EcranMonCalendrierVoyager()) }
                             )
                         }
                         item {

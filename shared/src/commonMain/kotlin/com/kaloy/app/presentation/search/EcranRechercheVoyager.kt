@@ -11,7 +11,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NorthWest
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -293,7 +304,11 @@ class EcranRechercheVoyager : Screen {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { navigateur.pop() }) {
-                    Text("←", fontSize = 24.sp, color = KaloyTextPrimary)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Retour",
+                        tint = KaloyTextPrimary
+                    )
                 }
 
                 OutlinedTextField(
@@ -304,7 +319,11 @@ class EcranRechercheVoyager : Screen {
                     trailingIcon = {
                         if (modeleVue.rechercheTexte.isNotEmpty()) {
                             IconButton(onClick = { modeleVue.surChangementTexte("") }) {
-                                Text("✕", color = KaloyTextMuted, fontSize = 16.sp)
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Effacer la recherche",
+                                    tint = KaloyTextMuted
+                                )
                             }
                         }
                     },
@@ -406,7 +425,8 @@ private fun PanneauHistorique(
     LazyColumn {
         item {
             SectionHeader(
-                title = "🕘 Recherches récentes",
+                title = "Recherches récentes",
+                icon = Icons.Filled.History,
                 action = "Tout effacer",
                 onAction = onToutEffacer
             )
@@ -419,7 +439,12 @@ private fun PanneauHistorique(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🕘", fontSize = 16.sp)
+                Icon(
+                    imageVector = Icons.Filled.History,
+                    contentDescription = null,
+                    tint = KaloyTextMuted,
+                    modifier = Modifier.size(16.dp)
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = entree,
@@ -428,7 +453,12 @@ private fun PanneauHistorique(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { onSupprimer(entree) }) {
-                    Text("✕", color = KaloyTextMuted, fontSize = 14.sp)
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Retirer de l'historique",
+                        tint = KaloyTextMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
             HorizontalDivider(
@@ -464,14 +494,16 @@ private fun BandeauSuggestions(
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = when (suggestion.origine) {
-                        OrigineSuggestion.HISTORIQUE -> "🕘"
-                        OrigineSuggestion.ARTISTE -> "🎤"
-                        OrigineSuggestion.CHANSON -> "🎵"
-                        OrigineSuggestion.ALBUM -> "💿"
+                Icon(
+                    imageVector = when (suggestion.origine) {
+                        OrigineSuggestion.HISTORIQUE -> Icons.Filled.History
+                        OrigineSuggestion.ARTISTE -> Icons.Filled.Mic
+                        OrigineSuggestion.CHANSON -> Icons.Filled.MusicNote
+                        OrigineSuggestion.ALBUM -> Icons.Filled.Album
                     },
-                    fontSize = 14.sp
+                    contentDescription = null,
+                    tint = KaloyTextMuted,
+                    modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
@@ -480,7 +512,12 @@ private fun BandeauSuggestions(
                     color = KaloyTextSecondary,
                     modifier = Modifier.weight(1f)
                 )
-                Text("↖", color = KaloyTextMuted, fontSize = 14.sp)
+                Icon(
+                    imageVector = Icons.Filled.NorthWest,
+                    contentDescription = "Reprendre cette suggestion",
+                    tint = KaloyTextMuted,
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }
@@ -542,7 +579,12 @@ private fun ListeResultats(
         if (onglet == OngletRecherche.TOUT || onglet == OngletRecherche.ARTISTES) {
             val liste = if (onglet == OngletRecherche.TOUT) modeleVue.artistes.take(apercu) else modeleVue.artistes
             if (liste.isNotEmpty()) {
-                item { SectionHeader(title = "🎤 Artistes (${modeleVue.artistes.size})") }
+                item {
+                    SectionHeader(
+                        title = "Artistes (${modeleVue.artistes.size})",
+                        icon = Icons.Filled.Mic
+                    )
+                }
                 items(items = liste, key = { "artiste-${it.id}" }) { artiste ->
                     LigneRechercheArtiste(artiste = artiste, onClick = { onArtiste(artiste) })
                     HorizontalDivider(
@@ -557,7 +599,12 @@ private fun ListeResultats(
         if (onglet == OngletRecherche.TOUT || onglet == OngletRecherche.CHANSONS) {
             val liste = if (onglet == OngletRecherche.TOUT) modeleVue.chansons.take(apercu) else modeleVue.chansons
             if (liste.isNotEmpty()) {
-                item { SectionHeader(title = "🎵 Chansons (${modeleVue.chansons.size})") }
+                item {
+                    SectionHeader(
+                        title = "Chansons (${modeleVue.chansons.size})",
+                        icon = Icons.Filled.MusicNote
+                    )
+                }
                 itemsIndexed(items = liste, key = { _, c -> "chanson-${c.id}" }) { index, chanson ->
                     SongRow(song = chanson, index = index, onClick = { onChanson(chanson) })
                 }
@@ -567,7 +614,12 @@ private fun ListeResultats(
         // ---------- Albums ----------
         if (onglet == OngletRecherche.TOUT || onglet == OngletRecherche.ALBUMS) {
             if (modeleVue.albums.isNotEmpty()) {
-                item { SectionHeader(title = "💿 Albums (${modeleVue.albums.size})") }
+                item {
+                    SectionHeader(
+                        title = "Albums (${modeleVue.albums.size})",
+                        icon = Icons.Filled.Album
+                    )
+                }
                 if (onglet == OngletRecherche.TOUT) {
                     // Carrousel, comme sur l'accueil.
                     item {
@@ -595,7 +647,12 @@ private fun ListeResultats(
         // ---------- Genres ----------
         if (onglet == OngletRecherche.TOUT || onglet == OngletRecherche.GENRES) {
             if (modeleVue.genres.isNotEmpty()) {
-                item { SectionHeader(title = "🏷️ Genres (${modeleVue.genres.size})") }
+                item {
+                    SectionHeader(
+                        title = "Genres (${modeleVue.genres.size})",
+                        icon = Icons.Filled.LocalOffer
+                    )
+                }
                 items(items = modeleVue.genres, key = { "genre-${it.id}" }) { genre ->
                     LigneRechercheGenre(genre = genre, onClick = { onGenre(genre) })
                     HorizontalDivider(
@@ -655,7 +712,12 @@ private fun LigneRechercheArtiste(
                 )
                 if (artiste.isCertified) {
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("✓", color = KaloyCyan, fontSize = 14.sp)
+                    Icon(
+                        imageVector = Icons.Filled.Verified,
+                        contentDescription = "Artiste certifié",
+                        tint = KaloyCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
                 }
             }
             Text(
@@ -692,7 +754,12 @@ private fun LigneRechercheAlbum(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text("💿", fontSize = 20.sp)
+            Icon(
+                imageVector = Icons.Filled.Album,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
         }
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -734,7 +801,12 @@ private fun LigneRechercheGenre(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text("🏷️", fontSize = 16.sp)
+            Icon(
+                imageVector = Icons.Filled.LocalOffer,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
         }
 
         Spacer(modifier = Modifier.width(12.dp))

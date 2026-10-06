@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -125,7 +128,11 @@ data class EcranProgrammationVoyager(val idEvenement: Long) : Screen {
                     },
                     navigationIcon = {
                         IconButton(onClick = { navigateur.pop() }) {
-                            Text("←", fontSize = 22.sp, color = KaloyTextPrimary)
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Retour",
+                                tint = KaloyTextPrimary
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkBg)
@@ -241,11 +248,20 @@ private fun LigneProgrammation(creneau: Concert) {
                     style = MaterialTheme.typography.bodySmall
                 )
                 creneau.venue?.let { lieu ->
-                    Text(
-                        text = "📍 ${lieu.name}",
-                        color = KaloyTextMuted,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Place,
+                            contentDescription = null,
+                            tint = KaloyTextMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = lieu.name,
+                            color = KaloyTextMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
 

@@ -291,6 +291,17 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return reponse.body<RestResponse<List<Concert>>>().exigerSucces("Envoi des invitations")
     }
 
+    /**
+     * Mes concerts confirmes, passes et a venir.
+     *
+     * Meme contenu que le calendrier de ma fiche publique, mais le serveur
+     * deduit l'artiste du jeton : l'application n'a pas a connaitre son propre
+     * identifiant d'artiste, que la session ne stocke pas.
+     */
+    suspend fun getMonCalendrier(): RestResponse<List<Concert>> {
+        return client.get("$apiBaseUrl/mon-calendrier").body()
+    }
+
     /** Lieux deja enregistres, proposes au choix avant d'en creer un nouveau. */
     suspend fun getLieux(size: Int = 50): RestResponse<PageResponse<Venue>> {
         return client.get("$apiBaseUrl/venues") {

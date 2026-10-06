@@ -3,6 +3,8 @@ package com.kaloy.app.presentation.organisation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -118,8 +120,15 @@ fun DialogueCreneau(
                     onClick = { calendrierOuvert = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.CalendarMonth,
+                        contentDescription = null,
+                        tint = if (date == null) KaloyTextSecondary else KaloyTextPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = date?.let { "📅 $it" } ?: "📅 Choisir le jour",
+                        text = date ?: "Choisir le jour",
                         color = if (date == null) KaloyTextSecondary else KaloyTextPrimary
                     )
                 }

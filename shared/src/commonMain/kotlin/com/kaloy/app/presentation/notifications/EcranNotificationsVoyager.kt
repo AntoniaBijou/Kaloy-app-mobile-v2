@@ -5,10 +5,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -129,7 +135,11 @@ class EcranNotificationsVoyager : Screen {
                     title = { Text("Notifications", color = KaloyTextPrimary) },
                     navigationIcon = {
                         IconButton(onClick = { navigateur.pop() }) {
-                            Text("←", fontSize = 22.sp, color = KaloyTextPrimary)
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Retour",
+                                tint = KaloyTextPrimary
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkBg)
@@ -174,7 +184,12 @@ class EcranNotificationsVoyager : Screen {
                             modifier = Modifier.align(Alignment.Center).padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("🔔", fontSize = 40.sp)
+                            Icon(
+                                imageVector = Icons.Filled.Notifications,
+                                contentDescription = null,
+                                tint = KaloyTextMuted,
+                                modifier = Modifier.size(40.dp)
+                            )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = modeleVue.message ?: "Aucune invitation en attente",
@@ -268,19 +283,14 @@ private fun CarteInvitation(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = "📅 ${dateEtHeure(invitation.startTime)}",
-                color = KaloyTextSecondary,
-                style = MaterialTheme.typography.bodySmall
+            LigneDetail(
+                icone = Icons.Filled.CalendarMonth,
+                texte = dateEtHeure(invitation.startTime)
             )
 
             invitation.venue?.let { lieu ->
                 val adresse = if (lieu.location.isNullOrBlank()) lieu.name else "${lieu.name} — ${lieu.location}"
-                Text(
-                    text = "📍 $adresse",
-                    color = KaloyTextSecondary,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                LigneDetail(icone = Icons.Filled.Place, texte = adresse)
             }
 
             if (invitation.event != null) {
@@ -323,6 +333,30 @@ private fun CarteInvitation(
                 }
             }
         }
+    }
+}
+
+/**
+ * Ligne de detail d'une invitation : une icone, puis le texte.
+ *
+ * Les deux lignes — date et lieu — partagent la meme mise en forme ; les ecrire
+ * deux fois aurait fini par les faire diverger.
+ */
+@Composable
+private fun LigneDetail(icone: ImageVector, texte: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = icone,
+            contentDescription = null,
+            tint = KaloyTextSecondary,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = texte,
+            color = KaloyTextSecondary,
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
