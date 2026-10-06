@@ -233,7 +233,10 @@ private fun LigneProgrammation(creneau: Concert) {
                     Text(it, color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
                 }
                 Text(
-                    text = creneau.startTime?.replace("T", " à ")?.take(16) ?: "",
+                    // On tronque AVANT de remplacer le T : le remplacement
+                    // allonge la chaine de deux caracteres, et couper apres
+                    // mangeait les minutes (« 2026-10-20 à 20: »).
+                    text = creneau.startTime?.take(16)?.replace("T", " à ") ?: "",
                     color = KaloyTextMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
