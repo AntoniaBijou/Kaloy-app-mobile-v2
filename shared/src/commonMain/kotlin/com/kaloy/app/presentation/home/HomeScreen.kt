@@ -11,6 +11,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -229,7 +235,7 @@ data class HomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Bonsoir $nomAffiche 🎶",
+                                text = "Bonsoir $nomAffiche",
                                 style = MaterialTheme.typography.headlineLarge,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
@@ -256,9 +262,16 @@ data class HomeScreen(
                             contentColor = KaloyTextSecondary
                         )
                     ) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = KaloyTextMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "🔍 Rechercher artistes, albums, chansons...",
-                            modifier = Modifier.fillMaxWidth(),
+                            text = "Rechercher artistes, albums, chansons...",
+                            modifier = Modifier.weight(1f),
                             color = KaloyTextMuted
                         )
                     }
@@ -281,7 +294,7 @@ data class HomeScreen(
                         // Récemment écouté
                         if (modeleVue.ecoutesRecentes.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🕒 Récemment écouté")
+                                SectionHeader(title = "Récemment écouté", icon = Icons.Filled.History)
                             }
                             item {
                                 LazyRow(
@@ -307,10 +320,11 @@ data class HomeScreen(
                                                         ),
                                                     contentAlignment = Alignment.Center
                                                 ) {
-                                                    Text(
-                                                        text = "♪",
-                                                        color = Color.White,
-                                                        fontSize = 32.sp
+                                                    Icon(
+                                                        imageVector = Icons.Filled.MusicNote,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(32.dp)
                                                     )
                                                 }
                                                 Spacer(modifier = Modifier.height(8.dp))
@@ -341,7 +355,7 @@ data class HomeScreen(
                         // Playlists à la une
                         if (modeleVue.playlistsEditoriales.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🔥 À la une")
+                                SectionHeader(title = "À la une", icon = Icons.Filled.Whatshot)
                             }
                             item {
                                 LazyRow(
@@ -361,7 +375,7 @@ data class HomeScreen(
                         // Artistes populaires
                         if (modeleVue.artistes.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🎤 Artistes")
+                                SectionHeader(title = "Artistes", icon = Icons.Filled.Mic)
                             }
                             item {
                                 LazyRow(
@@ -383,7 +397,7 @@ data class HomeScreen(
                         // Albums récents
                         if (modeleVue.albums.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "💿 Albums")
+                                SectionHeader(title = "Albums", icon = Icons.Filled.Album)
                             }
                             item {
                                 LazyRow(
@@ -403,7 +417,7 @@ data class HomeScreen(
                         // Chansons
                         if (modeleVue.chansons.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🏆 Top de la semaine")
+                                SectionHeader(title = "Top de la semaine", icon = Icons.Filled.EmojiEvents)
                             }
                             items(
                                 count = modeleVue.chansons.size,

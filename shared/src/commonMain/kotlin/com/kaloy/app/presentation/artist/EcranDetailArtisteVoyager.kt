@@ -8,6 +8,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +46,7 @@ import com.kaloy.app.data.model.*
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
+import com.kaloy.app.presentation.calendrier.GrilleCalendrier
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -393,7 +402,11 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                         contentColor = Color.White
                                     )
                                 ) {
-                                    Text("←", fontSize = 24.sp, color = Color.White)
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Retour",
+                                        tint = Color.White
+                                    )
                                 }
 
                                 // Info artiste
@@ -433,7 +446,12 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                             )
                                             if (artisteDetail.isCertified) {
                                                 Spacer(modifier = Modifier.width(8.dp))
-                                                Text("✓", color = KaloyCyan, fontSize = 18.sp)
+                                                Icon(
+                                                    imageVector = Icons.Filled.Verified,
+                                                    contentDescription = "Artiste certifié",
+                                                    tint = KaloyCyan,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
                                             }
                                         }
                                         Text(
@@ -490,7 +508,10 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                     // ---- Albums ----
                     if (modeleVue.albums.isNotEmpty()) {
                         item {
-                            SectionHeader(title = "💿 Albums (${modeleVue.albums.size})")
+                            SectionHeader(
+                                title = "Albums (${modeleVue.albums.size})",
+                                icon = Icons.Filled.Album
+                            )
                         }
                         item {
                             LazyRow(
@@ -512,7 +533,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                     // ---- Chansons ----
                     if (modeleVue.chansons.isNotEmpty()) {
                         item {
-                            SectionHeader(title = "🎵 Les plus écoutées")
+                            SectionHeader(title = "Les plus écoutées", icon = Icons.Filled.MusicNote)
                         }
                         items(
                             count = modeleVue.chansons.size,
@@ -537,10 +558,10 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
 
                     // ---- Calendrier mensuel des concerts confirmés (Sprint 4) ----
                     item {
-                        SectionHeader(title = "📅 Calendrier")
+                        SectionHeader(title = "Calendrier", icon = Icons.Filled.CalendarMonth)
                     }
                     item {
-                        CalendrierMensuel(
+                        GrilleCalendrier(
                             annee = modeleVue.anneeAffichee,
                             mois = modeleVue.moisAffiche,
                             aujourdHui = modeleVue.aujourdHui,
@@ -654,189 +675,12 @@ private fun BoutonAbonnement(
                     )
                 } else {
                     Text(
-                        text = if (estAbonne) "Suivi ✓" else "Suivre",
+                        text = if (estAbonne) "Suivi" else "Suivre",
                         fontWeight = FontWeight.SemiBold
                     )
                 }
             }
         }
-    }
-}
-
-// ============================================================
-// Calendrier mensuel (Sprint 4)
-// ============================================================
-
-/**
- * Grille du mois, avec une pastille sur les jours ou l'artiste joue.
- *
- * Une seule pastille par date, quel que soit le nombre de concerts : c'est la
- * fiche de l'evenement qui detaille le programme de la journee.
- */
-@Composable
-private fun CalendrierMensuel(
-    annee: Int,
-    mois: Int,
-    aujourdHui: String,
-    datesOccupees: Set<String>,
-    dateSelectionnee: String?,
-    onMoisPrecedent: () -> Unit,
-    onMoisSuivant: () -> Unit,
-    onJourClique: (String) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-
-        // En-tete : mois affiche, encadre par les deux fleches de navigation.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onMoisPrecedent) {
-                Text("‹", fontSize = 24.sp, color = KaloyTextPrimary)
-            }
-            Text(
-                text = "${Calendrier.nomDuMois(mois)} $annee",
-                style = MaterialTheme.typography.titleMedium,
-                color = KaloyTextPrimary,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = onMoisSuivant) {
-                Text("›", fontSize = 24.sp, color = KaloyTextPrimary)
-            }
-        }
-
-        // Initiales des jours, semaine commencant le lundi.
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Calendrier.JOURS_SEMAINE.forEach { initiale ->
-                Text(
-                    text = initiale,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = KaloyTextMuted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // La grille est assemblee a la main, ligne par ligne. Un
-        // LazyVerticalGrid ne peut pas etre imbrique dans la LazyColumn de la
-        // fiche : deux defilements verticaux l'un dans l'autre sont interdits.
-        val decalage = Calendrier.jourSemaineDuPremier(annee, mois)
-        val nombreJours = Calendrier.joursDansMois(annee, mois)
-        val nombreSemaines = (decalage + nombreJours + 6) / 7
-
-        for (semaine in 0 until nombreSemaines) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                for (position in 0 until 7) {
-                    // Les cases situees avant le 1er ou apres le dernier jour du
-                    // mois restent vides : elles alignent la grille sur les
-                    // jours de la semaine.
-                    val jour = semaine * 7 + position - decalage + 1
-                    Box(
-                        modifier = Modifier.weight(1f).aspectRatio(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (jour in 1..nombreJours) {
-                            val date = Calendrier.formater(annee, mois, jour)
-                            CaseJour(
-                                jour = jour,
-                                estAujourdHui = date == aujourdHui,
-                                estSelectionnee = date == dateSelectionnee,
-                                aUnEvenement = date in datesOccupees,
-                                // Comparaison de chaines : au format AAAA-MM-JJ,
-                                // l'ordre alphabetique est l'ordre chronologique.
-                                estPasse = date < aujourdHui,
-                                onClick = { onJourClique(date) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        LegendeCalendrier()
-    }
-}
-
-@Composable
-private fun CaseJour(
-    jour: Int,
-    estAujourdHui: Boolean,
-    estSelectionnee: Boolean,
-    aUnEvenement: Boolean,
-    estPasse: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (estSelectionnee) KaloyPurple.copy(alpha = 0.25f) else Color.Transparent
-            )
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "$jour",
-            style = MaterialTheme.typography.bodyMedium,
-            color = when {
-                estAujourdHui -> KaloyCyan
-                estPasse -> KaloyTextMuted
-                else -> KaloyTextPrimary
-            },
-            fontWeight = if (estAujourdHui || estSelectionnee) FontWeight.Bold else FontWeight.Normal
-        )
-
-        Spacer(modifier = Modifier.height(3.dp))
-
-        // La pastille garde sa place meme quand il n'y a rien : sans cela, les
-        // chiffres des jours occupes et des jours vides ne seraient pas alignes.
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(
-                    when {
-                        !aUnEvenement -> Color.Transparent
-                        estPasse -> KaloyTextMuted
-                        else -> KaloyPurple
-                    }
-                )
-        )
-    }
-}
-
-@Composable
-private fun LegendeCalendrier() {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        EntreeLegende(couleur = KaloyPurple, libelle = "À venir")
-        Spacer(modifier = Modifier.width(16.dp))
-        EntreeLegende(couleur = KaloyTextMuted, libelle = "Passé")
-    }
-}
-
-@Composable
-private fun EntreeLegende(couleur: Color, libelle: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(couleur)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = libelle,
-            style = MaterialTheme.typography.bodySmall,
-            color = KaloyTextMuted
-        )
     }
 }
 
@@ -916,11 +760,20 @@ private fun LigneConcert(
                 if (v.location.isNullOrBlank()) v.name else "${v.name} — ${v.location}"
             }
             if (!lieu.isNullOrBlank()) {
-                Text(
-                    text = "📍 $lieu",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = KaloyTextSecondary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Place,
+                        contentDescription = null,
+                        tint = KaloyTextSecondary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = lieu,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = KaloyTextSecondary
+                    )
+                }
             }
         }
 

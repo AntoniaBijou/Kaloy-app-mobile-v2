@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -75,7 +78,11 @@ class EcranMesEvenementsVoyager : Screen {
                     title = { Text("Mes événements", color = KaloyTextPrimary) },
                     navigationIcon = {
                         IconButton(onClick = { navigateur.pop() }) {
-                            Text("←", fontSize = 22.sp, color = KaloyTextPrimary)
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Retour",
+                                tint = KaloyTextPrimary
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkBg)
@@ -116,7 +123,12 @@ class EcranMesEvenementsVoyager : Screen {
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("🎪", fontSize = 40.sp)
+                        Icon(
+                            imageVector = Icons.Filled.Festival,
+                            contentDescription = null,
+                            tint = KaloyTextMuted,
+                            modifier = Modifier.size(40.dp)
+                        )
                         Spacer(Modifier.height(12.dp))
                         Text(
                             text = "Vous n'organisez aucun événement pour l'instant.",

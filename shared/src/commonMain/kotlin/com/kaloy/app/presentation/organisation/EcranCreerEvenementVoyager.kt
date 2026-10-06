@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -170,7 +172,11 @@ class EcranCreerEvenementVoyager : Screen {
                     title = { Text("Créer un événement", color = KaloyTextPrimary) },
                     navigationIcon = {
                         IconButton(onClick = { navigateur.pop() }) {
-                            Text("←", fontSize = 22.sp, color = KaloyTextPrimary)
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Retour",
+                                tint = KaloyTextPrimary
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkBg)

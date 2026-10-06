@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -145,7 +148,11 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
                                         onClick = { navigateur.pop() },
                                         colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
                                     ) {
-                                        Text("←", fontSize = 24.sp, color = Color.White)
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Retour",
+                                            tint = Color.White
+                                        )
                                     }
                                 }
 
@@ -161,7 +168,12 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("♪", fontSize = 60.sp, color = Color.White)
+                                    Icon(
+                                        imageVector = Icons.Filled.MusicNote,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(60.dp)
+                                    )
                                 }
 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -196,7 +208,10 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
                     // ---- Chansons de l'album ----
                     if (modeleVue.chansons.isNotEmpty()) {
                         item {
-                            SectionHeader(title = "🎵 Titres (${modeleVue.chansons.size})")
+                            SectionHeader(
+                                title = "Titres (${modeleVue.chansons.size})",
+                                icon = Icons.Filled.MusicNote
+                            )
                         }
                         itemsIndexed(modeleVue.chansons) { index, chanson ->
                             SongRow(

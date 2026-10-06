@@ -5,8 +5,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,11 +92,20 @@ fun ArtistCard(
             
             if (artist.isCertified) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "✓ Certifié",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = KaloyCyan
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Verified,
+                        contentDescription = null,
+                        tint = KaloyCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Certifié",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = KaloyCyan
+                    )
+                }
             }
         }
     }
@@ -132,10 +147,11 @@ fun AlbumCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "♪",
-                    fontSize = 40.sp,
-                    color = Color.White.copy(alpha = 0.8f)
+                Icon(
+                    imageVector = Icons.Filled.MusicNote,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.size(40.dp)
                 )
             }
             
@@ -207,7 +223,12 @@ fun SongRow(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text("♪", color = Color.White, fontSize = 18.sp)
+            Icon(
+                imageVector = Icons.Filled.MusicNote,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
         }
         
         Spacer(modifier = Modifier.width(12.dp))
@@ -276,7 +297,12 @@ fun EditorialPlaylistCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text("🎵", fontSize = 32.sp)
+                Icon(
+                    imageVector = Icons.Filled.MusicNote,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
             }
             
             Column(modifier = Modifier.padding(12.dp)) {
@@ -299,11 +325,20 @@ fun EditorialPlaylistCard(
                 }
                 if (playlist.isFeatured) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "⭐ À la une",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = KaloyOrange
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = KaloyOrange,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "À la une",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = KaloyOrange
+                        )
+                    }
                 }
             }
         }
@@ -318,6 +353,10 @@ fun EditorialPlaylistCard(
 fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
+    // L'icone remplace les emojis qui prefixaient les titres. Un emoji est
+    // rendu par la police du systeme : taille, couleur et style echappent au
+    // theme, et le dessin change d'un appareil a l'autre.
+    icon: ImageVector? = null,
     action: String? = null,
     onAction: (() -> Unit)? = null
 ) {
@@ -328,12 +367,23 @@ fun SectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = KaloyTextPrimary,
-            fontWeight = FontWeight.Bold
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = KaloyPurpleLight,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = KaloyTextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+        }
         if (action != null && onAction != null) {
             TextButton(onClick = onAction) {
                 Text(
@@ -377,9 +427,11 @@ fun ErrorState(
         modifier = modifier.fillMaxWidth().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "⚠️",
-            fontSize = 32.sp
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = KaloyOrange,
+            modifier = Modifier.size(32.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -414,9 +466,11 @@ fun EmptyState(
         modifier = modifier.fillMaxWidth().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "🎵",
-            fontSize = 48.sp
+        Icon(
+            imageVector = Icons.Filled.MusicNote,
+            contentDescription = null,
+            tint = KaloyTextMuted,
+            modifier = Modifier.size(48.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(

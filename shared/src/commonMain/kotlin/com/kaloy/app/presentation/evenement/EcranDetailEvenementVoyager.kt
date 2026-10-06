@@ -9,6 +9,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -539,7 +550,11 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                         contentColor = Color.White
                                     )
                                 ) {
-                                    Text("←", fontSize = 24.sp, color = Color.White)
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Retour",
+                                        tint = Color.White
+                                    )
                                 }
 
                                 Column {
@@ -601,7 +616,10 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                     // ---- Lieux ----
                     if (modeleVue.lieux.isNotEmpty()) {
                         item {
-                            SectionHeader(title = "📍 Lieux (${modeleVue.lieux.size})")
+                            SectionHeader(
+                                title = "Lieux (${modeleVue.lieux.size})",
+                                icon = Icons.Filled.Place
+                            )
                         }
                         items(modeleVue.lieux) { lieu ->
                             Text(
@@ -617,7 +635,10 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                     // ---- Artistes confirmes ----
                     if (modeleVue.artistesConfirmes.isNotEmpty()) {
                         item {
-                            SectionHeader(title = "🎤 Artistes confirmés (${modeleVue.artistesConfirmes.size})")
+                            SectionHeader(
+                                title = "Artistes confirmés (${modeleVue.artistesConfirmes.size})",
+                                icon = Icons.Filled.Mic
+                            )
                         }
                         items(modeleVue.artistesConfirmes, key = { it.id }) { concert ->
                             LigneArtisteParticipant(
@@ -635,7 +656,7 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                     // ---- Programme, par jour puis par scene (Sprint 5) ----
                     if (modeleVue.programme.isNotEmpty()) {
                         item {
-                            SectionHeader(title = "🗓 Programme")
+                            SectionHeader(title = "Programme", icon = Icons.Filled.Event)
                         }
                         modeleVue.programme.forEach { journee ->
                             item(key = "jour_${journee.jour}") {
@@ -650,7 +671,7 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                             journee.scenes.forEach { scene ->
                                 item(key = "scene_${journee.jour}_${scene.scene}") {
                                     Text(
-                                        text = "📍 ${scene.scene}",
+                                        text = scene.scene,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = KaloyTextMuted,
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
@@ -666,7 +687,7 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
 
                     // ---- Galerie post-evenement ----
                     item {
-                        SectionHeader(title = "📸 Galerie")
+                        SectionHeader(title = "Galerie", icon = Icons.Filled.PhotoCamera)
                         BoutonAjoutPhoto(
                             visible = modeleVue.peutAjouterPhoto,
                             enCours = modeleVue.envoiPhotoEnCours,
@@ -724,7 +745,10 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
 
                     // ---- Commentaires (Sprint 3) ----
                     item {
-                        SectionHeader(title = "💬 Commentaires (${modeleVue.commentaires.size})")
+                        SectionHeader(
+                            title = "Commentaires (${modeleVue.commentaires.size})",
+                            icon = Icons.Filled.Chat
+                        )
                     }
 
                     item {
@@ -828,10 +852,11 @@ private fun BoutonLike(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = if (jAime) "♥" else "♡",
-                fontSize = 18.sp,
-                color = if (jAime) KaloyPink else Color.White
+            Icon(
+                imageVector = if (jAime) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = if (jAime) "Retirer le like" else "Aimer",
+                tint = if (jAime) KaloyPink else Color.White,
+                modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -1063,7 +1088,12 @@ private fun LigneArtisteParticipant(
                 )
                 if (artiste.isCertified) {
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("✓", color = KaloyCyan, fontSize = 14.sp)
+                    Icon(
+                        imageVector = Icons.Filled.Verified,
+                        contentDescription = "Artiste certifié",
+                        tint = KaloyCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
                 }
             }
             // Le titre du concert precise le creneau de l'artiste dans
@@ -1095,7 +1125,12 @@ private fun VignettePhoto(media: EventMedia) {
             ),
         contentAlignment = Alignment.Center
     ) {
-        Text("🖼", fontSize = 32.sp)
+        Icon(
+            imageVector = Icons.Filled.Image,
+            contentDescription = null,
+            tint = KaloyTextMuted,
+            modifier = Modifier.size(32.dp)
+        )
         AsyncImage(
             model = media.url,
             contentDescription = null,

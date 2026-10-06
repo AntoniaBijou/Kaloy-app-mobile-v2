@@ -3,6 +3,8 @@ package com.kaloy.app.presentation.moi.components
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +37,12 @@ fun CarteMesEvenements(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("🎪", fontSize = 22.sp)
+            Icon(
+                imageVector = Icons.Filled.Festival,
+                contentDescription = null,
+                tint = KaloyPurpleLight,
+                modifier = Modifier.size(22.dp)
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
