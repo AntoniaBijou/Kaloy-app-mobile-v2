@@ -361,7 +361,7 @@ class MoiScreen : Screen {
                 currentPhotoUrl = currentProfile?.photoUrl ?: artistProfile?.photoUrl,
                 isLoading = isOperationLoading,
                 errorMessage = operationError,
-                onConfirm = { url -> viewModel.updatePhoto(url) },
+                onConfirm = { bytes -> viewModel.updatePhoto(bytes) },
                 onDismiss = { activeDialog = null; operationError = null }
             )
 

@@ -25,4 +25,5 @@ interface MeRepository {
     suspend fun getInstrumentRoles(): List<InstrumentRoleDto>
     suspend fun logout(): String
     suspend fun deleteMyAccount(): String
+    suspend fun uploadPhoto(bytes: ByteArray, mimeType: String): String
 }
