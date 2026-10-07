@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Dossier ou la camera ecrit la photo avant qu'on en lise les octets. -->
+    <cache-path name="prises_de_vue" path="." />
+</paths>

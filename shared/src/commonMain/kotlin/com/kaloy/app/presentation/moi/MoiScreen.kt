@@ -21,6 +21,10 @@ import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.components.*
+import com.kaloy.app.presentation.notifications.EcranNotificationsVoyager
+import com.kaloy.app.presentation.organisation.EcranMesEvenementsVoyager
+import com.kaloy.app.presentation.calendrier.EcranMonCalendrierVoyager
+import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
 
@@ -66,6 +70,35 @@ class MoiScreen : Screen {
         var operationError by remember { mutableStateOf<String?>(null) }
         var selectedTab by remember { mutableStateOf(MoiTab.PROFILE) }
         var selectedActivitySection by remember { mutableStateOf<ActivitySection?>(null) }
+
+        // Nombre d'invitations en attente, pour la pastille. Recharge a chaque
+        // retour sur l'onglet : l'artiste vient peut-etre d'en traiter une.
+        var invitationsEnAttente by remember { mutableStateOf(0) }
+        var evenementsOrganises by remember { mutableStateOf(0) }
+        var concertsConfirmes by remember { mutableStateOf(0) }
+        val etatProfil = uiState
+        LaunchedEffect(etatProfil) {
+            if (etatProfil is MoiUiState.ArtistSuccess) {
+                val api = KaloyApi()
+                invitationsEnAttente = try {
+                    api.getMesInvitations().data?.size ?: 0
+                } catch (_: Exception) {
+                    // Un echec ici ne doit pas empecher l'affichage du profil :
+                    // la pastille disparait, l'ecran reste utilisable.
+                    0
+                }
+                evenementsOrganises = try {
+                    api.getMesEvenements().data?.size ?: 0
+                } catch (_: Exception) {
+                    0
+                }
+                concertsConfirmes = try {
+                    api.getMonCalendrier().data?.size ?: 0
+                } catch (_: Exception) {
+                    0
+                }
+            }
+        }
 
         DisposableEffect(Unit) {
             onDispose { viewModel.dispose() }
@@ -315,9 +348,54 @@ class MoiScreen : Screen {
                                 onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
                                 onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
                             )
-                            else -> MoiTabPlaceholder(
-                                tab = selectedTab,
-                                modifier = Modifier.fillMaxSize().padding(innerPadding)
+                        }
+                        // Les notifications sont propres au compte artiste : un
+                        // client ne recoit pas d'invitation a jouer.
+                        item {
+                            CarteNotifications(
+                                nombreEnAttente = invitationsEnAttente,
+                                onClick = { navigator.push(EcranNotificationsVoyager()) }
+                            )
+                        }
+                        // Organiser est l'autre moitie de la vie evenementielle
+                        // d'un artiste : il recoit des invitations, et il en
+                        // emet. Les deux cartes se suivent naturellement.
+                        item {
+                            CarteMesEvenements(
+                                nombreEvenements = evenementsOrganises,
+                                onClick = { navigator.push(EcranMesEvenementsVoyager()) }
+                            )
+                        }
+                        // Son agenda : ce qu'il a accepte, invitations comprises.
+                        item {
+                            CarteMonCalendrier(
+                                nombreConcerts = concertsConfirmes,
+                                onClick = { navigator.push(EcranMonCalendrierVoyager()) }
+                            )
+                        }
+                        item {
+                            ArtistProfileContent(
+                                profile = profile,
+                                instrumentRoles = instrumentRoles,
+                                onEditArtistProfile = { activeDialog = ActiveDialog.EditArtistProfile },
+                                onRequestVerification = { viewModel.requestVerification() },
+                                onChangeEmail = { activeDialog = ActiveDialog.ChangeEmail() },
+                                onChangePhone = { activeDialog = ActiveDialog.ChangePhone() },
+                                onAddMember = { activeDialog = ActiveDialog.AddMember },
+                                onEditMember = { id ->
+                                    profile.members.find { it.id == id }
+                                        ?.let { activeDialog = ActiveDialog.EditMember(it) }
+                                },
+                                onChangeMemberStatus = { id ->
+                                    profile.members.find { it.id == id }
+                                        ?.let { activeDialog = ActiveDialog.ChangeMemberStatus(it) }
+                                },
+                                onDeleteMember = { id ->
+                                    profile.members.find { it.id == id }
+                                        ?.let { activeDialog = ActiveDialog.DeleteMember(it) }
+                                },
+                                onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
+                                onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
                             )
                         }
                     }

@@ -11,6 +11,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -83,7 +89,11 @@ class AccueilViewModel : ViewModel() {
             try {
                 val resultatArtistes = try { api.getArtists(size = 20) } catch (e: Exception) { null }
                 val resultatAlbums = try { api.getAlbums(size = 10) } catch (e: Exception) { null }
-                val resultatChansons = try { api.getSongs(size = 15) } catch (e: Exception) { null }
+                // Classement de la semaine, a la place de la liste brute des
+                // chansons : le serveur compte les ecoutes et renvoie le tri.
+                val resultatChansons = try {
+                    api.getClassement(jours = JOURS_CLASSEMENT, limite = TAILLE_CLASSEMENT)
+                } catch (e: Exception) { null }
                 val resultatPlaylists = try { api.getEditorialPlaylists(size = 10) } catch (e: Exception) { null }
 
                 // Simuler utilisateur ID = 1
@@ -96,7 +106,7 @@ class AccueilViewModel : ViewModel() {
 
                 artistes = resultatArtistes?.data?.content ?: emptyList()
                 albums = resultatAlbums?.data?.content ?: emptyList()
-                chansons = resultatChansons?.data?.content ?: emptyList()
+                chansons = resultatChansons?.data ?: emptyList()
                 playlistsEditoriales = resultatPlaylists?.data?.content ?: emptyList()
 
                 // Garder les chansons uniques dans l'historique
@@ -112,6 +122,12 @@ class AccueilViewModel : ViewModel() {
                 enChargement = false
             }
         }
+    }
+
+    companion object {
+        /** Fenetre glissante du classement : « la semaine » = 7 derniers jours. */
+        const val JOURS_CLASSEMENT = 7
+        const val TAILLE_CLASSEMENT = 10
     }
 }
 
@@ -242,7 +258,7 @@ data class HomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Bonsoir $nomAffiche 🎶",
+                                text = "Bonsoir $nomAffiche",
                                 style = MaterialTheme.typography.headlineLarge,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
@@ -269,9 +285,16 @@ data class HomeScreen(
                             contentColor = KaloyTextSecondary
                         )
                     ) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = KaloyTextMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "🔍 Rechercher artistes, albums, chansons...",
-                            modifier = Modifier.fillMaxWidth(),
+                            text = "Rechercher artistes, albums, chansons...",
+                            modifier = Modifier.weight(1f),
                             color = KaloyTextMuted
                         )
                     }
@@ -294,7 +317,7 @@ data class HomeScreen(
                         // Récemment écouté
                         if (modeleVue.ecoutesRecentes.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🕒 Récemment écouté")
+                                SectionHeader(title = "Récemment écouté", icon = Icons.Filled.History)
                             }
                             item {
                                 LazyRow(
@@ -320,10 +343,11 @@ data class HomeScreen(
                                                         ),
                                                     contentAlignment = Alignment.Center
                                                 ) {
-                                                    Text(
-                                                        text = "♪",
-                                                        color = Color.White,
-                                                        fontSize = 32.sp
+                                                    Icon(
+                                                        imageVector = Icons.Filled.MusicNote,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(32.dp)
                                                     )
                                                 }
                                                 Spacer(modifier = Modifier.height(8.dp))
@@ -354,7 +378,7 @@ data class HomeScreen(
                         // Playlists à la une
                         if (modeleVue.playlistsEditoriales.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🔥 À la une")
+                                SectionHeader(title = "À la une", icon = Icons.Filled.Whatshot)
                             }
                             item {
                                 LazyRow(
@@ -374,7 +398,7 @@ data class HomeScreen(
                         // Artistes populaires
                         if (modeleVue.artistes.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🎤 Artistes")
+                                SectionHeader(title = "Artistes", icon = Icons.Filled.Mic)
                             }
                             item {
                                 LazyRow(
@@ -396,7 +420,7 @@ data class HomeScreen(
                         // Albums récents
                         if (modeleVue.albums.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "💿 Albums")
+                                SectionHeader(title = "Albums", icon = Icons.Filled.Album)
                             }
                             item {
                                 LazyRow(
@@ -416,7 +440,7 @@ data class HomeScreen(
                         // Chansons
                         if (modeleVue.chansons.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "🎵 Chansons")
+                                SectionHeader(title = "Top de la semaine", icon = Icons.Filled.EmojiEvents)
                             }
                             items(
                                 count = modeleVue.chansons.size,

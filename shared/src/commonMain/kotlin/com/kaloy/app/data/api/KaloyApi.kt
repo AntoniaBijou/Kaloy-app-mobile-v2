@@ -1,15 +1,21 @@
 package com.kaloy.app.data.api
 
 import com.kaloy.app.core.network.BASE_URL
+import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.core.util.maintenantIso
 import com.kaloy.app.data.model.*
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
+import org.koin.mp.KoinPlatform
 
 class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
 
@@ -24,12 +30,28 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         encodeDefaults = true
     }
 
+    // Le backend n'ouvre que /auth/** : toute autre route exige un jeton JWT.
+    // On le relit à chaque requête plutôt que de le capturer à la construction,
+    // pour qu'une connexion ou une déconnexion soit prise en compte aussitôt.
+    private fun jetonCourant(): String? = try {
+        KoinPlatform.getKoin().get<AuthSessionManager>().getToken()
+    } catch (_: Exception) {
+        // Koin pas encore démarré (aperçus Compose, tests) : requête anonyme.
+        null
+    }
+
     private val client = HttpClient {
         install(ContentNegotiation) {
             json(this@KaloyApi.json)
         }
         install(Logging) {
             level = LogLevel.BODY
+        }
+        install(DefaultRequest) {
+            val jeton = jetonCourant()
+            if (!jeton.isNullOrBlank()) {
+                header(HttpHeaders.Authorization, "Bearer $jeton")
+            }
         }
     }
 
@@ -61,6 +83,22 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return client.get("$apiBaseUrl/artists/$artistId/songs") {
             parameter("page", page)
             parameter("size", size)
+        }.body()
+    }
+
+    /**
+     * Chansons les plus ecoutees d'un artiste, deja triees par le serveur.
+     *
+     * Le comptage des ecoutes est fait en base : le mobile ne recoit que la
+     * liste finale. Les chansons jamais ecoutees figurent quand meme, apres
+     * les autres, de la plus recente a la plus ancienne — la section n'est
+     * donc jamais vide, meme pour un artiste qui debute.
+     *
+     * La reponse est une liste, pas une page : il n'y a rien a paginer.
+     */
+    suspend fun getTopChansonsArtiste(artistId: Long, limite: Int = 5): RestResponse<List<Song>> {
+        return client.get("$apiBaseUrl/artists/$artistId/top-songs") {
+            parameter("limit", limite)
         }.body()
     }
 
@@ -104,6 +142,29 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         }.body()
     }
 
+    /**
+     * Classement des chansons les plus ecoutees sur les derniers jours.
+     *
+     * La fenetre est glissante : « la semaine » compte les sept derniers jours
+     * a partir de maintenant, et non depuis le lundi — un classement vide le
+     * lundi matin n'aurait pas de sens.
+     *
+     * Seules les chansons reellement ecoutees sur la periode y figurent : la
+     * liste peut donc etre vide sur une base neuve, et la section est alors
+     * masquee plutot qu'affichee sans contenu.
+     */
+    suspend fun getClassement(
+        jours: Int = 7,
+        limite: Int = 10,
+        idGenre: Long? = null
+    ): RestResponse<List<Song>> {
+        return client.get("$apiBaseUrl/songs/top") {
+            parameter("jours", jours)
+            parameter("limit", limite)
+            if (idGenre != null) parameter("genreId", idGenre)
+        }.body()
+    }
+
     suspend fun getSongById(id: Long): RestResponse<Song> {
         return client.get("$apiBaseUrl/songs/$id").body()
     }
@@ -121,6 +182,242 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
 
     suspend fun getEventById(id: Long): RestResponse<Event> {
         return client.get("$apiBaseUrl/events/$id").body()
+    }
+
+    // ============================================================
+    // Concerts (Sprint 4 — calendrier d'un artiste)
+    // ============================================================
+
+    // Un concert est le creneau d'UN artiste dans un evenement : c'est aussi
+    // la demande de participation (statut PENDING / CONFIRMED / DECLINED).
+    // Le calendrier d'un artiste n'affiche donc que ses concerts CONFIRMED.
+    //
+    // sortParam permet d'ordonner : "startTime,asc" pour les concerts a venir,
+    // "startTime,desc" pour les passes (les plus recents en premier).
+    suspend fun rechercherConcerts(
+        requete: ConcertSearch,
+        page: Int = 0,
+        size: Int = 20,
+        sortParam: String = "startTime,asc"
+    ): RestResponse<PageResponse<Concert>> {
+        return client.post("$apiBaseUrl/concerts/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            parameter("sortParam", sortParam)
+            setBody(requete)
+        }.body()
+    }
+
+    // Les statuts de participation sont une table de reference (3 lignes).
+    // On les lit pour resoudre l'id de CONFIRMED par son nom, plutot que de
+    // coder « 2 » en dur : l'ordre des insertions en base n'est pas garanti.
+    suspend fun getStatutsParticipation(): RestResponse<PageResponse<ParticipationStatuse>> {
+        return client.get("$apiBaseUrl/participationstatuses") {
+            parameter("page", 0)
+            parameter("size", 20)
+        }.body()
+    }
+
+    // ============================================================
+    // Invitations recues par un artiste
+    // ============================================================
+
+    /**
+     * Invitations en attente de l'artiste connecte.
+     *
+     * Aucun identifiant d'artiste n'est transmis : le serveur le deduit du
+     * jeton. C'est volontaire — passer l'artiste en parametre aurait permis de
+     * consulter les invitations de quelqu'un d'autre.
+     *
+     * Le serveur ecarte deja les invitations dont la date est passee et trie de
+     * la plus proche a la plus lointaine : il n'y a rien a refaire ici.
+     */
+    suspend fun getMesInvitations(): RestResponse<List<Concert>> {
+        return client.get("$apiBaseUrl/invitations").body()
+    }
+
+    /**
+     * Accepte ou refuse une invitation. [statut] vaut STATUT_ACCEPTE ou
+     * STATUT_REFUSE.
+     *
+     * On ne passe pas par PUT /concerts/{id} : celui-ci remplace la ligne
+     * entiere, donc les champs absents du corps envoye seraient effaces, dont
+     * l'organisateur de l'evenement.
+     */
+    suspend fun repondreInvitation(idConcert: Long, statut: String): RestResponse<Concert> {
+        val reponse = client.patch("$apiBaseUrl/invitations/$idConcert") {
+            contentType(ContentType.Application.Json)
+            setBody(ReponseInvitationDto(statut = statut))
+        }
+        // expectSuccess vaut false : un 403 ou un 409 se deserialise dans la
+        // meme enveloppe qu'un succes. Sans ce controle, un refus du serveur
+        // passerait pour une reponse enregistree.
+        return reponse.body<RestResponse<Concert>>().exigerSucces("Reponse a l'invitation")
+    }
+
+    // ============================================================
+    // Evenements que j'organise
+    // ============================================================
+
+    /** Evenements dont l'artiste connecte est l'organisateur, du plus recent au plus ancien. */
+    suspend fun getMesEvenements(): RestResponse<List<Event>> {
+        return client.get("$apiBaseUrl/mes-evenements").body()
+    }
+
+    /** Creneaux d'un de mes evenements, avec le statut de chaque artiste invite. */
+    suspend fun getProgrammation(idEvenement: Long): RestResponse<List<Concert>> {
+        return client.get("$apiBaseUrl/mes-evenements/$idEvenement/programmation").body()
+    }
+
+    /**
+     * Cree un evenement et, si des creneaux sont fournis, les invitations
+     * correspondantes. Le serveur deduit l'organisateur du jeton.
+     */
+    suspend fun creerEvenement(requete: CreerEvenementDto): RestResponse<Event> {
+        val reponse = client.post("$apiBaseUrl/mes-evenements") {
+            contentType(ContentType.Application.Json)
+            setBody(requete)
+        }
+        return reponse.body<RestResponse<Event>>().exigerSucces("Creation de l'evenement")
+    }
+
+    /** Ajoute des creneaux a un evenement deja cree : complement d'affiche ou remplacement. */
+    suspend fun inviterArtistes(idEvenement: Long, creneaux: List<CreneauDto>): RestResponse<List<Concert>> {
+        val reponse = client.post("$apiBaseUrl/mes-evenements/$idEvenement/invitations") {
+            contentType(ContentType.Application.Json)
+            setBody(creneaux)
+        }
+        return reponse.body<RestResponse<List<Concert>>>().exigerSucces("Envoi des invitations")
+    }
+
+    /**
+     * Mes concerts confirmes, passes et a venir.
+     *
+     * Meme contenu que le calendrier de ma fiche publique, mais le serveur
+     * deduit l'artiste du jeton : l'application n'a pas a connaitre son propre
+     * identifiant d'artiste, que la session ne stocke pas.
+     */
+    suspend fun getMonCalendrier(): RestResponse<List<Concert>> {
+        return client.get("$apiBaseUrl/mon-calendrier").body()
+    }
+
+    /**
+     * Declare un concert sans evenement parent.
+     *
+     * Un evenement regroupe un ou plusieurs concerts, mais l'inverse n'est pas
+     * vrai : un artiste qui joue seul declare simplement sa date. Le serveur le
+     * confirme d'emblee — il n'y a personne a inviter.
+     */
+    suspend fun creerMonConcert(requete: CreerConcertDto): RestResponse<Concert> {
+        val reponse = client.post("$apiBaseUrl/mon-calendrier") {
+            contentType(ContentType.Application.Json)
+            setBody(requete)
+        }
+        return reponse.body<RestResponse<Concert>>().exigerSucces("Création du concert")
+    }
+
+    /**
+     * Annule un concert a venir declare seul. Le serveur refuse un creneau
+     * appartenant a un evenement, et un concert deja passe.
+     */
+    suspend fun supprimerMonConcert(idConcert: Long) {
+        val reponse = client.delete("$apiBaseUrl/mon-calendrier/$idConcert")
+        if (reponse.status.value !in 200..299) {
+            // Comme pour les suppressions de likes et d'abonnements, on ne lit
+            // pas le corps : le deserialiser echouerait et masquerait le vrai
+            // statut.
+            throw IllegalStateException("L'annulation a échoué (${reponse.status.value}).")
+        }
+    }
+
+    /** Lieux deja enregistres, proposes au choix avant d'en creer un nouveau. */
+    suspend fun getLieux(size: Int = 50): RestResponse<PageResponse<Venue>> {
+        return client.get("$apiBaseUrl/venues") {
+            parameter("page", 0)
+            parameter("size", size)
+        }.body()
+    }
+
+    // ============================================================
+    // Envoi de fichiers (Sprint 5)
+    // ============================================================
+
+    /**
+     * Televerse une image et renvoie l'URL publique renvoyee par le serveur.
+     * event_media.url attend une adresse deja hebergee : il faut donc envoyer
+     * le fichier d'abord, puis creer le media avec l'URL obtenue.
+     */
+    suspend fun televerserFichier(
+        octets: ByteArray,
+        nomFichier: String,
+        typeMime: String
+    ): String {
+        val reponse: RestResponse<String> = client.submitFormWithBinaryData(
+            url = "$apiBaseUrl/uploads",
+            formData = formData {
+                append(
+                    key = "fichier",
+                    value = octets,
+                    headers = Headers.build {
+                        append(HttpHeaders.ContentType, typeMime)
+                        append(HttpHeaders.ContentDisposition, "filename=\"$nomFichier\"")
+                    }
+                )
+            }
+        ).body()
+
+        return reponse.exigerSucces("Echec de l'envoi du fichier").data
+            ?: throw IllegalStateException("Le serveur n'a pas renvoyé d'URL.")
+    }
+
+    /** Rattache un media deja televerse a un evenement. */
+    suspend fun creerMediaEvenement(
+        idEvenement: Long,
+        idUtilisateur: Long,
+        idTypeMedia: Long,
+        url: String
+    ): RestResponse<EventMedia> {
+        val reponse: RestResponse<EventMedia> = client.post("$apiBaseUrl/eventmedias") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                EventMediaCreate(
+                    event = EvenementIdDto(idEvenement),
+                    uploader = UserIdDto(idUtilisateur),
+                    mediaType = ReferenceIdDto(idTypeMedia),
+                    url = url,
+                    createdAt = maintenantIso()
+                )
+            )
+        }.body()
+        return reponse.exigerSucces("Echec de l'enregistrement du média")
+    }
+
+    /** Types de media (PHOTO, VIDEO), lus par leur nom comme les autres references. */
+    suspend fun getTypesMedia(): RestResponse<PageResponse<MediaType>> {
+        return client.get("$apiBaseUrl/mediatypes") {
+            parameter("page", 0)
+            parameter("size", 20)
+        }.body()
+    }
+
+    // ============================================================
+    // Medias d'evenement (Sprint 4 — galerie post-evenement)
+    // ============================================================
+
+    suspend fun rechercherMediasEvenement(
+        requete: EventMediaSearch,
+        page: Int = 0,
+        size: Int = 50,
+        sortParam: String = "createdAt,desc"
+    ): RestResponse<PageResponse<EventMedia>> {
+        return client.post("$apiBaseUrl/eventmedias/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            parameter("sortParam", sortParam)
+            setBody(requete)
+        }.body()
     }
 
     // ============================================================
@@ -240,8 +537,60 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         }.body()
     }
 
-    suspend fun deleteFollow(id: Long): RestResponse<Any> {
-        return client.delete("$apiBaseUrl/follows/$id").body()
+    // Volontairement sans deserialisation : RestResponse<Any> n'est pas
+    // serialisable, et tenter de lire le corps levait une exception APRES que
+    // le serveur avait supprime la ligne. L'ecran revenait alors a « Suivi »
+    // alors que le desabonnement avait bien eu lieu. On se fie au statut HTTP.
+    suspend fun deleteFollow(id: Long) {
+        val reponse = client.delete("$apiBaseUrl/follows/$id")
+        if (!reponse.status.isSuccess()) {
+            throw IllegalStateException("Echec du desabonnement (${reponse.status.value})")
+        }
+    }
+
+    // --- Sprint 3 : follow / unfollow depuis la fiche artiste ---
+
+    // Sert à deux usages selon le filtre passé :
+    //  - artiste seul                → compter les abonnés (totalElements)
+    //  - artiste + utilisateur       → savoir si l'utilisateur suit déjà, et
+    //                                  récupérer l'id du follow pour le supprimer
+    suspend fun rechercherFollows(
+        requete: FollowSearch,
+        page: Int = 0,
+        size: Int = 1
+    ): RestResponse<PageResponse<Follow>> {
+        return client.post("$apiBaseUrl/follows/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            setBody(requete)
+        }.body()
+    }
+
+    // On envoie volontairement un corps minimal (deux identifiants) plutôt que
+    // l'objet Follow complet : le backend valide l'entité et un Artist partiel
+    // ferait échouer la création.
+    suspend fun creerFollow(idUtilisateur: Long, idArtiste: Long): RestResponse<Follow> {
+        val reponse: RestResponse<Follow> = client.post("$apiBaseUrl/follows") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                FollowCreate(
+                    clientUser = UserIdDto(idUtilisateur),
+                    artist = ArtistIdDto(idArtiste),
+                    // Le backend refuse la creation sans createdAt
+                    // (« Validation failed : CreatedAt cannot be null »).
+                    createdAt = maintenantIso()
+                )
+            )
+        }.body()
+
+        // expectSuccess est a false : une 400 ne leve pas d'exception et se
+        // deserialise dans la meme enveloppe. Sans ce controle, l'ecran
+        // afficherait « Suivi » alors que rien n'a ete enregistre.
+        if (reponse.status !in 200..299) {
+            throw IllegalStateException("Echec de l'abonnement (${reponse.status}) : ${reponse.message}")
+        }
+        return reponse
     }
 
     // ============================================================
@@ -280,8 +629,170 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         }.body()
     }
 
-    suspend fun deleteLike(id: Long): RestResponse<Any> {
-        return client.delete("$apiBaseUrl/likes/$id").body()
+    // Meme correctif que deleteFollow : RestResponse<Any> n'est pas serialisable,
+    // la lecture du corps levait une exception APRES la suppression cote serveur
+    // et l'ecran revenait a « aime » alors que le like n'existait plus.
+    suspend fun deleteLike(id: Long) {
+        val reponse = client.delete("$apiBaseUrl/likes/$id")
+        if (!reponse.status.isSuccess()) {
+            throw IllegalStateException("Echec du retrait du like (${reponse.status.value})")
+        }
+    }
+
+    // ============================================================
+    // Interactions sur un evenement (Sprint 3 — likes, commentaires, signalement)
+    // ============================================================
+    //
+    // Likes, commentaires et signalements partagent le meme schema generique :
+    // un type de cible (EVENT, COMMENT, ...) + l'id de la cible. Les types sont
+    // une table de reference, dont on lit les ids par leur nom plutot que de les
+    // coder en dur.
+    //
+    // Les trois entites exigent createdAt cote backend (« CreatedAt cannot be
+    // null ») : on l'envoie systematiquement a la creation.
+
+    suspend fun getCiblesInteraction(): RestResponse<PageResponse<InteractionTarget>> {
+        return client.get("$apiBaseUrl/interactiontargets") {
+            parameter("page", 0)
+            parameter("size", 20)
+        }.body()
+    }
+
+    suspend fun getStatutsSignalement(): RestResponse<PageResponse<ReportStatuse>> {
+        return client.get("$apiBaseUrl/reportstatuses") {
+            parameter("page", 0)
+            parameter("size", 20)
+        }.body()
+    }
+
+    // --- Likes ---
+
+    // Selon le filtre : cible seule -> compteur (totalElements) ;
+    // cible + utilisateur -> « ai-je deja aime », et l'id a supprimer.
+    suspend fun rechercherLikes(
+        requete: LikeSearch,
+        page: Int = 0,
+        size: Int = 1
+    ): RestResponse<PageResponse<Like>> {
+        return client.post("$apiBaseUrl/likes/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            setBody(requete)
+        }.body()
+    }
+
+    suspend fun aimer(idUtilisateur: Long, idTypeCible: Long, idCible: Long): RestResponse<Like> {
+        val reponse: RestResponse<Like> = client.post("$apiBaseUrl/likes") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                LikeCreate(
+                    user = UserIdDto(idUtilisateur),
+                    targetType = ReferenceIdDto(idTypeCible),
+                    targetId = idCible,
+                    createdAt = maintenantIso()
+                )
+            )
+        }.body()
+        return reponse.exigerSucces("Echec du like")
+    }
+
+    // --- Commentaires ---
+
+    suspend fun rechercherCommentaires(
+        requete: CommentSearch,
+        page: Int = 0,
+        size: Int = 50,
+        // Les plus recents en premier : c'est ce qu'on lit d'abord sous un evenement.
+        sortParam: String = "createdAt,desc"
+    ): RestResponse<PageResponse<Comment>> {
+        return client.post("$apiBaseUrl/comments/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            parameter("sortParam", sortParam)
+            setBody(requete)
+        }.body()
+    }
+
+    suspend fun publierCommentaire(
+        idUtilisateur: Long,
+        idTypeCible: Long,
+        idCible: Long,
+        contenu: String
+    ): RestResponse<Comment> {
+        val reponse: RestResponse<Comment> = client.post("$apiBaseUrl/comments") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                CommentCreate(
+                    author = UserIdDto(idUtilisateur),
+                    targetType = ReferenceIdDto(idTypeCible),
+                    targetId = idCible,
+                    content = contenu,
+                    isHidden = false,
+                    createdAt = maintenantIso()
+                )
+            )
+        }.body()
+        return reponse.exigerSucces("Echec de la publication du commentaire")
+    }
+
+    // Sans deserialisation, pour la meme raison que deleteLike / deleteFollow.
+    suspend fun supprimerCommentaire(id: Long) {
+        val reponse = client.delete("$apiBaseUrl/comments/$id")
+        if (!reponse.status.isSuccess()) {
+            throw IllegalStateException("Echec de la suppression du commentaire (${reponse.status.value})")
+        }
+    }
+
+    // --- Signalements ---
+
+    suspend fun signaler(
+        idUtilisateur: Long,
+        idTypeCible: Long,
+        idCible: Long,
+        motif: String,
+        idStatut: Long
+    ): RestResponse<Report> {
+        val reponse: RestResponse<Report> = client.post("$apiBaseUrl/reports") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                ReportCreate(
+                    reporter = UserIdDto(idUtilisateur),
+                    targetType = ReferenceIdDto(idTypeCible),
+                    targetId = idCible,
+                    reason = motif,
+                    status = ReferenceIdDto(idStatut),
+                    createdAt = maintenantIso()
+                )
+            )
+        }.body()
+        return reponse.exigerSucces("Echec du signalement")
+    }
+
+    // Sert a masquer, pour celui qui les a signales, les commentaires qu'il a
+    // deja signales : il n'a pas a les revoir en attendant la moderation.
+    suspend fun rechercherSignalements(
+        requete: ReportSearch,
+        page: Int = 0,
+        size: Int = 100
+    ): RestResponse<PageResponse<Report>> {
+        return client.post("$apiBaseUrl/reports/search") {
+            contentType(ContentType.Application.Json)
+            parameter("page", page)
+            parameter("size", size)
+            setBody(requete)
+        }.body()
+    }
+
+    // expectSuccess est a false : une 400 se deserialise dans la meme enveloppe
+    // sans lever d'exception. On controle donc le statut explicitement, sinon
+    // l'ecran afficherait un succes alors que rien n'a ete enregistre.
+    private fun <T> RestResponse<T>.exigerSucces(action: String): RestResponse<T> {
+        if (status !in 200..299) {
+            throw IllegalStateException("$action ($status) : $message")
+        }
+        return this
     }
 
     // ============================================================
@@ -408,4 +919,183 @@ data class SearchHistoryCreate(
     @kotlinx.serialization.SerialName("useridUsers") val user: UserIdDto? = null,
     @kotlinx.serialization.SerialName("queryText") val queryText: String,
     @kotlinx.serialization.SerialName("searchedAt") val searchedAt: String
+)
+
+
+// DTO de recherche pour POST /follows/search (Sprint 3)
+@kotlinx.serialization.Serializable
+data class FollowSearch(
+    @kotlinx.serialization.SerialName("clientuseridUsers") val clientUser: UserIdDto? = null,
+    @kotlinx.serialization.SerialName("artistidArtists") val artist: ArtistIdDto? = null
+)
+
+// DTO de creation pour POST /follows (Sprint 3)
+@kotlinx.serialization.Serializable
+data class FollowCreate(
+    @kotlinx.serialization.SerialName("clientuseridUsers") val clientUser: UserIdDto,
+    @kotlinx.serialization.SerialName("artistidArtists") val artist: ArtistIdDto,
+    @kotlinx.serialization.SerialName("createdAt") val createdAt: String
+)
+
+@kotlinx.serialization.Serializable
+data class ArtistIdDto(
+    val id: Long
+)
+
+// ============================================================
+// DTO de recherche — Sprint 4 (calendrier et galerie)
+// ============================================================
+
+// POST /concerts/search
+// startTimeMin / startTimeMax servent a decouper passe et a venir en deux
+// appels, plutot que de tout rapatrier et de trier sur le mobile.
+@kotlinx.serialization.Serializable
+data class ConcertSearch(
+    @kotlinx.serialization.SerialName("artistidArtists") val artist: ArtistIdDto? = null,
+    @kotlinx.serialization.SerialName("eventidEvents") val event: EvenementIdDto? = null,
+    @kotlinx.serialization.SerialName("statusidParticipationStatuses") val statut: StatutParticipationIdDto? = null,
+    @kotlinx.serialization.SerialName("startTimeMin") val debutMin: String? = null,
+    @kotlinx.serialization.SerialName("startTimeMax") val debutMax: String? = null
+)
+
+// PATCH /invitations/{idConcert}
+@kotlinx.serialization.Serializable
+data class ReponseInvitationDto(
+    val statut: String
+)
+
+// POST /mes-evenements
+@kotlinx.serialization.Serializable
+data class CreerEvenementDto(
+    val nom: String,
+    val description: String? = null,
+    val dateDebut: String,
+    val dateFin: String,
+    val creneaux: List<CreneauDto> = emptyList()
+)
+
+/**
+ * Un creneau de la programmation.
+ *
+ * Le lieu se designe par [idLieu] pour une salle connue, ou par [nouveauLieu]
+ * pour une salle a creer — l'un ou l'autre, jamais les deux : le serveur refuse
+ * les deux a la fois comme il refuse aucun des deux.
+ */
+@kotlinx.serialization.Serializable
+data class CreneauDto(
+    val idArtiste: Long,
+    val idLieu: Long? = null,
+    val nouveauLieu: NouveauLieuDto? = null,
+    val debut: String,
+    val fin: String? = null,
+    val titre: String? = null
+)
+
+// POST /mon-calendrier
+@kotlinx.serialization.Serializable
+data class CreerConcertDto(
+    val titre: String? = null,
+    val description: String? = null,
+    val idLieu: Long? = null,
+    val nouveauLieu: NouveauLieuDto? = null,
+    val debut: String,
+    val fin: String? = null
+)
+
+@kotlinx.serialization.Serializable
+data class NouveauLieuDto(
+    val nom: String,
+    val localisation: String? = null
+)
+
+// POST /eventmedias/search
+@kotlinx.serialization.Serializable
+data class EventMediaSearch(
+    @kotlinx.serialization.SerialName("eventidEvents") val event: EvenementIdDto? = null
+)
+
+@kotlinx.serialization.Serializable
+data class EvenementIdDto(
+    val id: Long
+)
+
+@kotlinx.serialization.Serializable
+data class StatutParticipationIdDto(
+    val id: Long
+)
+
+// ============================================================
+// DTO — Sprint 3 (likes, commentaires, signalements)
+// ============================================================
+
+// Reference generique { "id": ... } vers une table de reference
+// (interaction_targets, report_statuses).
+@kotlinx.serialization.Serializable
+data class ReferenceIdDto(
+    val id: Long
+)
+
+// POST /likes/search
+@kotlinx.serialization.Serializable
+data class LikeSearch(
+    @kotlinx.serialization.SerialName("useridUsers") val user: UserIdDto? = null,
+    @kotlinx.serialization.SerialName("targettypeidInteractionTargets") val targetType: ReferenceIdDto? = null,
+    @kotlinx.serialization.SerialName("targetId") val targetId: Long? = null
+)
+
+// POST /likes
+@kotlinx.serialization.Serializable
+data class LikeCreate(
+    @kotlinx.serialization.SerialName("useridUsers") val user: UserIdDto,
+    @kotlinx.serialization.SerialName("targettypeidInteractionTargets") val targetType: ReferenceIdDto,
+    @kotlinx.serialization.SerialName("targetId") val targetId: Long,
+    @kotlinx.serialization.SerialName("createdAt") val createdAt: String
+)
+
+// POST /comments/search
+@kotlinx.serialization.Serializable
+data class CommentSearch(
+    @kotlinx.serialization.SerialName("targettypeidInteractionTargets") val targetType: ReferenceIdDto? = null,
+    @kotlinx.serialization.SerialName("targetId") val targetId: Long? = null,
+    // false : on exclut cote serveur les commentaires masques par la moderation.
+    @kotlinx.serialization.SerialName("isHidden") val isHidden: Boolean? = null
+)
+
+// POST /comments
+@kotlinx.serialization.Serializable
+data class CommentCreate(
+    @kotlinx.serialization.SerialName("authoruseridUsers") val author: UserIdDto,
+    @kotlinx.serialization.SerialName("targettypeidInteractionTargets") val targetType: ReferenceIdDto,
+    @kotlinx.serialization.SerialName("targetId") val targetId: Long,
+    val content: String,
+    @kotlinx.serialization.SerialName("isHidden") val isHidden: Boolean,
+    @kotlinx.serialization.SerialName("createdAt") val createdAt: String
+)
+
+// POST /reports/search
+@kotlinx.serialization.Serializable
+data class ReportSearch(
+    @kotlinx.serialization.SerialName("reporteruseridUsers") val reporter: UserIdDto? = null,
+    @kotlinx.serialization.SerialName("targettypeidInteractionTargets") val targetType: ReferenceIdDto? = null
+)
+
+// POST /reports
+@kotlinx.serialization.Serializable
+data class ReportCreate(
+    @kotlinx.serialization.SerialName("reporteruseridUsers") val reporter: UserIdDto,
+    @kotlinx.serialization.SerialName("targettypeidInteractionTargets") val targetType: ReferenceIdDto,
+    @kotlinx.serialization.SerialName("targetId") val targetId: Long,
+    val reason: String?,
+    @kotlinx.serialization.SerialName("statusidReportStatuses") val status: ReferenceIdDto,
+    @kotlinx.serialization.SerialName("createdAt") val createdAt: String
+)
+
+// POST /eventmedias — Sprint 5 (galerie alimentee depuis l'application)
+@kotlinx.serialization.Serializable
+data class EventMediaCreate(
+    @kotlinx.serialization.SerialName("eventidEvents") val event: EvenementIdDto,
+    @kotlinx.serialization.SerialName("uploaderuseridUsers") val uploader: UserIdDto,
+    @kotlinx.serialization.SerialName("mediatypeidMediaTypes") val mediaType: ReferenceIdDto,
+    val url: String,
+    @kotlinx.serialization.SerialName("createdAt") val createdAt: String
 )

@@ -23,6 +23,82 @@ actual fun SmartVideoPlayerComposable(url: String, modifier: Modifier) {
 }
 
 @Composable
+private fun YoutubeWebPlayer(url: String, modifier: Modifier) {
+    val context = LocalContext.current
+    key(url) {
+        AndroidView(
+        factory = { ctx ->
+            WebView(ctx).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.mediaPlaybackRequiresUserGesture = false
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                settings.allowContentAccess = true
+                settings.allowFileAccess = true
+                settings.userAgentString =
+                    "Mozilla/5.0 (Linux; Android 10; Mobile) " +
+                    "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                    "Chrome/120.0.0.0 Mobile Safari/537.36"
+                webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                        Log.d("KaloyVideo", "WebView page started: $url")
+                    }
+
+                    override fun onPageFinished(view: WebView, url: String) {
+                        Log.d("KaloyVideo", "WebView page finished: $url")
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView,
+                        request: WebResourceRequest,
+                        error: WebResourceError
+                    ) {
+                        Log.e("KaloyVideo", "WebView error ${error.errorCode}: ${error.description} for ${request.url}")
+                    }
+                }
+                webChromeClient = object : WebChromeClient() {
+                    private var customView: View? = null
+                    override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+                        customView = view
+                        (context as? Activity)?.window?.decorView?.let { decor ->
+                            (decor as? ViewGroup)?.addView(
+                                view,
+                                ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            )
+                        }
+                    }
+                    override fun onHideCustomView() {
+                        customView?.let { v ->
+                            (context as? Activity)?.window?.decorView?.let { decor ->
+                                (decor as? ViewGroup)?.removeView(v)
+                            }
+                        }
+                        customView = null
+                    }
+                }
+                // On ne force plus origin, enablejsapi, widget_referrer ni
+                // les en-tetes Referer et Origin. Ces parametres annoncaient a
+                // YouTube une origine — www.youtube.com — qui ne correspondait
+                // pas a celle de la page reellement chargee. Le lecteur
+                // integre valide cette correspondance, et un desaccord se
+                // traduit par « This video is unavailable, error 152 ».
+                //
+                // playsinline evite le passage en plein ecran force sur
+                // telephone, rel=0 limite les suggestions de fin.
+                val separateur = if (url.contains("?")) "&" else "?"
+                loadUrl("$url${separateur}playsinline=1&autoplay=1&rel=0")
+            }
+        },
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
 private fun ExoNativePlayer(url: String, modifier: Modifier) {
     val context = LocalContext.current
     val player = remember(url) {

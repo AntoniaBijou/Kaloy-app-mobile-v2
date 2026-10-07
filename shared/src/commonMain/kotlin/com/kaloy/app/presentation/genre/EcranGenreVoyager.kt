@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,7 +22,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Song
-import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
+import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.ui.components.EmptyState
 import com.kaloy.app.ui.components.ErrorState
 import com.kaloy.app.ui.components.LoadingIndicator
@@ -94,7 +96,11 @@ data class EcranGenreVoyager(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { navigateur.pop() }) {
-                    Text("←", fontSize = 24.sp, color = androidx.compose.ui.graphics.Color.White)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Retour",
+                        tint = androidx.compose.ui.graphics.Color.White
+                    )
                 }
                 Column(modifier = Modifier.padding(start = 4.dp)) {
                     Text(
@@ -132,7 +138,7 @@ data class EcranGenreVoyager(
                         SongRow(
                             song = chanson,
                             index = index,
-                            onClick = { navigateur.push(EcranDetailChansonVoyager(chanson.id)) }
+                            onClick = { navigateur.push(LecteurScreen(songId = chanson.id)) }
                         )
                     }
                     item { Spacer(modifier = Modifier.height(80.dp)) }

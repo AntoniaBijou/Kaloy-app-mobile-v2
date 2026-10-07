@@ -4,5 +4,34 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+
+	<!--
+	  Autorisations reclamees par UIImagePickerController.
+	  iOS ne demande pas ces acces : il TERMINE l'application si le texte
+	  d'explication est absent au moment ou le selecteur s'ouvre. Sans ces deux
+	  cles, envoyer une photo d'evenement ou changer sa photo de profil fermait
+	  l'application sans message.
+	-->
+	<key>NSCameraUsageDescription</key>
+	<string>Kaloy utilise l'appareil photo pour vous permettre de partager des photos pendant un événement.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Kaloy accède à vos photos pour que vous puissiez choisir une image de profil ou illustrer un événement.</string>
+
+	<!--
+	  App Transport Security.
+
+	  iOS bloque le HTTP en clair depuis iOS 9. Or BASE_URL pointe sur
+	  http://<adresse-du-pc>:8087 pendant le developpement : sans cette
+	  exception, AUCUNE requete n'aboutirait, et l'application afficherait des
+	  ecrans vides sans la moindre erreur reseau visible.
+
+	  A RETIRER AVANT PUBLICATION : Apple refuse NSAllowsArbitraryLoads sans
+	  justification ecrite. La vraie solution est de servir l'API en HTTPS.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
