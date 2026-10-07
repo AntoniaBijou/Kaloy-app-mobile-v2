@@ -89,17 +89,17 @@ private fun YoutubeWebPlayer(url: String, modifier: Modifier) {
                         customView = null
                     }
                 }
-                val separator = if (url.contains("?")) "&" else "?"
-                val embedUrl = "$url${separator}playsinline=1&autoplay=1&rel=0" +
-                    "&origin=https%3A%2F%2Fwww.youtube.com&enablejsapi=1" +
-                    "&widget_referrer=https%3A%2F%2Fwww.youtube.com%2F"
-                loadUrl(
-                    embedUrl,
-                    mapOf(
-                        "Referer" to "https://www.youtube.com/",
-                        "Origin" to "https://www.youtube.com"
-                    )
-                )
+                // On ne force plus origin, enablejsapi, widget_referrer ni
+                // les en-tetes Referer et Origin. Ces parametres annoncaient a
+                // YouTube une origine — www.youtube.com — qui ne correspondait
+                // pas a celle de la page reellement chargee. Le lecteur
+                // integre valide cette correspondance, et un desaccord se
+                // traduit par « This video is unavailable, error 152 ».
+                //
+                // playsinline evite le passage en plein ecran force sur
+                // telephone, rel=0 limite les suggestions de fin.
+                val separateur = if (url.contains("?")) "&" else "?"
+                loadUrl("$url${separateur}playsinline=1&autoplay=1&rel=0")
             }
         },
             modifier = modifier

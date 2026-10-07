@@ -43,6 +43,7 @@ import com.kaloy.app.data.api.CommentSearch
 import com.kaloy.app.data.api.ConcertSearch
 import com.kaloy.app.data.api.EventMediaSearch
 import com.kaloy.app.data.api.EvenementIdDto
+import com.kaloy.app.core.network.urlMedia
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.api.LikeSearch
 import com.kaloy.app.data.api.ReferenceIdDto
@@ -733,7 +734,7 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                             }
                             items(modeleVue.videos, key = { it.id }) { video ->
                                 SmartVideoPlayerComposable(
-                                    url = video.url,
+                                    url = urlMedia(video.url) ?: "",
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(220.dp)
@@ -1132,7 +1133,7 @@ private fun VignettePhoto(media: EventMedia) {
             modifier = Modifier.size(32.dp)
         )
         AsyncImage(
-            model = media.url,
+            model = urlMedia(media.url),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

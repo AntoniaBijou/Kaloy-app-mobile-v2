@@ -2,6 +2,7 @@ package com.kaloy.app.data.repository
 
 import com.kaloy.app.core.error.UserErrorMessages
 import com.kaloy.app.core.network.BASE_URL
+import com.kaloy.app.core.network.urlMedia
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.RestResponse
 import com.kaloy.app.data.model.SongPlayerResponse
@@ -38,6 +39,16 @@ class LecteurRepositoryImpl(
             withSessionToken()
         }
         if (response.status == HttpStatusCode.Unauthorized) throw Exception("SESSION_EXPIRED")
-        return response.decodeData()
+        val details: SongPlayerResponse = response.decodeData()
+        // Le serveur renvoie des chemins pour les medias qu'il heberge ; on les
+        // complete ici, une seule fois, plutot que dans chaque ecran.
+        return details.copy(
+            audioStreamUrl = urlMedia(details.audioStreamUrl),
+            videoStreamUrl = urlMedia(details.videoStreamUrl),
+            karaokeStreamUrl = urlMedia(details.karaokeStreamUrl),
+            playbackStreamUrl = urlMedia(details.playbackStreamUrl),
+            artistPhotoUrl = urlMedia(details.artistPhotoUrl),
+            albumCoverUrl = urlMedia(details.albumCoverUrl)
+        )
     }
 }
