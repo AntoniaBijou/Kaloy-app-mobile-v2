@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,8 +25,10 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.util.Calendrier
 import com.kaloy.app.core.util.aujourdHuiLocal
+import com.kaloy.app.data.api.CreerConcertDto
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Concert
+import com.kaloy.app.data.model.Venue
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -52,6 +55,14 @@ class MonCalendrierViewModel : ViewModel() {
         private set
     var erreur by mutableStateOf<String?>(null)
         private set
+    var message by mutableStateOf<String?>(null)
+        private set
+    var operationEnCours by mutableStateOf(false)
+        private set
+
+    /** Lieux proposes dans le formulaire, avant d'en creer un nouveau. */
+    var lieux by mutableStateOf<List<Venue>>(emptyList())
+        private set
 
     val aujourdHui: String = aujourdHuiLocal()
 
@@ -61,6 +72,18 @@ class MonCalendrierViewModel : ViewModel() {
             moisAffiche = date.second
         }
         charger()
+        chargerLieux()
+    }
+
+    private fun chargerLieux() {
+        viewModelScope.launch {
+            lieux = try {
+                api.getLieux().data?.content ?: emptyList()
+            } catch (_: Exception) {
+                // La liste vide reste utilisable : l'artiste creera son lieu.
+                emptyList()
+            }
+        }
     }
 
     fun charger() {
@@ -107,6 +130,58 @@ class MonCalendrierViewModel : ViewModel() {
 
     /** Nombre total de concerts confirmes, toutes dates confondues. */
     val nombreConcerts: Int get() = concertsParDate.values.sumOf { it.size }
+
+    fun declarerConcert(requete: CreerConcertDto) {
+        if (operationEnCours) return
+        viewModelScope.launch {
+            operationEnCours = true
+            message = null
+            erreur = null
+            try {
+                val cree = api.creerMonConcert(requete)
+                message = "Concert ajouté à votre calendrier."
+                // On relit tout plutot que d'inserer la ligne a la main : c'est
+                // le serveur qui decide du statut et de la date retenue.
+                charger()
+                // Le mois du nouveau concert s'affiche, sans quoi l'artiste
+                // resterait sur un mois ou rien n'a change.
+                cree.data?.startTime?.let { debut ->
+                    Calendrier.decouper(debut)?.let { date ->
+                        anneeAffichee = date.first
+                        moisAffiche = date.second
+                        dateSelectionnee = debut.substringBefore('T')
+                    }
+                }
+            } catch (e: Exception) {
+                erreur = e.message ?: "Le concert n'a pas pu être créé."
+            } finally {
+                operationEnCours = false
+            }
+        }
+    }
+
+    fun annulerConcert(idConcert: Long) {
+        if (operationEnCours) return
+        viewModelScope.launch {
+            operationEnCours = true
+            message = null
+            erreur = null
+            try {
+                api.supprimerMonConcert(idConcert)
+                message = "Concert annulé."
+                charger()
+            } catch (e: Exception) {
+                erreur = e.message ?: "L'annulation n'a pas pu être enregistrée."
+            } finally {
+                operationEnCours = false
+            }
+        }
+    }
+
+    fun effacerMessages() {
+        message = null
+        erreur = null
+    }
 }
 
 class EcranMonCalendrierVoyager : Screen {
@@ -117,6 +192,50 @@ class EcranMonCalendrierVoyager : Screen {
         val navigateur = LocalNavigator.currentOrThrow
         val modeleVue: MonCalendrierViewModel = viewModel(key = "mon_calendrier") {
             MonCalendrierViewModel()
+        }
+
+        var dialogueConcert by remember { mutableStateOf(false) }
+        var concertAAnnuler by remember { mutableStateOf<Concert?>(null) }
+
+        if (dialogueConcert) {
+            DialogueConcert(
+                lieux = modeleVue.lieux,
+                onAnnuler = { dialogueConcert = false },
+                onValider = { requete ->
+                    modeleVue.declarerConcert(requete)
+                    dialogueConcert = false
+                }
+            )
+        }
+
+        // L'annulation est irreversible : on la fait confirmer.
+        concertAAnnuler?.let { concert ->
+            AlertDialog(
+                onDismissRequest = { concertAAnnuler = null },
+                containerColor = KaloyDarkCard,
+                title = { Text("Annuler ce concert ?", color = KaloyTextPrimary) },
+                text = {
+                    Text(
+                        text = "« ${concert.title ?: "Concert"} » du " +
+                            "${concert.startTime?.take(10) ?: ""} sera retiré de votre calendrier. " +
+                            "Cette action est définitive.",
+                        color = KaloyTextSecondary
+                    )
+                },
+                dismissButton = {
+                    TextButton(onClick = { concertAAnnuler = null }) {
+                        Text("Garder", color = KaloyTextSecondary)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        modeleVue.annulerConcert(concert.id)
+                        concertAAnnuler = null
+                    }) {
+                        Text("Annuler le concert", color = KaloyPink)
+                    }
+                }
+            )
         }
 
         Scaffold(
@@ -135,6 +254,15 @@ class EcranMonCalendrierVoyager : Screen {
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkBg)
                 )
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    onClick = { dialogueConcert = true },
+                    containerColor = KaloyPurple,
+                    contentColor = KaloyTextPrimary
+                ) {
+                    Text(if (modeleVue.operationEnCours) "…" else "+ Concert")
+                }
             }
         ) { espacement ->
             Box(
@@ -175,6 +303,13 @@ class EcranMonCalendrierVoyager : Screen {
                             )
                         }
 
+                        modeleVue.message?.let { texte ->
+                            item { Text(texte, color = KaloyCyan, modifier = Modifier.padding(top = 12.dp)) }
+                        }
+                        modeleVue.erreur?.let { texte ->
+                            item { Text(texte, color = KaloyPink, modifier = Modifier.padding(top = 12.dp)) }
+                        }
+
                         item { Spacer(Modifier.height(16.dp)) }
 
                         // Contrairement a la fiche publique, appuyer sur un jour
@@ -192,13 +327,21 @@ class EcranMonCalendrierVoyager : Screen {
                                 items(duJour, key = { "agenda_${it.id}" }) { concert ->
                                     CarteConcert(
                                         concert = concert,
+                                        // Un concert sans evenement est un
+                                        // concert qu'il a declare seul : lui
+                                        // seul peut l'annuler, et seulement
+                                        // s'il est encore a venir.
+                                        annulable = concert.event == null &&
+                                            (concert.startTime?.substringBefore('T')
+                                                ?: "") >= modeleVue.aujourdHui,
                                         onClick = {
                                             concert.event?.let {
                                                 navigateur.push(
                                                     EcranDetailEvenementVoyager(idEvenement = it.id)
                                                 )
                                             }
-                                        }
+                                        },
+                                        onAnnuler = { concertAAnnuler = concert }
                                     )
                                 }
                             }
@@ -245,7 +388,12 @@ private fun AucunConcert() {
 }
 
 @Composable
-private fun CarteConcert(concert: Concert, onClick: () -> Unit) {
+private fun CarteConcert(
+    concert: Concert,
+    annulable: Boolean,
+    onClick: () -> Unit,
+    onAnnuler: () -> Unit
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
         shape = RoundedCornerShape(12.dp),
@@ -257,12 +405,17 @@ private fun CarteConcert(concert: Concert, onClick: () -> Unit) {
                 .clickable(onClick = onClick)
                 .padding(14.dp)
         ) {
+            // Un concert d'evenement porte deux noms : celui de l'affiche et
+            // celui du passage. Un concert declare seul n'en a qu'un, et
+            // l'afficher deux fois donnait « Soiree acoustique » en titre comme
+            // en sous-titre.
+            val titrePrincipal = concert.event?.name ?: concert.title ?: "Concert"
             Text(
-                text = concert.event?.name ?: concert.title ?: "Concert",
+                text = titrePrincipal,
                 color = KaloyTextPrimary,
                 fontWeight = FontWeight.SemiBold
             )
-            concert.title?.let {
+            concert.title?.takeIf { it != titrePrincipal }?.let {
                 Text(it, color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
             }
             Text(
@@ -286,6 +439,20 @@ private fun CarteConcert(concert: Concert, onClick: () -> Unit) {
                         color = KaloyTextMuted,
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+            }
+
+            if (annulable) {
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onAnnuler, contentPadding = PaddingValues(0.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = KaloyPink,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Annuler ce concert", color = KaloyPink)
                 }
             }
         }

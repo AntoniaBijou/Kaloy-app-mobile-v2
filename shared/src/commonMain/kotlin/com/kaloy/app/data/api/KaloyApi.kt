@@ -302,6 +302,35 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return client.get("$apiBaseUrl/mon-calendrier").body()
     }
 
+    /**
+     * Declare un concert sans evenement parent.
+     *
+     * Un evenement regroupe un ou plusieurs concerts, mais l'inverse n'est pas
+     * vrai : un artiste qui joue seul declare simplement sa date. Le serveur le
+     * confirme d'emblee — il n'y a personne a inviter.
+     */
+    suspend fun creerMonConcert(requete: CreerConcertDto): RestResponse<Concert> {
+        val reponse = client.post("$apiBaseUrl/mon-calendrier") {
+            contentType(ContentType.Application.Json)
+            setBody(requete)
+        }
+        return reponse.body<RestResponse<Concert>>().exigerSucces("Création du concert")
+    }
+
+    /**
+     * Annule un concert a venir declare seul. Le serveur refuse un creneau
+     * appartenant a un evenement, et un concert deja passe.
+     */
+    suspend fun supprimerMonConcert(idConcert: Long) {
+        val reponse = client.delete("$apiBaseUrl/mon-calendrier/$idConcert")
+        if (reponse.status.value !in 200..299) {
+            // Comme pour les suppressions de likes et d'abonnements, on ne lit
+            // pas le corps : le deserialiser echouerait et masquerait le vrai
+            // statut.
+            throw IllegalStateException("L'annulation a échoué (${reponse.status.value}).")
+        }
+    }
+
     /** Lieux deja enregistres, proposes au choix avant d'en creer un nouveau. */
     suspend fun getLieux(size: Int = 50): RestResponse<PageResponse<Venue>> {
         return client.get("$apiBaseUrl/venues") {
@@ -932,6 +961,17 @@ data class CreneauDto(
     val debut: String,
     val fin: String? = null,
     val titre: String? = null
+)
+
+// POST /mon-calendrier
+@kotlinx.serialization.Serializable
+data class CreerConcertDto(
+    val titre: String? = null,
+    val description: String? = null,
+    val idLieu: Long? = null,
+    val nouveauLieu: NouveauLieuDto? = null,
+    val debut: String,
+    val fin: String? = null
 )
 
 @kotlinx.serialization.Serializable
