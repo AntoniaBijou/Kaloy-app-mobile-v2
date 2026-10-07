@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
 // Adresse du PC sur le Wi-Fi : c'est celle qu'embarquent les APK installes sur
 // un telephone. A verifier avant chaque build de release, elle change avec le
 // reseau. Pour tester sur l'emulateur, basculer sur la ligne 10.0.2.2.
-const val BASE_URL = "http://192.168.3.96:8087/mozika"
+const val BASE_URL = "http://192.168.5.91:8087/mozika"
 // Emulateur Android → const val BASE_URL = "http://10.0.2.2:8087/mozika"
 //Fifa
 // Version 1.0 (APK) → const val BASE_URL = "http://192.168.0.157:8087/mozika"

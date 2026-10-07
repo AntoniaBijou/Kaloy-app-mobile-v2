@@ -17,6 +17,7 @@
         <!-- Version 1.0 : adresse du PC sur le Wi-Fi -->
         <!-- Conf ITC-->
         <domain includeSubdomains="false">192.168.0.157</domain>
+        <domain includeSubdomains="false">192.168.5.91</domain>
         <!-- Fifaaaaa-->
         <domain includeSubdomains="false">10.16.27.150</domain>
         <!-- Salle 4-->
