@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
@@ -194,6 +196,10 @@ fun SongRow(
     song: Song,
     index: Int,
     onClick: () -> Unit,
+    onMoreClick: (() -> Unit)? = null,
+    onPlayNow: (() -> Unit)? = null,
+    onAddNext: (() -> Unit)? = null,
+    onAddToQueue: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -260,6 +266,14 @@ fun SongRow(
                 text = "$min:${sec.toString().padStart(2, '0')}",
                 style = MaterialTheme.typography.bodySmall,
                 color = KaloyTextMuted
+            )
+        }
+        if (onMoreClick != null) {
+            com.kaloy.app.presentation.queue.SongActionsMenu(
+                song = song,
+                onPlayNow = onPlayNow ?: onMoreClick,
+                onAddNext = onAddNext ?: onMoreClick,
+                onAddToQueue = onAddToQueue ?: onMoreClick
             )
         }
     }

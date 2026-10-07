@@ -116,11 +116,11 @@ class MoiViewModel(
         }
     }
 
-    fun updatePhoto(photoUrl: String) {
+    fun updatePhoto(bytes: ByteArray) {
         scope.launch {
             _operationState.value = MoiOperationState.Loading
             try {
-                val msg = repository.updatePhoto(UpdatePhotoRequest(photoUrl))
+                val msg = repository.uploadPhoto(bytes, "image/jpeg")
                 _operationState.value = MoiOperationState.Success(msg)
                 loadProfile()
             } catch (e: Exception) {

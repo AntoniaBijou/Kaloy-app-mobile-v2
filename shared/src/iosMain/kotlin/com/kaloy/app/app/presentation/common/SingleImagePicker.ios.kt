@@ -105,3 +105,8 @@ private class DelegueImageUnique :
         return if (ecrit) NSURL.fileURLWithPath(chemin).absoluteString else null
     }
 }
+
+@Composable
+actual fun rememberSingleImagePickerWithBytes(
+    onImageSelected: (uri: String?, bytes: ByteArray?) -> Unit
+): () -> Unit = { }

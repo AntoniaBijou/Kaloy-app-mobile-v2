@@ -12,6 +12,7 @@ data class MediaMetadata(
 sealed interface MediaPlayerStatus {
     data object Idle : MediaPlayerStatus
     data object Loading : MediaPlayerStatus
+    data object Completed : MediaPlayerStatus
     data class Playing(val positionMs: Long, val durationMs: Long) : MediaPlayerStatus
     data class Paused(val positionMs: Long, val durationMs: Long) : MediaPlayerStatus
     data class Error(val message: String) : MediaPlayerStatus

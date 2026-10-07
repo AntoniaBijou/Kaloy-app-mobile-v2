@@ -8,6 +8,7 @@ import com.kaloy.app.data.dto.me.*
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.json.Json
@@ -158,5 +159,16 @@ class MeRepositoryImpl(
     override suspend fun deleteMyAccount(): String =
         client.delete("$BASE_URL/me") {
             withSessionToken()
+        }.decodeMessage()
+
+    override suspend fun uploadPhoto(bytes: ByteArray, mimeType: String): String =
+        client.post("$BASE_URL/me/photo/upload") {
+            withSessionToken()
+            setBody(MultiPartFormDataContent(formData {
+                append("file", bytes, Headers.build {
+                    append(HttpHeaders.ContentType, mimeType)
+                    append(HttpHeaders.ContentDisposition, "filename=\"photo.jpg\"")
+                })
+            }))
         }.decodeMessage()
 }

@@ -2,6 +2,8 @@ package com.kaloy.app.presentation.lecteur
 
 import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.audio.MediaMetadata
+import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.data.repository.LecteurRepository
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +24,8 @@ enum class ModeEcoute { AUDIO, VIDEO, KARAOKE, PLAYBACK }
 
 class LecteurViewModel(
     private val repository: LecteurRepository,
-    private val audioPlayer: AudioPlayerController
+    private val audioPlayer: AudioPlayerController,
+    private val queueManager: QueueManager
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -32,15 +35,52 @@ class LecteurViewModel(
     private val _modeEcoute = MutableStateFlow(ModeEcoute.AUDIO)
     val modeEcoute: StateFlow<ModeEcoute> = _modeEcoute
 
+    val upNext: StateFlow<List<Song>> = queueManager.upNext
+    val history: StateFlow<List<Song>> = queueManager.history
+
     val isPlaying: StateFlow<Boolean> = audioPlayer.isPlaying
     val currentPositionMs: StateFlow<Long> = audioPlayer.currentPositionMs
     val durationMs: StateFlow<Long> = audioPlayer.durationMs
     val errorMessage: StateFlow<String?> = audioPlayer.errorMessage
     val statusMessage: StateFlow<String> = audioPlayer.statusMessage
 
-    fun charger(songId: Long) {
+    private var activeSongId: Long? = null
+    private var activeModeId: Long? = null
+    private var autoPlayTriggered = false
+
+    init {
+        audioPlayer.setOnTrackCompleted { jouerSuivant() }
+        audioPlayer.setOnSkipToPrevious { jouerPrecedent() }
+    }
+
+    private fun ModeEcoute.toPlayModeId(): Long = when (this) {
+        ModeEcoute.AUDIO    -> 1L
+        ModeEcoute.VIDEO    -> 2L
+        ModeEcoute.PLAYBACK -> 3L
+        ModeEcoute.KARAOKE  -> 4L
+    }
+
+    private fun saveHistoryForActiveSong() {
+        val songId = activeSongId ?: return
+        val modeId = activeModeId ?: return
+        val positionMs = audioPlayer.currentPositionMs.value
+        val totalMs = audioPlayer.durationMs.value
+        val durationSec = (positionMs / 1000).toInt()
+        if (durationSec <= 0) return
+        val completed = totalMs > 0L && positionMs.toDouble() / totalMs >= 0.9
+        activeSongId = null
+        activeModeId = null
+        CoroutineScope(Dispatchers.Default).launch {
+            runCatching { repository.saveListeningHistory(songId, modeId, durationSec, completed) }
+        }
+    }
+
+    fun charger(songId: Long, silencieux: Boolean = false, startMode: ModeEcoute? = null) {
+        autoPlayTriggered = false
+        if (startMode != null) _modeEcoute.value = startMode
+        saveHistoryForActiveSong()
         scope.launch {
-            _uiState.value = LecteurUiState.Loading
+            if (!silencieux) _uiState.value = LecteurUiState.Loading
             try {
                 val song = repository.getSongPlayerDetails(songId)
                 _uiState.value = LecteurUiState.Success(song)
@@ -63,10 +103,13 @@ class LecteurViewModel(
         if (mode == _modeEcoute.value) return
         val currentSong = (_uiState.value as? LecteurUiState.Success)?.song ?: return
         _modeEcoute.value = mode
+        activeModeId = mode.toPlayModeId()
         lancerLecture(currentSong, mode)
     }
 
     private fun lancerLecture(song: SongPlayerResponse, mode: ModeEcoute) {
+        activeSongId = song.id
+        activeModeId = mode.toPlayModeId()
         val url = when (mode) {
             ModeEcoute.AUDIO    -> song.audioStreamUrl
             ModeEcoute.VIDEO    -> null  // YouTube géré par WebView
@@ -88,8 +131,28 @@ class LecteurViewModel(
         }
     }
 
+    fun jouerSuivant() {
+        if (autoPlayTriggered) return
+        val nextSong = queueManager.upNext.value.firstOrNull() ?: return
+        autoPlayTriggered = true
+        queueManager.playFromQueue(nextSong)
+        charger(nextSong.id, silencieux = true)
+    }
+
+    fun jouerPrecedent() {
+        if (currentPositionMs.value > 3_000L) {
+            seekTo(0L)
+            return
+        }
+        val prevSong = queueManager.playPrevious() ?: run {
+            seekTo(0L)
+            return
+        }
+        charger(prevSong.id, silencieux = true)
+    }
+
     fun dispose() {
-        audioPlayer.release()
+        saveHistoryForActiveSong()
         scope.cancel()
     }
 }

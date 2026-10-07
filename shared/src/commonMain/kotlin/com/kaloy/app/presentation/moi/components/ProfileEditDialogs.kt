@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.kaloy.app.data.dto.me.GroupMemberDto
 import com.kaloy.app.data.dto.me.InstrumentRoleDto
 import com.kaloy.app.presentation.common.rememberSingleImagePicker
+import com.kaloy.app.presentation.common.rememberSingleImagePickerWithBytes
 import com.kaloy.app.ui.theme.*
 
 // ── Informations personnelles ─────────────────────────────────────────────────
@@ -138,12 +139,16 @@ fun EditPhotoDialog(
     currentPhotoUrl: String?,
     isLoading: Boolean,
     errorMessage: String?,
-    onConfirm: (String) -> Unit,
+    onConfirm: (ByteArray) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var photoUrl by remember { mutableStateOf(currentPhotoUrl ?: "") }
-    val imagePicker = rememberSingleImagePicker { uri ->
-        if (!uri.isNullOrBlank()) photoUrl = uri
+    var selectedBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var hasSelection by remember { mutableStateOf(false) }
+    val imagePicker = rememberSingleImagePickerWithBytes { _, bytes ->
+        if (bytes != null) {
+            selectedBytes = bytes
+            hasSelection = true
+        }
     }
 
     AlertDialog(
@@ -158,9 +163,9 @@ fun EditPhotoDialog(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = KaloyPurple)
                 ) {
-                    Text(if (photoUrl.isBlank()) "Choisir depuis la galerie" else "Changer la photo")
+                    Text(if (!hasSelection) "Choisir depuis la galerie" else "Changer la photo")
                 }
-                if (photoUrl.isNotBlank()) {
+                if (hasSelection) {
                     Text("Photo sélectionnée", color = KaloyTextSecondary,
                         style = MaterialTheme.typography.bodySmall)
                 }
@@ -171,8 +176,8 @@ fun EditPhotoDialog(
         },
         confirmButton = {
             Button(
-                onClick = { if (photoUrl.isNotBlank()) onConfirm(photoUrl) },
-                enabled = !isLoading && photoUrl.isNotBlank(),
+                onClick = { selectedBytes?.let { onConfirm(it) } },
+                enabled = !isLoading && selectedBytes != null,
                 colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
             ) {
                 if (isLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)

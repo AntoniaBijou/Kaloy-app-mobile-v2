@@ -1,4 +1,33 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+
+// Lire local.properties pour récupérer l'adresse IP locale
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }
+        ?.inputStream()?.use { load(it) }
+}
+val adresseIp: String = localProps.getProperty("adresse_ip")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: throw GradleException(
+        "Configurez adresse_ip dans local.properties avec l'adresse IPv4 Wi-Fi du PC " +
+            "(pas l'adresse de l'interface virtuelle WSL)."
+    )
+
+// Génère NetworkConfig.kt dans commonMain avec SERVER_IP = adresseIp
+val generateNetworkConfig by tasks.registering {
+    val ip = adresseIp
+    val outputDir = layout.buildDirectory.dir("generated/network-config/commonMain/kotlin")
+    outputs.dir(outputDir)
+    doLast {
+        val file = outputDir.get()
+            .file("com/kaloy/app/core/network/NetworkConfig.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            "package com.kaloy.app.core.network\n\ninternal const val SERVER_IP = \"$ip\"\n"
+        )
+    }
+}
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -49,7 +78,11 @@ kotlin {
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.session)
             implementation(libs.media3.ui)
+            implementation(libs.youtube.player)
             implementation(libs.koin.android)
+        }
+        commonMain {
+            kotlin.srcDir(generateNetworkConfig.map { it.outputs.files })
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)

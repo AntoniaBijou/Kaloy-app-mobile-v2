@@ -19,6 +19,8 @@ Use the run configurations provided by the run widget in your IDE's toolbar. You
 - Android app: `./gradlew :androidApp:assembleDebug`
 - iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
 
+For a physical Android device, set `adresse_ip` in `local.properties` to the PC's IPv4 address on the same Wi-Fi network as the phone (`ipconfig` on Windows). Do not use a virtual adapter address such as the WSL `vEthernet` address. Rebuild the app after changing this value.
+
 ### Running tests
 
 Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:

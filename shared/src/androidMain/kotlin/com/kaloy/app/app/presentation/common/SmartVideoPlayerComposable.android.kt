@@ -1,31 +1,22 @@
 package com.kaloy.app.presentation.common
 
-import android.app.Activity
-import android.view.View
-import android.view.ViewGroup
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 
 @Composable
 actual fun SmartVideoPlayerComposable(url: String, modifier: Modifier) {
     if (url.contains("youtube.com") || url.contains("youtu.be")) {
-        YoutubeWebPlayer(url = url, modifier = modifier)
+        InAppYouTubePlayer(videoUrl = url, modifier = modifier)
     } else {
         ExoNativePlayer(url = url, modifier = modifier)
     }
@@ -118,15 +109,15 @@ private fun ExoNativePlayer(url: String, modifier: Modifier) {
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
             .build().also { p ->
-            p.addListener(object : androidx.media3.common.Player.Listener {
-                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    Log.e("KaloyVideo", "ExoPlayer error: ${error.errorCodeName}", error)
-                }
-            })
-            p.setMediaItem(MediaItem.fromUri(url))
-            p.prepare()
-            p.playWhenReady = true
-        }
+                p.addListener(object : androidx.media3.common.Player.Listener {
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        Log.e("KaloyVideo", "ExoPlayer error: ${error.errorCodeName}", error)
+                    }
+                })
+                p.setMediaItem(MediaItem.fromUri(url))
+                p.prepare()
+                p.playWhenReady = true
+            }
     }
     DisposableEffect(player) {
         onDispose { player.release() }

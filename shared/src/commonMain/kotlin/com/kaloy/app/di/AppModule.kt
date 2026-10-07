@@ -1,6 +1,7 @@
 package com.kaloy.app.di
 
 import com.kaloy.app.core.network.createHttpClient
+import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.repository.AuthRepository
 import com.kaloy.app.data.repository.AuthRepositoryImpl
@@ -20,4 +21,5 @@ val appModule = module {
     single<MeRepository> { MeRepositoryImpl(get(), get()) }
     single<LecteurRepository> { LecteurRepositoryImpl(get(), get()) }
     single { HistoriqueRechercheRepository(get(), get()) }
+    single { QueueManager() }
 }

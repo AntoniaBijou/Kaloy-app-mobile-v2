@@ -374,6 +374,18 @@ data class ListeningHistory(
 )
 
 @Serializable
+data class ListeningHistoryItem(
+    val id: Long = 0,
+    val listenedAt: String = "",
+    val durationListenedSeconds: Int? = null,
+    val completed: Boolean? = null,
+    val songId: Long = 0,
+    val songTitle: String = "",
+    val songDurationSeconds: Int? = null,
+    val artistName: String = ""
+)
+
+@Serializable
 data class SearchHistory(
     val id: Long = 0,
     @SerialName("useridUsers") val user: User? = null,

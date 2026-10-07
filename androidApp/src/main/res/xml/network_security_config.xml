@@ -7,23 +7,6 @@
         <domain includeSubdomains="true">loca.lt</domain>
     </domain-config>
     
-    <!-- HTTP pour développement local (WiFi direct) -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">172.22.32.1</domain>
-        <domain includeSubdomains="false">172.16.0.26</domain>
-        <domain includeSubdomains="false">192.168.88.15</domain>
-        <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">10.0.2.2</domain>
-        <!-- Version 1.0 : adresse du PC sur le Wi-Fi -->
-        <!-- Conf ITC-->
-        <domain includeSubdomains="false">192.168.0.157</domain>
-        <domain includeSubdomains="false">192.168.5.91</domain>
-        <!-- Fifaaaaa-->
-        <domain includeSubdomains="false">10.16.27.150</domain>
-        <!-- Salle 4-->
-        <domain includeSubdomains="false">169.254.44.68</domain>
-    </domain-config>
-    
     <!-- Autoriser tous les certificats en développement -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>

@@ -11,8 +11,17 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
+
+@Serializable
+private data class CreateMyListeningHistoryDto(
+    val songId: Long,
+    val playModeId: Long,
+    val durationListenedSeconds: Int?,
+    val completed: Boolean?
+)
 
 class LecteurRepositoryImpl(
     private val client: HttpClient,
@@ -50,5 +59,18 @@ class LecteurRepositoryImpl(
             artistPhotoUrl = urlMedia(details.artistPhotoUrl),
             albumCoverUrl = urlMedia(details.albumCoverUrl)
         )
+    }
+
+    override suspend fun saveListeningHistory(
+        songId: Long,
+        playModeId: Long,
+        durationListenedSeconds: Int,
+        completed: Boolean
+    ) {
+        client.post("$BASE_URL/listeninghistorys/me") {
+            withSessionToken()
+            contentType(ContentType.Application.Json)
+            setBody(CreateMyListeningHistoryDto(songId, playModeId, durationListenedSeconds, completed))
+        }
     }
 }
