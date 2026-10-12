@@ -340,6 +340,30 @@ class MoiScreen : Screen {
                                         onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
                                     )
                                 }
+                                // Les notifications sont propres au compte artiste : un
+                                // client ne recoit pas d'invitation a jouer.
+                                item {
+                                    CarteNotifications(
+                                        nombreEnAttente = invitationsEnAttente,
+                                        onClick = { navigator.push(EcranNotificationsVoyager()) }
+                                    )
+                                }
+                                // Organiser est l'autre moitie de la vie evenementielle
+                                // d'un artiste : il recoit des invitations, et il en
+                                // emet. Les deux cartes se suivent naturellement.
+                                item {
+                                    CarteMesEvenements(
+                                        nombreEvenements = evenementsOrganises,
+                                        onClick = { navigator.push(EcranMesEvenementsVoyager()) }
+                                    )
+                                }
+                                // Son agenda : ce qu'il a accepte, invitations comprises.
+                                item {
+                                    CarteMonCalendrier(
+                                        nombreConcerts = concertsConfirmes,
+                                        onClick = { navigator.push(EcranMonCalendrierVoyager()) }
+                                    )
+                                }
                             }
                             MoiTab.ACTIVITY -> ActivityOverview(
                                 modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -348,54 +372,9 @@ class MoiScreen : Screen {
                                 onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
                                 onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
                             )
-                        }
-                        // Les notifications sont propres au compte artiste : un
-                        // client ne recoit pas d'invitation a jouer.
-                        item {
-                            CarteNotifications(
-                                nombreEnAttente = invitationsEnAttente,
-                                onClick = { navigator.push(EcranNotificationsVoyager()) }
-                            )
-                        }
-                        // Organiser est l'autre moitie de la vie evenementielle
-                        // d'un artiste : il recoit des invitations, et il en
-                        // emet. Les deux cartes se suivent naturellement.
-                        item {
-                            CarteMesEvenements(
-                                nombreEvenements = evenementsOrganises,
-                                onClick = { navigator.push(EcranMesEvenementsVoyager()) }
-                            )
-                        }
-                        // Son agenda : ce qu'il a accepte, invitations comprises.
-                        item {
-                            CarteMonCalendrier(
-                                nombreConcerts = concertsConfirmes,
-                                onClick = { navigator.push(EcranMonCalendrierVoyager()) }
-                            )
-                        }
-                        item {
-                            ArtistProfileContent(
-                                profile = profile,
-                                instrumentRoles = instrumentRoles,
-                                onEditArtistProfile = { activeDialog = ActiveDialog.EditArtistProfile },
-                                onRequestVerification = { viewModel.requestVerification() },
-                                onChangeEmail = { activeDialog = ActiveDialog.ChangeEmail() },
-                                onChangePhone = { activeDialog = ActiveDialog.ChangePhone() },
-                                onAddMember = { activeDialog = ActiveDialog.AddMember },
-                                onEditMember = { id ->
-                                    profile.members.find { it.id == id }
-                                        ?.let { activeDialog = ActiveDialog.EditMember(it) }
-                                },
-                                onChangeMemberStatus = { id ->
-                                    profile.members.find { it.id == id }
-                                        ?.let { activeDialog = ActiveDialog.ChangeMemberStatus(it) }
-                                },
-                                onDeleteMember = { id ->
-                                    profile.members.find { it.id == id }
-                                        ?.let { activeDialog = ActiveDialog.DeleteMember(it) }
-                                },
-                                onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
-                                onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
+                            else -> MoiTabPlaceholder(
+                                tab = selectedTab,
+                                modifier = Modifier.fillMaxSize().padding(innerPadding)
                             )
                         }
                     }
