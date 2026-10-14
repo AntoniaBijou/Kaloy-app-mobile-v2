@@ -300,6 +300,35 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return client.patch("$apiBaseUrl/notifications/me/lues").body()
     }
 
+    /**
+     * Mes preferences de notification, un etat par type.
+     *
+     * Le serveur renvoie tous les types et applique la regle du defaut — une
+     * preference jamais reglee vaut activee. L'ecran n'a donc pas a connaitre
+     * cette regle.
+     */
+    suspend fun getMesPreferencesNotification(): RestResponse<List<PreferenceNotification>> {
+        return client.get("$apiBaseUrl/notificationpreferences/me").body()
+    }
+
+    /**
+     * Active ou desactive un type pour le compte connecte.
+     *
+     * Un seul type par appel : envoyer tout l'etat ecraserait un reglage fait
+     * depuis un autre appareil entre le chargement de l'ecran et l'envoi.
+     */
+    suspend fun definirPreferenceNotification(type: String, actif: Boolean): RestResponse<Unit?> {
+        val reponse = client.put("$apiBaseUrl/notificationpreferences/me") {
+            contentType(ContentType.Application.Json)
+            setBody(PreferenceNotificationDto(type = type, isEnabled = actif))
+        }
+        // expectSuccess vaut false : un 404 sur un type inconnu se deserialise
+        // dans la meme enveloppe qu'un succes, et passerait pour un reglage
+        // enregistre.
+        return reponse.body<RestResponse<Unit?>>().exigerSucces("Preference de notification")
+    }
+
+
     // ============================================================
     // Evenements que j'organise
     // ============================================================
@@ -1143,3 +1172,11 @@ data class EventMediaCreate(
     val url: String,
     @kotlinx.serialization.SerialName("createdAt") val createdAt: String
 )
+
+// PUT /notificationpreferences/me
+@kotlinx.serialization.Serializable
+data class PreferenceNotificationDto(
+    val type: String,
+    val isEnabled: Boolean
+)
+

@@ -474,3 +474,31 @@ data class NotificationItem(
     }
 }
 
+
+/**
+ * Etat effectif d'une preference de notification.
+ *
+ * Le serveur renvoie les huit types connus de la base. L'application n'en
+ * affiche que ceux qui ont reellement un producteur — voir TYPES_REGLABLES —
+ * parce qu'un interrupteur qui ne commande rien est une promesse fausse.
+ */
+@Serializable
+data class PreferenceNotification(
+    val type: String = "",
+    val isEnabled: Boolean = true
+) {
+    companion object {
+        /**
+         * Types qu'un code produit aujourd'hui, dans l'ordre d'affichage.
+         *
+         * A completer quand un nouveau producteur apparait : le mecanisme cote
+         * serveur respecte deja la preference de n'importe quel type, il n'y a
+         * que cette liste a allonger.
+         */
+        val TYPES_REGLABLES = listOf(
+            NotificationItem.TYPE_INVITATION,
+            NotificationItem.TYPE_REPONSE
+        )
+    }
+}
+

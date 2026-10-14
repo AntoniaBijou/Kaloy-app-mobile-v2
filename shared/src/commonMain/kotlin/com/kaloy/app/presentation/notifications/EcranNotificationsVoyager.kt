@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -225,6 +226,18 @@ class EcranNotificationsVoyager : Screen {
                                     tint = KaloyTextSecondary
                                 )
                             }
+                        }
+                        // Les reglages des notifications sont ici plutot que dans
+                        // une sixieme carte de l'onglet « Moi », qui en compte
+                        // deja cinq : on regle ce qu'on est en train de lire.
+                        IconButton(
+                            onClick = { navigateur.push(EcranPreferencesNotificationsVoyager()) }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "Préférences de notification",
+                                tint = KaloyTextSecondary
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkBg)
@@ -508,7 +521,7 @@ private fun PastilleNonLue() {
  * technique : le backend peut en ajouter sans que l'application soit remise a
  * jour, et « NEW_RELEASE » a l'ecran serait plus deroutant qu'un mot generique.
  */
-private fun libellePourType(type: String): String = when (type) {
+internal fun libellePourType(type: String): String = when (type) {
     NotificationItem.TYPE_INVITATION -> "Invitation"
     NotificationItem.TYPE_REPONSE -> "Réponse à votre invitation"
     "FOLLOW" -> "Nouvel abonné"
