@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -43,6 +44,7 @@ import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.MoiScreen
+import com.kaloy.app.presentation.playlist.PlaylistScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.presentation.queue.UpNextSheet
@@ -196,12 +198,12 @@ data class HomeScreen(
                         NavigationBarItem(
                             selected = ongletSelectionne == 1,
                             onClick = {
-                                navigateur.push(EcranRechercheVoyager())
+                                navigateur.push(PlaylistScreen())
                             },
                             icon = {
-                                Icon(Icons.Default.Search, contentDescription = "Recherche")
+                                Icon(Icons.Default.QueueMusic, contentDescription = "Playlist")
                             },
-                            label = { Text("Recherche") },
+                            label = { Text("Playlist") },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = KaloyPurple,
                                 selectedTextColor = KaloyPurple,
