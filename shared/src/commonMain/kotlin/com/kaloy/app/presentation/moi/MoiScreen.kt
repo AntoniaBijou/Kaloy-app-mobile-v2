@@ -80,8 +80,13 @@ class MoiScreen : Screen {
         LaunchedEffect(etatProfil) {
             if (etatProfil is MoiUiState.ArtistSuccess) {
                 val api = KaloyApi()
+                // Les notifications NON LUES, et non les invitations sans
+                // reponse : la pastille doit retomber quand l'artiste a pris
+                // connaissance, sinon elle resterait allumee pour une invitation
+                // deja traitee. Le compte est fait par le serveur, qui renvoie
+                // un nombre et non la liste.
                 invitationsEnAttente = try {
-                    api.getMesInvitations().data?.size ?: 0
+                    api.getNotificationsNonLues().data?.toInt() ?: 0
                 } catch (_: Exception) {
                     // Un echec ici ne doit pas empecher l'affichage du profil :
                     // la pastille disparait, l'ecran reste utilisable.
