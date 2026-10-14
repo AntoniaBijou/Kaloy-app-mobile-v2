@@ -256,6 +256,50 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return reponse.body<RestResponse<Concert>>().exigerSucces("Reponse a l'invitation")
     }
 
+
+    // ============================================================
+    // Notifications du compte connecte
+    // ============================================================
+
+    /**
+     * Notifications du compte connecte, les plus recentes d'abord.
+     *
+     * Ne pas confondre avec GET /notifications, qui renvoie les notifications
+     * de tous les utilisateurs : c'est du CRUD d'administration, inutilisable
+     * ici.
+     *
+     * La taille par defaut est large parce que l'ecran n'a pas de defilement
+     * infini : une centaine de lignes couvre largement l'historique d'un
+     * artiste, et paginer compliquerait l'ecran sans benefice visible.
+     */
+    suspend fun getMesNotifications(page: Int = 0, size: Int = 100): RestResponse<PageResponse<NotificationItem>> {
+        return client.get("$apiBaseUrl/notifications/me") {
+            parameter("page", page)
+            parameter("size", size)
+        }.body()
+    }
+
+    /** Nombre de notifications non lues, pour la pastille de l'onglet « Moi ». */
+    suspend fun getNotificationsNonLues(): RestResponse<Long> {
+        return client.get("$apiBaseUrl/notifications/me/count").body()
+    }
+
+    /**
+     * Marque une notification lue.
+     *
+     * Renvoie 404 si elle appartient a un autre compte. L'appel est volontairement
+     * silencieux cote appelant : rater un marquage ne doit pas faire echouer
+     * l'action que l'utilisateur venait de reussir.
+     */
+    suspend fun marquerNotificationLue(idNotification: Long): RestResponse<Unit?> {
+        return client.patch("$apiBaseUrl/notifications/me/$idNotification/lu").body()
+    }
+
+    /** Marque lues toutes les notifications du compte connecte. */
+    suspend fun marquerToutesNotificationsLues(): RestResponse<Unit?> {
+        return client.patch("$apiBaseUrl/notifications/me/lues").body()
+    }
+
     // ============================================================
     // Evenements que j'organise
     // ============================================================

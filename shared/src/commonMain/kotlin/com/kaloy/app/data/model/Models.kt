@@ -441,3 +441,36 @@ data class SongPlayerResponse(
     val playbackStreamUrl: String? = null,
     val solfaUrl: String? = null
 )
+
+// ============================================================
+// Notifications
+// ============================================================
+
+/**
+ * Notification telle que le serveur la renvoie sur /notifications/me.
+ *
+ * Volontairement pauvre : le serveur n'envoie qu'une ligne de texte et une
+ * cible. Pour une invitation, [targetType] vaut CONCERT et [targetId] porte
+ * l'identifiant du concert, ce qui permet de retrouver l'objet Concert complet
+ * — avec son lieu et son evenement — dans la reponse de /invitations, et donc
+ * d'afficher la carte riche sans que le serveur ait a connaitre l'ecran.
+ */
+@Serializable
+data class NotificationItem(
+    val id: Long = 0,
+    val type: String = "",
+    val content: String = "",
+    val targetType: String? = null,
+    val targetId: Long? = null,
+    val isRead: Boolean = false,
+    val createdAt: String? = null
+) {
+    /** Les seules notifications sur lesquelles on peut agir depuis la liste. */
+    val estInvitation: Boolean get() = type == TYPE_INVITATION && targetId != null
+
+    companion object {
+        const val TYPE_INVITATION = "CONCERT_INVITATION"
+        const val TYPE_REPONSE = "INVITATION_RESPONSE"
+    }
+}
+

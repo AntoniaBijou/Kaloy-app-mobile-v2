@@ -22,6 +22,10 @@ import com.kaloy.app.ui.theme.*
  *
  * La pastille n'apparait que s'il y a quelque chose a traiter : une pastille a
  * zero attirerait l'oeil sans rien signaler.
+ *
+ * [nombreEnAttente] compte les notifications NON LUES, tous types confondus,
+ * et non les invitations sans reponse. Le nom du parametre est conserve pour ne
+ * pas toucher aux appelants.
  */
 @Composable
 fun CarteNotifications(
@@ -58,9 +62,9 @@ fun CarteNotifications(
                 )
                 Text(
                     text = when (nombreEnAttente) {
-                        0 -> "Aucune invitation en attente"
-                        1 -> "1 invitation en attente de réponse"
-                        else -> "$nombreEnAttente invitations en attente de réponse"
+                        0 -> "Aucune notification non lue"
+                        1 -> "1 notification non lue"
+                        else -> "$nombreEnAttente notifications non lues"
                     },
                     color = KaloyTextSecondary,
                     style = MaterialTheme.typography.bodySmall
