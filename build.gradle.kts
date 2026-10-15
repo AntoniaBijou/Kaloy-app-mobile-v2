@@ -7,4 +7,8 @@ plugins {
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.kotlinSerialization) apply false
+    // Lit androidApp/google-services.json et en genere les ressources Android.
+    // Absent, ce fichier fait echouer le build du module application : il n est
+    // pas dans le depot, chacun telecharge le sien depuis la console Firebase.
+    alias(libs.plugins.googleServices) apply false
 }

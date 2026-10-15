@@ -29,6 +29,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.core.push.obtenirJetonPush
+import com.kaloy.app.core.push.plateformePush
+import com.kaloy.app.core.push.rememberDemandePermissionNotification
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Concert
 import com.kaloy.app.data.model.NotificationItem
@@ -180,6 +183,25 @@ class NotificationsViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Enregistre cet appareil pour recevoir les notifications push.
+     *
+     * Appele une fois la permission accordee, donc a l'ouverture de cet ecran.
+     * Un echec est avale : le push est un supplement, et ne pas l'obtenir ne
+     * doit pas empecher de lire ses notifications. Un jeton null signifie que
+     * le push n'est pas disponible sur cet appareil — pas de Google Play
+     * Services, ou plateforme iOS non branchee.
+     */
+    fun enregistrerAppareil() {
+        viewModelScope.launch {
+            val jeton = obtenirJetonPush() ?: return@launch
+            try {
+                api.enregistrerAppareil(jeton, plateformePush())
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     fun effacerMessage() {
         message = null
         erreur = null
@@ -200,6 +222,20 @@ class EcranNotificationsVoyager : Screen {
         val modeleVue: NotificationsViewModel = viewModel(key = "notifications") {
             NotificationsViewModel()
         }
+
+        // La permission est demandee ICI et non au premier lancement de
+        // l'application : l'utilisateur vient d'appuyer sur « Notifications »,
+        // la demande arrive donc au moment ou elle se comprend. Un refus est
+        // quasi definitif — il faut ensuite passer par les reglages Android —
+        // d'ou l'importance du moment.
+        //
+        // Appeler a chaque ouverture ne reaffiche pas la boite : Android
+        // repond immediatement quand la permission est deja accordee, ou
+        // definitivement refusee.
+        val demanderPermission = rememberDemandePermissionNotification { accorde ->
+            if (accorde) modeleVue.enregistrerAppareil()
+        }
+        LaunchedEffect(Unit) { demanderPermission() }
 
         Scaffold(
             containerColor = KaloyDarkBg,

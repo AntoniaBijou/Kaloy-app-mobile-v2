@@ -3,7 +3,8 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose") 
+    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.googleServices)
 }
 dependencies {
     implementation(project(":shared"))
