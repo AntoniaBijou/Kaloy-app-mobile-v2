@@ -328,6 +328,27 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return reponse.body<RestResponse<Unit?>>().exigerSucces("Preference de notification")
     }
 
+    /**
+     * Enregistre cet appareil pour les notifications push.
+     *
+     * Appele a l'ouverture du centre de notifications, une fois la permission
+     * accordee. Idempotent cote serveur : le reappeler met a jour la date de
+     * derniere vue sans creer de doublon.
+     */
+    suspend fun enregistrerAppareil(jeton: String, plateforme: String): RestResponse<Unit?> {
+        val reponse = client.post("$apiBaseUrl/me/devices") {
+            contentType(ContentType.Application.Json)
+            setBody(AppareilDto(token = jeton, platform = plateforme))
+        }
+        return reponse.body()
+    }
+
+    /** Retire cet appareil, a la deconnexion. */
+    suspend fun retirerAppareil(jeton: String): RestResponse<Unit?> {
+        return client.delete("$apiBaseUrl/me/devices/$jeton").body()
+    }
+
+
 
     // ============================================================
     // Evenements que j'organise
@@ -1178,5 +1199,12 @@ data class EventMediaCreate(
 data class PreferenceNotificationDto(
     val type: String,
     val isEnabled: Boolean
+)
+
+// POST /me/devices
+@kotlinx.serialization.Serializable
+data class AppareilDto(
+    val token: String,
+    val platform: String
 )
 

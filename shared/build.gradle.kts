@@ -80,6 +80,16 @@ kotlin {
             implementation(libs.media3.ui)
             implementation(libs.youtube.player)
             implementation(libs.koin.android)
+            // Le jeton d'appareil et la reception des messages vivent ici, dans
+            // l'actual Android de obtenirJetonPush. Le plugin google-services,
+            // lui, reste sur androidApp : c'est ce module qui porte le fichier
+            // de configuration et qui produit l'application.
+            implementation(libs.firebase.messaging)
+            // NotificationCompat vient d'androidx.core, deja present par
+            // activity-compose et media3. Le declarer explicitement via
+            // libs.androidx.core.ktx tirait la version 1.19.0 du catalogue,
+            // qui exige compileSdk 37 alors que le projet est en 36 — et le
+            // build echouait sur checkReleaseAarMetadata.
         }
         commonMain {
             kotlin.srcDir(generateNetworkConfig.map { it.outputs.files })
