@@ -502,3 +502,26 @@ data class PreferenceNotification(
     }
 }
 
+/**
+ * Statistiques d'un artiste sur sa propre musique.
+ *
+ * Renvoyees en un seul objet par GET /me/statistiques : l'ecran affiche un etat
+ * coherent, et non quatre tuiles qui se remplissent l'une apres l'autre.
+ */
+@Serializable
+data class StatistiquesArtiste(
+    val ecoutes30Jours: Long = 0,
+    val ecoutesTotal: Long = 0,
+    val auditeursDistincts: Long = 0,
+    val abonnes: Long = 0,
+    val chansonsPubliees: Long = 0,
+    val topChansons: List<ChansonEcoutee> = emptyList()
+)
+
+@Serializable
+data class ChansonEcoutee(
+    val id: Long = 0,
+    val titre: String = "",
+    val ecoutes: Long = 0
+)
+

@@ -27,9 +27,7 @@ fun ArtistProfileContent(
     onAddMember: () -> Unit,
     onEditMember: (Long) -> Unit,
     onChangeMemberStatus: (Long) -> Unit,
-    onDeleteMember: (Long) -> Unit,
-    onLogout: () -> Unit,
-    onDeleteAccount: () -> Unit
+    onDeleteMember: (Long) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -130,9 +128,9 @@ fun ArtistProfileContent(
                 onDeleteMember = onDeleteMember
             )
         }
-
-        DangerZone(onLogout = onLogout, onDeleteAccount = onDeleteAccount)
-
+        // DangerZone etait appele ici, donc AVANT les cartes de l onglet
+        // Profil : les deux boutons se retrouvaient au milieu de l ecran.
+        // MoiScreen les place desormais en dernier element de sa liste.
         Spacer(Modifier.height(32.dp))
     }
 }

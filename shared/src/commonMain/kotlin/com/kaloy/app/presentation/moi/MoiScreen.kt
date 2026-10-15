@@ -27,6 +27,9 @@ import com.kaloy.app.presentation.calendrier.EcranMonCalendrierVoyager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
+import com.kaloy.app.presentation.moi.components.CarteStatistiques
+import com.kaloy.app.presentation.moi.components.DangerZone
+import com.kaloy.app.presentation.statistiques.EcranStatistiquesVoyager
 
 // ── Etats de dialog ───────────────────────────────────────────────────────────
 
@@ -76,6 +79,9 @@ class MoiScreen : Screen {
         var invitationsEnAttente by remember { mutableStateOf(0) }
         var evenementsOrganises by remember { mutableStateOf(0) }
         var concertsConfirmes by remember { mutableStateOf(0) }
+        // null tant que l appel n a pas abouti : la carte reste muette
+        // plutot que d afficher un zero qui serait pris pour un resultat.
+        var ecoutes30Jours by remember { mutableStateOf<Long?>(null) }
         val etatProfil = uiState
         LaunchedEffect(etatProfil) {
             if (etatProfil is MoiUiState.ArtistSuccess) {
@@ -101,6 +107,11 @@ class MoiScreen : Screen {
                     api.getMonCalendrier().data?.size ?: 0
                 } catch (_: Exception) {
                     0
+                }
+                ecoutes30Jours = try {
+                    api.getMesStatistiques().data?.ecoutes30Jours
+                } catch (_: Exception) {
+                    null
                 }
             }
         }
@@ -340,9 +351,7 @@ class MoiScreen : Screen {
                                         onDeleteMember = { id ->
                                             profile.members.find { it.id == id }
                                                 ?.let { activeDialog = ActiveDialog.DeleteMember(it) }
-                                        },
-                                        onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
-                                        onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
+                                        }
                                     )
                                 }
                                 // Les notifications sont propres au compte artiste : un
@@ -367,6 +376,24 @@ class MoiScreen : Screen {
                                     CarteMonCalendrier(
                                         nombreConcerts = concertsConfirmes,
                                         onClick = { navigator.push(EcranMonCalendrierVoyager()) }
+                                    )
+                                }
+                                // Les statistiques viennent apres les cartes
+                                // d'action : on les consulte, on n'y repond pas.
+                                item {
+                                    CarteStatistiques(
+                                        ecoutes30Jours = ecoutes30Jours,
+                                        onClick = { navigator.push(EcranStatistiquesVoyager()) }
+                                    )
+                                }
+                                // Se deconnecter et supprimer le compte ferment
+                                // l'ecran. Ils etaient appeles depuis
+                                // ArtistProfileContent, donc avant les cartes, ce qui
+                                // les placait au milieu.
+                                item {
+                                    DangerZone(
+                                        onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
+                                        onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
                                     )
                                 }
                             }

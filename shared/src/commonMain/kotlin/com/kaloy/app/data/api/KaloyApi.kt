@@ -348,6 +348,17 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return client.delete("$apiBaseUrl/me/devices/$jeton").body()
     }
 
+    /**
+     * Statistiques de l'artiste connecte.
+     *
+     * Renvoie 403 pour un compte qui n'est rattache a aucun profil artiste —
+     * l'ecran n'est de toute facon atteignable que depuis un compte artiste.
+     */
+    suspend fun getMesStatistiques(): RestResponse<StatistiquesArtiste> {
+        return client.get("$apiBaseUrl/me/statistiques").body()
+    }
+
+
 
 
     // ============================================================
