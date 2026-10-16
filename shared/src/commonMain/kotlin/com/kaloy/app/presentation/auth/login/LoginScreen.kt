@@ -9,11 +9,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
@@ -102,6 +108,7 @@ class LoginScreen : Screen {
         var password by remember { mutableStateOf("") }
         var emailError by remember { mutableStateOf("") }
         var passwordError by remember { mutableStateOf("") }
+        var motDePasseVisible by remember { mutableStateOf(false) }
 
         LaunchedEffect(uiState) {
             if (uiState is LoginUiState.Success) {
@@ -170,7 +177,36 @@ class LoginScreen : Screen {
                             value = password,
                             onValueChange = { password = it; passwordError = "" },
                             label = { Text("Mot de passe") },
-                            visualTransformation = PasswordVisualTransformation(),
+                            // L'oeil permet de relire ce qu'on a tape :
+                            // sur un clavier de telephone, une faute dans
+                            // un mot de passe masque ne se voit pas, et on
+                            // ne distingue pas un refus du serveur d'une
+                            // simple erreur de frappe.
+                            visualTransformation = if (motDePasseVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { motDePasseVisible = !motDePasseVisible }) {
+                                    Icon(
+                                        // L'icone annonce l'action a venir et non
+                                        // l'etat courant : un oeil barre quand le
+                                        // texte est visible veut dire « masquer ».
+                                        imageVector = if (motDePasseVisible) {
+                                            Icons.Filled.VisibilityOff
+                                        } else {
+                                            Icons.Filled.Visibility
+                                        },
+                                        contentDescription = if (motDePasseVisible) {
+                                            "Masquer le mot de passe"
+                                        } else {
+                                            "Afficher le mot de passe"
+                                        },
+                                        tint = Color(0xFF4B5563)
+                                    )
+                                }
+                            },
                             isError = passwordError.isNotEmpty(),
                             supportingText = { if (passwordError.isNotEmpty()) Text(passwordError) },
                             modifier = Modifier.fillMaxWidth(),
