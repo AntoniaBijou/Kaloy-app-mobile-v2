@@ -386,6 +386,11 @@ class MoiScreen : Screen {
                                         onClick = { navigator.push(EcranStatistiquesVoyager()) }
                                     )
                                 }
+                                // Espace avant la zone de danger : coller ces
+                                // deux boutons aux cartes ferait appuyer sur
+                                // « Supprimer le compte » en visant la derniere
+                                // carte.
+                                item { Spacer(modifier = Modifier.height(32.dp)) }
                                 // Se deconnecter et supprimer le compte ferment
                                 // l'ecran. Ils etaient appeles depuis
                                 // ArtistProfileContent, donc avant les cartes, ce qui
