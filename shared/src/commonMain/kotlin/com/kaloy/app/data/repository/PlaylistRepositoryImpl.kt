@@ -6,6 +6,7 @@ import com.kaloy.app.data.dto.RestResponse
 import com.kaloy.app.data.dto.playlist.CreatePlaylistRequest
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
+import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
 import com.kaloy.app.data.model.EditorialPlaylist
 import com.kaloy.app.data.model.Playlist
 import io.ktor.client.*
@@ -57,8 +58,16 @@ class PlaylistRepositoryImpl(
             setBody(request)
         }.decodeData<Playlist>()
 
+    override suspend fun modifierPlaylist(id: Long, request: UpdatePlaylistRequest) {
+        client.put("$BASE_URL/playlists/me/$id") {
+            withSessionToken()
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+    }
+
     override suspend fun supprimerPlaylist(id: Long) {
-        client.delete("$BASE_URL/playlists/$id") { withSessionToken() }
+        client.delete("$BASE_URL/playlists/me/$id") { withSessionToken() }
     }
 
     override suspend fun fusionnerPlaylists(request: MergePlaylistsRequest): Playlist =

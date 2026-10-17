@@ -27,3 +27,9 @@ data class MergePlaylistsRequest(
     val sourceIds: List<Long>,
     val resultName: String
 )
+
+@Serializable
+data class UpdatePlaylistRequest(
+    val name: String,
+    val description: String? = null
+)

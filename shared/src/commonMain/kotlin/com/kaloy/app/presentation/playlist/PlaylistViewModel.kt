@@ -5,6 +5,7 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.playlist.CreatePlaylistRequest
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
+import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
 import com.kaloy.app.data.model.EditorialPlaylist
 import com.kaloy.app.data.repository.PlaylistRepository
 import kotlinx.coroutines.CoroutineScope
@@ -43,6 +44,7 @@ sealed class ActiveDialogPlaylist {
     data class Merge(val preSelected: List<Long> = emptyList()) : ActiveDialogPlaylist()
     data class Options(val playlist: PlaylistUiItem) : ActiveDialogPlaylist()
     data class ConfirmDelete(val id: Long) : ActiveDialogPlaylist()
+    data class ModifierPlaylist(val playlist: PlaylistUiItem) : ActiveDialogPlaylist()
 }
 
 class PlaylistViewModel(
@@ -122,6 +124,20 @@ class PlaylistViewModel(
             try {
                 repository.creerPlaylist(CreatePlaylistRequest(nom, genreIds, artistIds, dureeMin))
                 _operationState.value = PlaylistOperationState.Success("Playlist créée avec succès.")
+                fermerDialog()
+                charger()
+            } catch (e: Exception) {
+                _operationState.value = PlaylistOperationState.Error(UserErrorMessages.fromThrowable(e))
+            }
+        }
+    }
+
+    fun modifierPlaylist(id: Long, nom: String, description: String?) {
+        scope.launch {
+            _operationState.value = PlaylistOperationState.Loading
+            try {
+                repository.modifierPlaylist(id, UpdatePlaylistRequest(nom, description))
+                _operationState.value = PlaylistOperationState.Success("Playlist modifiée.")
                 fermerDialog()
                 charger()
             } catch (e: Exception) {

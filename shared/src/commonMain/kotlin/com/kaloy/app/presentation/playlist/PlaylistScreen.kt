@@ -427,7 +427,7 @@ class PlaylistScreen : Screen {
             )
             is ActiveDialogPlaylist.Options -> PlaylistOptionsSheet(
                 playlist = d.playlist,
-                onModifier = { },
+                onModifier = { modeleVue.afficherDialog(ActiveDialogPlaylist.ModifierPlaylist(d.playlist)) },
                 onPartager = { },
                 onFusionner = {
                     modeleVue.afficherDialog(ActiveDialogPlaylist.Merge(listOf(d.playlist.id)))
@@ -435,6 +435,11 @@ class PlaylistScreen : Screen {
                 onSupprimer = {
                     modeleVue.afficherDialog(ActiveDialogPlaylist.ConfirmDelete(d.playlist.id))
                 },
+                onDismiss = { modeleVue.fermerDialog() }
+            )
+            is ActiveDialogPlaylist.ModifierPlaylist -> ModifierPlaylistDialog(
+                playlist = d.playlist,
+                onModifier = { nom, desc -> modeleVue.modifierPlaylist(d.playlist.id, nom, desc) },
                 onDismiss = { modeleVue.fermerDialog() }
             )
             is ActiveDialogPlaylist.ConfirmDelete -> {

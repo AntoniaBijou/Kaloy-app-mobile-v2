@@ -335,7 +335,7 @@ private fun OptionsSheetItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick(); onDismiss() }
+            .clickable { onDismiss(); onClick() }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -343,6 +343,60 @@ private fun OptionsSheetItem(
         Spacer(modifier = Modifier.width(16.dp))
         Text(label, color = couleur, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+// ============================================================
+// Dialog — Modifier une playlist
+// ============================================================
+
+@Composable
+fun ModifierPlaylistDialog(
+    playlist: PlaylistUiItem,
+    onModifier: (nom: String, description: String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var nom by remember { mutableStateOf(playlist.name) }
+    var description by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = KaloyDarkCard,
+        title = {
+            Text("Modifier la playlist", color = KaloyTextPrimary, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                KaloyTextField(
+                    value = nom,
+                    onValueChange = { nom = it },
+                    label = "Nom de la playlist",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                KaloyTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = "Description (optionnel)",
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (nom.isNotBlank()) onModifier(nom.trim(), description.ifBlank { null }) },
+                colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple),
+                shape = RoundedCornerShape(12.dp),
+                enabled = nom.isNotBlank()
+            ) {
+                Text("Enregistrer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = KaloyTextSecondary)
+            }
+        }
+    )
 }
 
 // ============================================================
