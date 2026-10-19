@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
@@ -120,6 +121,9 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
     val commentaires: List<Comment>
         get() = tousLesCommentaires.filter { it.id !in idsSignales }
 
+    // Memes regles pour les medias : signale par moi, masque a mes yeux.
+    private var idsMediasSignales by mutableStateOf<Set<Long>>(emptySet())
+
     var saisie by mutableStateOf("")
         private set
     var envoiEnCours by mutableStateOf(false)
@@ -132,6 +136,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
     // Ids lus dans les tables de reference au chargement.
     private var idCibleEvenement: Long? = null
     private var idCibleCommentaire: Long? = null
+    private var idCibleMedia: Long? = null
     private var idStatutEnAttente: Long? = null
     private var idTypePhoto: Long? = null
     private var idTypeVideo: Long? = null
@@ -197,8 +202,14 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
                 if (lieu.location.isNullOrBlank()) lieu.name else "${lieu.name} — ${lieu.location}"
             }
 
-    val photos: List<EventMedia> get() = medias.filter { it.mediaType?.name == TYPE_PHOTO }
-    val videos: List<EventMedia> get() = medias.filter { it.mediaType?.name == TYPE_VIDEO }
+    private val mediasVisibles: List<EventMedia>
+        get() = medias.filter { it.id !in idsMediasSignales }
+
+    val photos: List<EventMedia> get() = mediasVisibles.filter { it.mediaType?.name == TYPE_PHOTO }
+    val videos: List<EventMedia> get() = mediasVisibles.filter { it.mediaType?.name == TYPE_VIDEO }
+
+    /** Vrai quand la galerie n'a plus rien a montrer, signalements deduits. */
+    val galerieVide: Boolean get() = mediasVisibles.isEmpty()
 
     init {
         charger()
@@ -285,7 +296,8 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
             idMonLike = monLike?.id
             jAime = monLike != null
 
-            idsSignales = chargerMesSignalements()
+            idsSignales = mesSignalements(idCibleCommentaire)
+            idsMediasSignales = mesSignalements(idCibleMedia)
         }
 
         chargerCommentaires()
@@ -302,6 +314,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
             val cibles = api.getCiblesInteraction().data?.content.orEmpty()
             idCibleEvenement = cibles.firstOrNull { it.name == CIBLE_EVENEMENT }?.id
             idCibleCommentaire = cibles.firstOrNull { it.name == CIBLE_COMMENTAIRE }?.id
+            idCibleMedia = cibles.firstOrNull { it.name == CIBLE_MEDIA }?.id
 
             idStatutEnAttente = api.getStatutsSignalement().data?.content.orEmpty()
                 .firstOrNull { it.name == STATUT_EN_ATTENTE }?.id
@@ -339,13 +352,19 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
         }
     }
 
-    private suspend fun chargerMesSignalements(): Set<Long> {
-        val cibleCommentaire = idCibleCommentaire ?: return emptySet()
+    /**
+     * Ce que j'ai deja signale pour un type de cible donne.
+     *
+     * Sans cette relecture, un media signale reapparaitrait a la prochaine
+     * ouverture de l'ecran : le masquage ne vit que dans l'etat de la page.
+     */
+    private suspend fun mesSignalements(cible: Long?): Set<Long> {
+        if (cible == null) return emptySet()
         return try {
             api.rechercherSignalements(
                 ReportSearch(
                     reporter = UserIdDto(gestionSession.getUserId()),
-                    targetType = ReferenceIdDto(cibleCommentaire)
+                    targetType = ReferenceIdDto(cible)
                 )
             ).data?.content.orEmpty().map { it.targetId }.toSet()
         } catch (_: Exception) {
@@ -440,6 +459,25 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
                 api.signaler(gestionSession.getUserId(), cibleCommentaire, commentaire.id, motif, statut)
                 idsSignales = idsSignales + commentaire.id
                 messageAction = "Merci, le commentaire a été signalé."
+            } catch (_: Exception) {
+                messageAction = "Le signalement n'a pas pu être envoyé."
+            }
+        }
+    }
+
+    /** Signale une photo ou une video de la galerie. */
+    fun signalerMedia(media: EventMedia, motif: String) {
+        val cibleMedia = idCibleMedia
+        val statut = idStatutEnAttente
+        if (!estConnecte || cibleMedia == null || statut == null) {
+            messageAction = "Le signalement n'est pas disponible pour le moment."
+            return
+        }
+        viewModelScope.launch {
+            try {
+                api.signaler(gestionSession.getUserId(), cibleMedia, media.id, motif, statut)
+                idsMediasSignales = idsMediasSignales + media.id
+                messageAction = "Merci, le contenu a été signalé."
             } catch (_: Exception) {
                 messageAction = "Le signalement n'a pas pu être envoyé."
             }
@@ -585,6 +623,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
         private const val TYPE_VIDEO = "VIDEO"
         private const val CIBLE_EVENEMENT = "EVENT"
         private const val CIBLE_COMMENTAIRE = "COMMENT"
+        private const val CIBLE_MEDIA = "MEDIA"
         private const val STATUT_EN_ATTENTE = "PENDING"
         const val LONGUEUR_MAX_COMMENTAIRE = 1000
     }
@@ -616,6 +655,7 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
 
         // Dialogues : commentaire en cours de signalement / de suppression.
         var commentaireASignaler by remember { mutableStateOf<Comment?>(null) }
+        var mediaASignaler by remember { mutableStateOf<EventMedia?>(null) }
         var commentaireASupprimer by remember { mutableStateOf<Comment?>(null) }
 
         when {
@@ -815,7 +855,7 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                         )
                     }
 
-                    if (modeleVue.medias.isEmpty()) {
+                    if (modeleVue.galerieVide) {
                         item {
                             EmptyState(message = "Aucune photo ni vidéo pour cet événement")
                         }
@@ -834,7 +874,11 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     items(modeleVue.photos, key = { it.id }) { photo ->
-                                        VignettePhoto(media = photo)
+                                        VignettePhoto(
+                                            media = photo,
+                                            peutSignaler = modeleVue.estConnecte,
+                                            onSignaler = { mediaASignaler = photo }
+                                        )
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -859,6 +903,32 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                         .height(220.dp)
                                         .padding(horizontal = 16.dp, vertical = 6.dp)
                                 )
+                                if (modeleVue.estConnecte) {
+                                    // Sous le lecteur et non par-dessus : une icone
+                                    // posee sur la video tomberait sur les commandes
+                                    // de lecture.
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        TextButton(onClick = { mediaASignaler = video }) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Flag,
+                                                contentDescription = null,
+                                                tint = KaloyTextMuted,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Signaler",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = KaloyTextMuted
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -929,10 +999,25 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
 
         commentaireASignaler?.let { commentaire ->
             DialogueSignalement(
+                titre = "Signaler ce commentaire",
+                motifs = MOTIFS_COMMENTAIRE,
                 onAnnuler = { commentaireASignaler = null },
                 onEnvoyer = { motif ->
                     modeleVue.signalerCommentaire(commentaire, motif)
                     commentaireASignaler = null
+                }
+            )
+        }
+
+        mediaASignaler?.let { media ->
+            val estVideo = media.mediaType?.name == "VIDEO"
+            DialogueSignalement(
+                titre = if (estVideo) "Signaler cette vidéo" else "Signaler cette photo",
+                motifs = MOTIFS_MEDIA,
+                onAnnuler = { mediaASignaler = null },
+                onEnvoyer = { motif ->
+                    modeleVue.signalerMedia(media, motif)
+                    mediaASignaler = null
                 }
             )
         }
@@ -1100,12 +1185,26 @@ private fun LigneCommentaire(
     }
 }
 
+/** Motifs proposes selon ce qu'on signale. « Autre » exige une precision. */
+private val MOTIFS_COMMENTAIRE =
+    listOf("Spam", "Propos offensants", "Harcèlement", "Hors sujet", "Autre")
+
+private val MOTIFS_MEDIA = listOf(
+    "Contenu choquant",
+    "Nudité",
+    "Violence",
+    "Droits d'auteur",
+    "Hors sujet",
+    "Autre"
+)
+
 @Composable
 private fun DialogueSignalement(
+    titre: String,
+    motifs: List<String>,
     onAnnuler: () -> Unit,
     onEnvoyer: (String) -> Unit
 ) {
-    val motifs = listOf("Spam", "Propos offensants", "Harcèlement", "Hors sujet", "Autre")
     var motifChoisi by remember { mutableStateOf<String?>(null) }
     var precision by remember { mutableStateOf("") }
 
@@ -1116,7 +1215,7 @@ private fun DialogueSignalement(
 
     AlertDialog(
         onDismissRequest = onAnnuler,
-        title = { Text("Signaler ce commentaire") },
+        title = { Text(titre) },
         text = {
             Column {
                 motifs.forEach { motif ->
@@ -1233,7 +1332,11 @@ private fun LigneArtisteParticipant(
 }
 
 @Composable
-private fun VignettePhoto(media: EventMedia) {
+private fun VignettePhoto(
+    media: EventMedia,
+    peutSignaler: Boolean,
+    onSignaler: () -> Unit
+) {
     // Le degrade reste visible tant que l'image n'est pas chargee, et en cas
     // d'echec (photos de demonstration heberges hors ligne, par exemple).
     Box(
@@ -1257,6 +1360,28 @@ private fun VignettePhoto(media: EventMedia) {
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
+
+        if (peutSignaler) {
+            // Pastille sombre sous l'icone : un drapeau blanc pose sur une
+            // photo claire serait invisible.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(onClick = onSignaler),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Flag,
+                    contentDescription = "Signaler cette photo",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
     }
 }
 
