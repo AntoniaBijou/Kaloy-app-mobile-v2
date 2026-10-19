@@ -54,7 +54,10 @@ import com.kaloy.app.data.model.Concert
 import com.kaloy.app.data.model.Event
 import com.kaloy.app.data.model.EventMedia
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
-import com.kaloy.app.presentation.common.MediaChoisi
+import com.kaloy.app.core.envoi.EnvoiEnAttente
+import com.kaloy.app.core.envoi.EnvoyeurParMorceaux
+import com.kaloy.app.core.envoi.MemoireEnvois
+import com.kaloy.app.presentation.common.MediaSelectionne
 import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
 import com.kaloy.app.presentation.common.SourceMedia
 import com.kaloy.app.presentation.common.rememberSelecteurMedia
@@ -74,6 +77,12 @@ import org.koin.mp.KoinPlatform
 class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
     private val api = KaloyApi()
     private val gestionSession: AuthSessionManager = KoinPlatform.getKoin().get()
+
+    // Settings vient de Koin, comme pour AuthSessionManager : la memoire des
+    // envois doit survivre a la fermeture de l'application.
+    private val envoyeur = EnvoyeurParMorceaux(
+        api, MemoireEnvois(KoinPlatform.getKoin().get())
+    )
 
     var evenement by mutableStateOf<Event?>(null)
         private set
@@ -125,13 +134,25 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
     private var idCibleCommentaire: Long? = null
     private var idStatutEnAttente: Long? = null
     private var idTypePhoto: Long? = null
+    private var idTypeVideo: Long? = null
 
     // --- Sprint 5 : ajout d'une photo a la galerie ---
     var envoiPhotoEnCours by mutableStateOf(false)
         private set
 
     /** L'ajout n'est possible que connecte, et si le type PHOTO a ete resolu. */
-    val peutAjouterPhoto: Boolean get() = estConnecte && idTypePhoto != null
+    // Photo OU video : un seul des deux types suffit pour ouvrir le menu, et
+    // le bouton du type absent affichera un message plutot que rien.
+    val peutAjouterPhoto: Boolean
+        get() = estConnecte && (idTypePhoto != null || idTypeVideo != null)
+
+    /** Etape courante de l'envoi, pour la barre de progression. */
+    var etapeEnvoi by mutableStateOf<EnvoyeurParMorceaux.Etape?>(null)
+        private set
+
+    /** Envoi interrompu retrouve a l'ouverture de l'ecran, s'il y en a un. */
+    var envoiEnAttente by mutableStateOf<EnvoiEnAttente?>(null)
+        private set
 
     /**
      * Programme de l'evenement : les concerts confirmes, groupes par jour puis
@@ -181,6 +202,10 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
 
     init {
         charger()
+        // Avant le chargement reseau : la reprise ne depend que de ce qui est
+        // retenu localement, et l'utilisateur doit la voir meme si le serveur
+        // est injoignable — c'est justement le cas ou l'envoi a ete coupe.
+        chercherEnvoiInterrompu()
     }
 
     fun charger() {
@@ -281,11 +306,13 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
             idStatutEnAttente = api.getStatutsSignalement().data?.content.orEmpty()
                 .firstOrNull { it.name == STATUT_EN_ATTENTE }?.id
 
-            idTypePhoto = try {
-                api.getTypesMedia().data?.content.orEmpty()
-                    .firstOrNull { it.name == TYPE_PHOTO }?.id
+            try {
+                val types = api.getTypesMedia().data?.content.orEmpty()
+                idTypePhoto = types.firstOrNull { it.name == TYPE_PHOTO }?.id
+                idTypeVideo = types.firstOrNull { it.name == TYPE_VIDEO }?.id
             } catch (_: Exception) {
-                null
+                idTypePhoto = null
+                idTypeVideo = null
             }
 
             idCibleEvenement != null
@@ -420,32 +447,120 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
     }
 
     /**
-     * Ajoute une photo a la galerie (Sprint 5), en deux temps : le fichier est
-     * d'abord televerse, puis le media est cree avec l'URL renvoyee. Si la
-     * seconde etape echoue, le fichier reste sur le serveur sans etre
-     * reference — sans transaction cote backend, on ne peut pas faire mieux.
+     * Ajoute une photo ou une video a la galerie, par envoi en morceaux.
+     *
+     * Le type de media est deduit du typeMime reel et non du bouton presse : un
+     * selecteur mixte peut rendre une video alors qu'on visait une photo, et
+     * c'est le contenu qui doit decider.
+     *
+     * Deux temps, comme avant : le fichier est envoye, puis le media cree avec
+     * l'URL obtenue. Si la seconde etape echoue, le fichier reste sur le serveur
+     * sans etre reference — sans transaction cote backend, on ne peut pas faire
+     * mieux.
      */
-    fun ajouterPhoto(media: MediaChoisi) {
-        val typePhoto = idTypePhoto
-        if (!estConnecte || envoiPhotoEnCours || typePhoto == null) return
+    fun ajouterMedia(media: MediaSelectionne) {
+        if (!estConnecte || envoiPhotoEnCours) return
+
+        val estVideo = media.typeMime.startsWith("video/")
+        val idType = if (estVideo) idTypeVideo else idTypePhoto
+        if (idType == null) {
+            messageAction = if (estVideo) {
+                "Les vidéos ne sont pas acceptées pour le moment."
+            } else {
+                "Les photos ne sont pas acceptées pour le moment."
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            envoiPhotoEnCours = true
+            envoiEnAttente = null
+            try {
+                envoyeur.envoyer(media, idEvenement) { etape ->
+                    traiterEtape(etape, idType, estVideo)
+                }
+            } finally {
+                envoiPhotoEnCours = false
+            }
+        }
+    }
+
+    /**
+     * Cherche un envoi interrompu, a l'ouverture de l'ecran.
+     *
+     * On ne le reprend pas tout seul : un envoi de 400 Mo sur reseau mobile se
+     * decide, il ne se declenche pas a l'insu de l'utilisateur.
+     */
+    fun chercherEnvoiInterrompu() {
+        val attente = envoyeur.envoiRetenu() ?: return
+        if (attente.idEvenement == idEvenement) {
+            envoiEnAttente = attente
+        }
+    }
+
+    /** Reprend l'envoi interrompu. Le serveur dit ou il s'etait arrete. */
+    fun reprendreEnvoi() {
+        val attente = envoiEnAttente ?: return
+        if (envoiPhotoEnCours) return
+
+        val estVideo = attente.typeMime.startsWith("video/")
+        val idType = (if (estVideo) idTypeVideo else idTypePhoto) ?: return
 
         viewModelScope.launch {
             envoiPhotoEnCours = true
             try {
-                val url = api.televerserFichier(media.octets, media.nomFichier, media.typeMime)
-                api.creerMediaEvenement(
-                    idEvenement = idEvenement,
-                    idUtilisateur = gestionSession.getUserId(),
-                    idTypeMedia = typePhoto,
-                    url = url
-                )
-                rechargerMedias()
-                messageAction = "Photo ajoutée à la galerie."
-            } catch (e: Exception) {
-                messageAction = e.message ?: "La photo n'a pas pu être envoyée."
+                envoyeur.reprendre(attente) { etape ->
+                    traiterEtape(etape, idType, estVideo)
+                }
             } finally {
                 envoiPhotoEnCours = false
             }
+        }
+    }
+
+    /** Abandonne l'envoi en attente et supprime la copie locale. */
+    fun abandonnerEnvoi() {
+        envoyeur.abandonner()
+        envoiEnAttente = null
+        etapeEnvoi = null
+    }
+
+    private fun traiterEtape(
+        etape: EnvoyeurParMorceaux.Etape,
+        idType: Long,
+        estVideo: Boolean
+    ) {
+        etapeEnvoi = etape
+        when (etape) {
+            is EnvoyeurParMorceaux.Etape.Termine -> {
+                envoiEnAttente = null
+                viewModelScope.launch { rattacher(etape.url, idType, estVideo) }
+            }
+            // Un echec reprenable laisse la session en memoire, donc l'ecran
+            // peut proposer « Reprendre ». Un echec definitif l'efface.
+            is EnvoyeurParMorceaux.Etape.Echec ->
+                envoiEnAttente = if (etape.reprenable) envoyeur.envoiRetenu() else null
+            else -> Unit
+        }
+    }
+
+    private suspend fun rattacher(url: String, idType: Long, estVideo: Boolean) {
+        try {
+            api.creerMediaEvenement(
+                idEvenement = idEvenement,
+                idUtilisateur = gestionSession.getUserId(),
+                idTypeMedia = idType,
+                url = url
+            )
+            rechargerMedias()
+            messageAction = if (estVideo) {
+                "Vidéo ajoutée à la galerie."
+            } else {
+                "Photo ajoutée à la galerie."
+            }
+            etapeEnvoi = null
+        } catch (e: Exception) {
+            messageAction = e.message ?: "Le média n'a pas pu être rattaché à l'événement."
         }
     }
 
@@ -689,10 +804,14 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                     // ---- Galerie post-evenement ----
                     item {
                         SectionHeader(title = "Galerie", icon = Icons.Filled.PhotoCamera)
-                        BoutonAjoutPhoto(
+                        BoutonAjoutMedia(
                             visible = modeleVue.peutAjouterPhoto,
                             enCours = modeleVue.envoiPhotoEnCours,
-                            onMediaChoisi = { media -> modeleVue.ajouterPhoto(media) }
+                            etape = modeleVue.etapeEnvoi,
+                            envoiEnAttente = modeleVue.envoiEnAttente != null,
+                            onMediaSelectionne = { media -> modeleVue.ajouterMedia(media) },
+                            onReprendre = { modeleVue.reprendreEnvoi() },
+                            onAbandonner = { modeleVue.abandonnerEnvoi() }
                         )
                     }
 
@@ -1142,26 +1261,35 @@ private fun VignettePhoto(media: EventMedia) {
 }
 
 /**
- * Ajout d'une photo : prise de vue ou choix dans la galerie. Le selecteur est
- * multiplateforme (implementations Android et iOS distinctes).
+ * Ajout d'une photo ou d'une video a la galerie.
+ *
+ * Quatre entrees a plat plutot que deux suivies d'un second choix : un appui de
+ * moins. Et l'etape en cours est affichee en clair, parce qu'un envoi de 400 Mo
+ * dure plusieurs minutes — sans progression, l'utilisateur conclut a un blocage
+ * et ferme l'application.
  */
 @Composable
-private fun BoutonAjoutPhoto(
+private fun BoutonAjoutMedia(
     visible: Boolean,
     enCours: Boolean,
-    onMediaChoisi: (MediaChoisi) -> Unit
+    etape: EnvoyeurParMorceaux.Etape?,
+    envoiEnAttente: Boolean,
+    onMediaSelectionne: (MediaSelectionne) -> Unit,
+    onReprendre: () -> Unit,
+    onAbandonner: () -> Unit
 ) {
     if (!visible) return
 
     var choixOuvert by remember { mutableStateOf(false) }
     val ouvrirSelecteur = rememberSelecteurMedia { media ->
-        if (media != null) onMediaChoisi(media)
+        if (media != null) onMediaSelectionne(media)
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Button(
             onClick = { choixOuvert = true },
@@ -1169,16 +1297,35 @@ private fun BoutonAjoutPhoto(
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
         ) {
-            if (enCours) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Envoi…", color = Color.White)
-            } else {
-                Text("＋ Ajouter une photo", color = Color.White)
+            Text(
+                text = if (enCours) "Envoi en cours…" else "＋ Ajouter une photo ou une vidéo",
+                color = Color.White
+            )
+        }
+
+        EtapeEnvoi(etape)
+
+        // Proposee seulement hors envoi : pendant, le bouton n'aurait aucun sens.
+        if (envoiEnAttente && !enCours) {
+            Text(
+                text = "Un envoi a été interrompu.",
+                color = KaloyTextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onReprendre,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = KaloyCyan)
+                ) {
+                    Text("Reprendre", color = Color.White)
+                }
+                OutlinedButton(
+                    onClick = onAbandonner,
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Text("Abandonner", color = KaloyTextSecondary)
+                }
             }
         }
     }
@@ -1186,21 +1333,83 @@ private fun BoutonAjoutPhoto(
     if (choixOuvert) {
         AlertDialog(
             onDismissRequest = { choixOuvert = false },
-            title = { Text("Ajouter une photo") },
-            text = { Text("Prendre une photo maintenant, ou en choisir une existante ?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    choixOuvert = false
-                    ouvrirSelecteur(SourceMedia.CAMERA)
-                }) { Text("Appareil photo") }
+            title = { Text("Ajouter à la galerie") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(
+                        SourceMedia.PHOTO_CAMERA to "Prendre une photo",
+                        SourceMedia.VIDEO_CAMERA to "Filmer une vidéo",
+                        SourceMedia.PHOTO_GALERIE to "Choisir une photo",
+                        SourceMedia.VIDEO_GALERIE to "Choisir une vidéo"
+                    ).forEach { (source, libelle) ->
+                        TextButton(onClick = {
+                            choixOuvert = false
+                            ouvrirSelecteur(source)
+                        }) {
+                            Text(libelle, color = KaloyPurple)
+                        }
+                    }
+                }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    choixOuvert = false
-                    ouvrirSelecteur(SourceMedia.GALERIE)
-                }) { Text("Galerie") }
+            confirmButton = {
+                TextButton(onClick = { choixOuvert = false }) { Text("Annuler") }
             }
         )
+    }
+}
+
+/**
+ * Etat de l'envoi, en clair.
+ *
+ * La preparation est distinguee de l'envoi : copier 400 Mo prend plusieurs
+ * secondes pendant lesquelles rien ne part sur le reseau, et une barre figee a
+ * 0 % ferait croire a une panne.
+ */
+@Composable
+private fun EtapeEnvoi(etape: EnvoyeurParMorceaux.Etape?) {
+    when (etape) {
+        null -> Unit
+
+        is EnvoyeurParMorceaux.Etape.Preparation -> LigneEtape("Préparation du fichier…")
+
+        is EnvoyeurParMorceaux.Etape.Envoi -> {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Envoi ${etape.pourcentage} %",
+                    color = KaloyTextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                LinearProgressIndicator(
+                    progress = { etape.pourcentage / 100f },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = KaloyPurple,
+                    trackColor = KaloyDarkElevated
+                )
+            }
+        }
+
+        is EnvoyeurParMorceaux.Etape.Assemblage -> LigneEtape("Finalisation…")
+
+        is EnvoyeurParMorceaux.Etape.Termine -> LigneEtape("Envoi terminé.")
+
+        is EnvoyeurParMorceaux.Etape.Echec -> Text(
+            text = etape.message,
+            color = KaloyPink,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+@Composable
+private fun LigneEtape(texte: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(14.dp),
+            strokeWidth = 2.dp,
+            color = KaloyPurple
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = texte, color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
     }
 }
 

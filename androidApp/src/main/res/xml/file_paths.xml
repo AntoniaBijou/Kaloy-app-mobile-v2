@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Dossier ou la camera ecrit la photo avant qu'on en lise les octets. -->
-    <cache-path name="prises_de_vue" path="." />
+    <!--
+        Dossier ou la camera ecrit la photo ou la video capturee, et ou sont
+        copies les fichiers choisis en galerie avant leur envoi par morceaux.
+
+        files-path et non cache-path : Android vide le cache quand le stockage
+        se remplit. Une video de 400 Mo en cours d'envoi y disparaitrait, et la
+        reprise apres fermeture de l'application n'aurait plus rien a lire.
+
+        Le chemin doit correspondre a dossierEnvois() dans
+        SelecteurMedia.android.kt. Sans cette declaration, getUriForFile leve
+        une IllegalArgumentException non rattrapee et l'application se ferme
+        instantanement, avant meme que la camera s'ouvre.
+    -->
+    <files-path name="envois" path="envois/" />
 </paths>
