@@ -1,5 +1,6 @@
 package com.kaloy.app.presentation.artist
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -327,9 +328,15 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
 // Écran détail artiste Voyager (Sprint 2 — intégré depuis Ancien)
 // ============================================================
 
+/** Les deux onglets de la fiche. L'ordre est celui de la barre. */
+private enum class OngletArtiste(val label: String) {
+    CHANSONS("Chansons"),
+    CALENDRIER("Calendrier")
+}
+
 data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
     @Composable
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
@@ -363,6 +370,11 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
             }
             modeleVue.artiste != null -> {
                 val artisteDetail = modeleVue.artiste!!
+
+                // Hors de la LazyColumn : un remember pose dans un item
+                // serait oublie des que cet item sort de l'ecran, et
+                // l'onglet reviendrait tout seul sur Chansons.
+                var ongletActif by remember { mutableStateOf(OngletArtiste.CHANSONS) }
 
                 LazyColumn(
                     modifier = Modifier
@@ -505,111 +517,149 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         }
                     }
 
-                    // ---- Albums ----
-                    if (modeleVue.albums.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "Albums (${modeleVue.albums.size})",
-                                icon = Icons.Filled.Album
-                            )
-                        }
-                        item {
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(modeleVue.albums) { album ->
-                                    AlbumCard(
-                                        album = album,
-                                        onClick = {
-                                            navigateur.push(EcranDetailAlbumVoyager(idAlbum = album.id))
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // ---- Chansons ----
-                    if (modeleVue.chansons.isNotEmpty()) {
-                        item {
-                            SectionHeader(title = "Les plus écoutées", icon = Icons.Filled.MusicNote)
-                        }
-                        items(
-                            count = modeleVue.chansons.size,
-                            key = { modeleVue.chansons[it].id }
-                        ) { index ->
-                            val chanson = modeleVue.chansons[index]
-                            SongRow(
-                                song = chanson,
-                                index = index,
-                                onClick = {
-                                    navigateur.push(LecteurScreen(songId = chanson.id))
-                                }
-                            )
-                            if (index < modeleVue.chansons.size - 1) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    color = KaloyDarkElevated
+                    // ---- Barre d'onglets ----
+                    // stickyHeader et non item : la barre reste visible
+                    // pendant qu'on fait defiler les chansons ou le mois.
+                    stickyHeader {
+                        SecondaryTabRow(
+                            selectedTabIndex = ongletActif.ordinal,
+                            containerColor = KaloyDarkSurface,
+                            contentColor = KaloyPurpleLight,
+                            divider = { HorizontalDivider(color = KaloyDarkElevated) }
+                        ) {
+                            OngletArtiste.entries.forEach { onglet ->
+                                Tab(
+                                    selected = onglet == ongletActif,
+                                    onClick = { ongletActif = onglet },
+                                    text = {
+                                        Text(
+                                            text = onglet.label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (onglet == ongletActif) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    selectedContentColor = KaloyPurpleLight,
+                                    unselectedContentColor = KaloyTextMuted
                                 )
                             }
                         }
                     }
 
-                    // ---- Calendrier mensuel des concerts confirmés (Sprint 4) ----
-                    item {
-                        SectionHeader(title = "Calendrier", icon = Icons.Filled.CalendarMonth)
-                    }
-                    item {
-                        GrilleCalendrier(
-                            annee = modeleVue.anneeAffichee,
-                            mois = modeleVue.moisAffiche,
-                            aujourdHui = modeleVue.aujourdHui,
-                            datesOccupees = modeleVue.concertsParDate.keys,
-                            dateSelectionnee = modeleVue.dateSelectionnee,
-                            onMoisPrecedent = { modeleVue.afficherMoisPrecedent() },
-                            onMoisSuivant = { modeleVue.afficherMoisSuivant() },
-                            onJourClique = { date ->
-                                modeleVue.selectionnerDate(date)
-
-                                // Un seul événement ce jour-là : on ouvre sa fiche
-                                // directement, l'utilisateur n'a rien à choisir.
-                                // S'il y en a plusieurs, le détail sous la grille
-                                // lui laisse le choix.
-                                val evenements = modeleVue.concertsDuJour(date)
-                                    .mapNotNull { it.event }
-                                    .distinctBy { it.id }
-                                if (evenements.size == 1) {
-                                    navigateur.push(
-                                        EcranDetailEvenementVoyager(idEvenement = evenements.first().id)
-                                    )
+                    if (ongletActif == OngletArtiste.CHANSONS) {
+                        // ---- Albums ----
+                        if (modeleVue.albums.isNotEmpty()) {
+                            item {
+                                SectionHeader(
+                                    title = "Albums (${modeleVue.albums.size})",
+                                    icon = Icons.Filled.Album
+                                )
+                            }
+                            item {
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(modeleVue.albums) { album ->
+                                        AlbumCard(
+                                            album = album,
+                                            onClick = {
+                                                navigateur.push(EcranDetailAlbumVoyager(idAlbum = album.id))
+                                            }
+                                        )
+                                    }
                                 }
                             }
-                        )
-                    }
+                        }
 
-                    // ---- Détail du jour sélectionné ----
-                    modeleVue.dateSelectionnee?.let { dateChoisie ->
-                        val concertsDuJour = modeleVue.concertsDuJour(dateChoisie)
-                        if (concertsDuJour.isEmpty()) {
-                            item { MessageAucunEvenement() }
-                        } else {
+                        // ---- Chansons ----
+                        if (modeleVue.chansons.isNotEmpty()) {
+                            item {
+                                SectionHeader(title = "Les plus écoutées", icon = Icons.Filled.MusicNote)
+                            }
                             items(
-                                items = concertsDuJour,
-                                // Prefixe obligatoire : les identifiants de concert
-                                // et de chanson se croisent dans la meme LazyColumn,
-                                // et deux clés identiques la feraient planter.
-                                key = { "concert_${it.id}" }
-                            ) { concert ->
-                                LigneConcert(
-                                    concert = concert,
-                                    estAVenir = dateChoisie >= modeleVue.aujourdHui,
+                                count = modeleVue.chansons.size,
+                                key = { modeleVue.chansons[it].id }
+                            ) { index ->
+                                val chanson = modeleVue.chansons[index]
+                                SongRow(
+                                    song = chanson,
+                                    index = index,
                                     onClick = {
-                                        concert.event?.let {
-                                            navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
-                                        }
+                                        navigateur.push(LecteurScreen(songId = chanson.id))
                                     }
                                 )
+                                if (index < modeleVue.chansons.size - 1) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                        color = KaloyDarkElevated
+                                    )
+                                }
+                            }
+                        }
+
+                        // Sans ce message l'onglet s'ouvrirait vide et aurait
+                        // l'air casse.
+                        if (modeleVue.albums.isEmpty() && modeleVue.chansons.isEmpty()) {
+                            item { MessageAucuneChanson() }
+                        }
+                    }
+
+                    if (ongletActif == OngletArtiste.CALENDRIER) {
+                        // ---- Calendrier mensuel des concerts confirmés (Sprint 4) ----
+                        item {
+                            SectionHeader(title = "Calendrier", icon = Icons.Filled.CalendarMonth)
+                        }
+                        item {
+                            GrilleCalendrier(
+                                annee = modeleVue.anneeAffichee,
+                                mois = modeleVue.moisAffiche,
+                                aujourdHui = modeleVue.aujourdHui,
+                                datesOccupees = modeleVue.concertsParDate.keys,
+                                dateSelectionnee = modeleVue.dateSelectionnee,
+                                onMoisPrecedent = { modeleVue.afficherMoisPrecedent() },
+                                onMoisSuivant = { modeleVue.afficherMoisSuivant() },
+                                onJourClique = { date ->
+                                    modeleVue.selectionnerDate(date)
+
+                                    // Un seul événement ce jour-là : on ouvre sa fiche
+                                    // directement, l'utilisateur n'a rien à choisir.
+                                    // S'il y en a plusieurs, le détail sous la grille
+                                    // lui laisse le choix.
+                                    val evenements = modeleVue.concertsDuJour(date)
+                                        .mapNotNull { it.event }
+                                        .distinctBy { it.id }
+                                    if (evenements.size == 1) {
+                                        navigateur.push(
+                                            EcranDetailEvenementVoyager(idEvenement = evenements.first().id)
+                                        )
+                                    }
+                                }
+                            )
+                        }
+
+                        // ---- Détail du jour sélectionné ----
+                        modeleVue.dateSelectionnee?.let { dateChoisie ->
+                            val concertsDuJour = modeleVue.concertsDuJour(dateChoisie)
+                            if (concertsDuJour.isEmpty()) {
+                                item { MessageAucunEvenement() }
+                            } else {
+                                items(
+                                    items = concertsDuJour,
+                                    // Prefixe obligatoire : les identifiants de concert
+                                    // et de chanson se croisent dans la meme LazyColumn,
+                                    // et deux clés identiques la feraient planter.
+                                    key = { "concert_${it.id}" }
+                                ) { concert ->
+                                    LigneConcert(
+                                        concert = concert,
+                                        estAVenir = dateChoisie >= modeleVue.aujourdHui,
+                                        onClick = {
+                                            concert.event?.let {
+                                                navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -682,6 +732,19 @@ private fun BoutonAbonnement(
             }
         }
     }
+}
+
+@Composable
+private fun MessageAucuneChanson() {
+    Text(
+        text = "Aucune chanson pour le moment",
+        style = MaterialTheme.typography.bodyMedium,
+        color = KaloyTextSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 20.dp)
+    )
 }
 
 @Composable
