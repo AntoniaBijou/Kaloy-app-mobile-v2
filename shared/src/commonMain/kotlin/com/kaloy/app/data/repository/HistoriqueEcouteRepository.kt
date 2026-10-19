@@ -24,7 +24,11 @@ class HistoriqueEcouteRepository(
         }
         val data = response.data
             ?: throw IllegalStateException("La réponse du serveur ne contient pas l'historique.")
-        return HistoryPage(data.content, data.totalElements)
+        // nombreTotal et non totalElements : le backend range les totaux dans un
+        // sous-objet « page », donc le champ plat reste a zero. Avec zero, la
+        // condition « entries.size < totalElements » de RecentListeningHistory
+        // est toujours fausse et l'historique ne charge jamais la suite.
+        return HistoryPage(data.content, data.nombreTotal)
     }
 
     suspend fun deleteEntry(id: Long) {

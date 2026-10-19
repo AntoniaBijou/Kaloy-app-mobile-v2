@@ -525,3 +525,20 @@ data class ChansonEcoutee(
     val ecoutes: Long = 0
 )
 
+
+/**
+ * Etat d une session d envoi par morceaux, tel que le serveur le renvoie.
+ *
+ * [morceauxRecus] est la cle de la reprise : le client envoie les indices
+ * absents de cette liste, et saute les autres.
+ */
+@Serializable
+data class EtatSessionEnvoi(
+    val idSession: String = "",
+    val tailleTotale: Long = 0,
+    val tailleMorceau: Int = 0,
+    val morceauxAttendus: Int = 0,
+    val morceauxRecus: List<Int> = emptyList(),
+    val complet: Boolean = false
+)
+

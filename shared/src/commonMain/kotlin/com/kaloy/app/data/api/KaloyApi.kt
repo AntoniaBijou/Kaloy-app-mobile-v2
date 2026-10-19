@@ -476,6 +476,68 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
             ?: throw IllegalStateException("Le serveur n'a pas renvoyé d'URL.")
     }
 
+    // ============================================================
+    // Envoi par morceaux, pour les fichiers volumineux
+    // ============================================================
+
+    /**
+     * Ouvre une session d envoi et renvoie son etat initial.
+     *
+     * La taille est annoncee d avance : un fichier trop gros ou d un format
+     * refuse est rejete ici, avant le premier octet, et non apres plusieurs
+     * minutes d envoi.
+     */
+    suspend fun ouvrirSessionEnvoi(
+        nomFichier: String,
+        typeMime: String,
+        tailleTotale: Long
+    ): EtatSessionEnvoi {
+        val reponse = client.post("$apiBaseUrl/uploads/sessions") {
+            contentType(ContentType.Application.Json)
+            setBody(OuvrirSessionDto(nomFichier, typeMime, tailleTotale))
+        }
+        return reponse.body<RestResponse<EtatSessionEnvoi>>()
+            .exigerSucces("Ouverture de la session d envoi").data
+            ?: throw IllegalStateException("Le serveur n a pas renvoye de session.")
+    }
+
+    /**
+     * Envoie un morceau. Idempotent : le reenvoyer ecrase le precedent, ce qui
+     * rend le reessai sans risque.
+     *
+     * Le corps est le binaire brut, pas du multipart : il n y a qu une donnee,
+     * et l enveloppe multipart n apporterait que des octets en plus.
+     */
+    suspend fun envoyerMorceau(idSession: String, indice: Int, contenu: ByteArray) {
+        val reponse = client.put("$apiBaseUrl/uploads/sessions/$idSession/morceaux/$indice") {
+            contentType(ContentType.Application.OctetStream)
+            setBody(contenu)
+        }
+        reponse.body<RestResponse<Unit?>>().exigerSucces("Envoi du morceau $indice")
+    }
+
+    /**
+     * Etat de la session : c est ce qui permet la reprise.
+     *
+     * Renvoie null si la session n existe plus — purgee, ou jamais ouverte. Le
+     * cas est normal apres plusieurs jours, et l appelant doit repartir de zero
+     * plutot que d afficher une erreur.
+     */
+    suspend fun etatSessionEnvoi(idSession: String): EtatSessionEnvoi? {
+        val reponse = client.get("$apiBaseUrl/uploads/sessions/$idSession")
+        val enveloppe = reponse.body<RestResponse<EtatSessionEnvoi>>()
+        return if (enveloppe.status in 200..299) enveloppe.data else null
+    }
+
+    /** Assemble les morceaux et renvoie l adresse publique du fichier. */
+    suspend fun finirSessionEnvoi(idSession: String): String {
+        val reponse = client.post("$apiBaseUrl/uploads/sessions/$idSession/finir")
+        return reponse.body<RestResponse<Map<String, String>>>()
+            .exigerSucces("Assemblage du fichier").data?.get("url")
+            ?: throw IllegalStateException("Le serveur n a pas renvoye d URL.")
+    }
+
+
     /** Rattache un media deja televerse a un evenement. */
     suspend fun creerMediaEvenement(
         idEvenement: Long,
@@ -1217,5 +1279,13 @@ data class PreferenceNotificationDto(
 data class AppareilDto(
     val token: String,
     val platform: String
+)
+
+// POST /uploads/sessions
+@kotlinx.serialization.Serializable
+data class OuvrirSessionDto(
+    val nomFichier: String,
+    val typeMime: String,
+    val tailleTotale: Long
 )
 
