@@ -107,6 +107,15 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
     var dateSelectionnee by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * Onglet affiche. Ici et non dans le composable : Voyager detruit
+     * celui-ci quand on empile la fiche d'un evenement par-dessus, et un
+     * remember y serait perdu — on revenait sur Chansons apres chaque
+     * aller-retour. Le ViewModel, lui, survit.
+     */
+    internal var ongletActif by mutableStateOf(OngletArtiste.CHANSONS)
+        private set
+
     /** Date du jour dans le fuseau du telephone : repere entre passe et a venir. */
     val aujourdHui: String = aujourdHuiLocal()
 
@@ -224,6 +233,10 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
         dateSelectionnee = if (dateSelectionnee == date) null else date
     }
 
+    internal fun choisirOnglet(onglet: OngletArtiste) {
+        ongletActif = onglet
+    }
+
     fun concertsDuJour(date: String): List<Concert> = concertsParDate[date] ?: emptyList()
 
     /**
@@ -329,7 +342,7 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
 // ============================================================
 
 /** Les deux onglets de la fiche. L'ordre est celui de la barre. */
-private enum class OngletArtiste(val label: String) {
+internal enum class OngletArtiste(val label: String) {
     CHANSONS("Chansons"),
     CALENDRIER("Calendrier")
 }
@@ -370,11 +383,6 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
             }
             modeleVue.artiste != null -> {
                 val artisteDetail = modeleVue.artiste!!
-
-                // Hors de la LazyColumn : un remember pose dans un item
-                // serait oublie des que cet item sort de l'ecran, et
-                // l'onglet reviendrait tout seul sur Chansons.
-                var ongletActif by remember { mutableStateOf(OngletArtiste.CHANSONS) }
 
                 LazyColumn(
                     modifier = Modifier
@@ -522,20 +530,20 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                     // pendant qu'on fait defiler les chansons ou le mois.
                     stickyHeader {
                         SecondaryTabRow(
-                            selectedTabIndex = ongletActif.ordinal,
+                            selectedTabIndex = modeleVue.ongletActif.ordinal,
                             containerColor = KaloyDarkSurface,
                             contentColor = KaloyPurpleLight,
                             divider = { HorizontalDivider(color = KaloyDarkElevated) }
                         ) {
                             OngletArtiste.entries.forEach { onglet ->
                                 Tab(
-                                    selected = onglet == ongletActif,
-                                    onClick = { ongletActif = onglet },
+                                    selected = onglet == modeleVue.ongletActif,
+                                    onClick = { modeleVue.choisirOnglet(onglet) },
                                     text = {
                                         Text(
                                             text = onglet.label,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = if (onglet == ongletActif) FontWeight.Bold else FontWeight.Normal
+                                            fontWeight = if (onglet == modeleVue.ongletActif) FontWeight.Bold else FontWeight.Normal
                                         )
                                     },
                                     selectedContentColor = KaloyPurpleLight,
@@ -545,7 +553,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         }
                     }
 
-                    if (ongletActif == OngletArtiste.CHANSONS) {
+                    if (modeleVue.ongletActif == OngletArtiste.CHANSONS) {
                         // ---- Albums ----
                         if (modeleVue.albums.isNotEmpty()) {
                             item {
@@ -604,7 +612,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         }
                     }
 
-                    if (ongletActif == OngletArtiste.CALENDRIER) {
+                    if (modeleVue.ongletActif == OngletArtiste.CALENDRIER) {
                         // ---- Calendrier mensuel des concerts confirmés (Sprint 4) ----
                         item {
                             SectionHeader(title = "Calendrier", icon = Icons.Filled.CalendarMonth)
