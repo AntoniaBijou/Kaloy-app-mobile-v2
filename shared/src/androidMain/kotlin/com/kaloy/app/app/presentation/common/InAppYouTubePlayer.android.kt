@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
@@ -39,6 +40,19 @@ actual fun InAppYouTubePlayer(videoUrl: String, modifier: Modifier) {
                 view.addYouTubePlayerListener(object : AbstractYouTubePlayerListener() {
                     override fun onReady(youTubePlayer: YouTubePlayer) {
                         youTubePlayer.loadVideo(videoId, 0f)
+                    }
+
+                    /**
+                     * Sans cette surcharge, un echec de lecture ne laisse aucune
+                     * trace : le message reste dans la WebView de la
+                     * bibliotheque. C'est ce qui a rendu l'erreur 152 si longue
+                     * a cerner — on voyait l'ecran, jamais le code.
+                     */
+                    override fun onError(
+                        youTubePlayer: YouTubePlayer,
+                        error: PlayerConstants.PlayerError
+                    ) {
+                        Log.e("KaloyVideo", "Lecture YouTube refusee : $error (video $videoId)")
                     }
                 })
             }
