@@ -17,16 +17,15 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.repository.PlaylistRepository
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
+import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.components.*
 import com.kaloy.app.presentation.queue.MiniPlayer
-import com.kaloy.app.presentation.queue.UpNextSheet
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.delay
@@ -41,7 +40,7 @@ class PlaylistScreen : Screen {
         val repository = koinInject<PlaylistRepository>()
         val sessionManager = koinInject<AuthSessionManager>()
         val fileAttente = koinInject<QueueManager>()
-        val lecteurAudio = koinInject<AudioPlayerController>()
+        val lecteur = koinInject<LecteurViewModel>()
 
         val modeleVue = remember { PlaylistViewModel(repository, sessionManager) }
         DisposableEffect(Unit) { onDispose { modeleVue.dispose() } }
@@ -54,8 +53,9 @@ class PlaylistScreen : Screen {
 
         val chansonCourante by fileAttente.currentSong.collectAsState()
         val chansonsSuivantes by fileAttente.upNext.collectAsState()
-        val lectureActive by lecteurAudio.isPlaying.collectAsState()
-        var afficherFile by remember { mutableStateOf(false) }
+        val historique by fileAttente.history.collectAsState()
+        val lectureActive by lecteur.isPlaying.collectAsState()
+        val positionCourante by lecteur.currentPositionMs.collectAsState()
 
         // Réaction aux états d'opération
         LaunchedEffect(operationState) {
@@ -110,10 +110,11 @@ class PlaylistScreen : Screen {
                             song = chanson,
                             isPlaying = lectureActive,
                             onClick = { navigateur.push(LecteurScreen(chanson.id)) },
-                            onTogglePlay = {
-                                if (lectureActive) lecteurAudio.pause() else lecteurAudio.resume()
-                            },
-                            onQueueClick = { afficherFile = true }
+                            onTogglePlay = { lecteur.togglePlayPause() },
+                            onPrevious = { lecteur.jouerPrecedent() },
+                            onNext = { lecteur.jouerSuivant() },
+                            canPrevious = historique.isNotEmpty() || positionCourante > 3_000L,
+                            canNext = chansonsSuivantes.isNotEmpty()
                         )
                     }
                     NavigationBar(containerColor = KaloyDarkSurface) {
@@ -453,20 +454,5 @@ class PlaylistScreen : Screen {
             ActiveDialogPlaylist.None -> {}
         }
 
-        // ---- File d'attente ----
-        if (afficherFile) {
-            UpNextSheet(
-                currentSong = chansonCourante,
-                songs = chansonsSuivantes,
-                onDismiss = { afficherFile = false },
-                onPlay = { chanson ->
-                    fileAttente.playFromQueue(chanson)
-                    afficherFile = false
-                    navigateur.push(LecteurScreen(chanson.id))
-                },
-                onRemove = fileAttente::remove,
-                onClear = fileAttente::clear
-            )
-        }
     }
 }

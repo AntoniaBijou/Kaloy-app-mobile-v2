@@ -12,6 +12,7 @@ import com.kaloy.app.data.repository.MeRepository
 import com.kaloy.app.data.repository.MeRepositoryImpl
 import com.kaloy.app.data.repository.PlaylistRepository
 import com.kaloy.app.data.repository.PlaylistRepositoryImpl
+import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.russhwolf.settings.Settings
 import org.koin.dsl.module
 
@@ -24,5 +25,6 @@ val appModule = module {
     single<LecteurRepository> { LecteurRepositoryImpl(get(), get()) }
     single { HistoriqueRechercheRepository(get(), get()) }
     single { QueueManager() }
+    single { LecteurViewModel(get(), get(), get()) }
     single<PlaylistRepository> { PlaylistRepositoryImpl(get(), get()) }
 }

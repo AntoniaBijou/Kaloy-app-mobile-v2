@@ -20,6 +20,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.presentation.lecteur.LecteurScreen
@@ -29,6 +30,7 @@ import com.kaloy.app.ui.components.LoadingIndicator
 import com.kaloy.app.ui.components.SongRow
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 // ============================================================
 // ViewModel — chansons rattachées à un genre
@@ -77,6 +79,7 @@ data class EcranGenreVoyager(
     @Composable
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
+        val fileAttente = koinInject<QueueManager>()
         val modeleVue: GenreViewModel = viewModel { GenreViewModel(idGenre) }
 
         Column(
@@ -138,7 +141,10 @@ data class EcranGenreVoyager(
                         SongRow(
                             song = chanson,
                             index = index,
-                            onClick = { navigateur.push(LecteurScreen(songId = chanson.id)) }
+                            onClick = {
+                                fileAttente.setContext(modeleVue.chansons, chanson)
+                                navigateur.push(LecteurScreen(songId = chanson.id))
+                            }
                         )
                     }
                     item { Spacer(modifier = Modifier.height(80.dp)) }

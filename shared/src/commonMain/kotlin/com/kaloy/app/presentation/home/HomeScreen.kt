@@ -43,13 +43,12 @@ import com.kaloy.app.data.model.*
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
+import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.PlaylistScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import com.kaloy.app.presentation.queue.MiniPlayer
-import com.kaloy.app.presentation.queue.UpNextSheet
 import com.kaloy.app.core.queue.QueueManager
-import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -149,11 +148,12 @@ data class HomeScreen(
         val nomAffiche = if (isVisitor) username else gestionSession.getDisplayName().ifBlank { username }
         val modeleVue: AccueilViewModel = viewModel { AccueilViewModel() }
         val fileAttente = koinInject<QueueManager>()
-        val lecteurAudio = koinInject<AudioPlayerController>()
+        val lecteur = koinInject<LecteurViewModel>()
         val chansonCourante by fileAttente.currentSong.collectAsState()
         val chansonsSuivantes by fileAttente.upNext.collectAsState()
-        val lectureActive by lecteurAudio.isPlaying.collectAsState()
-        var afficherFile by remember { mutableStateOf(false) }
+        val historique by fileAttente.history.collectAsState()
+        val lectureActive by lecteur.isPlaying.collectAsState()
+        val positionCourante by lecteur.currentPositionMs.collectAsState()
 
         // Onglet sélectionné dans la barre de navigation
         var ongletSelectionne by remember { mutableStateOf(0) }
@@ -173,10 +173,11 @@ data class HomeScreen(
                                 song = chanson,
                                 isPlaying = lectureActive,
                                 onClick = { navigateur.push(LecteurScreen(chanson.id)) },
-                                onTogglePlay = {
-                                    if (lectureActive) lecteurAudio.pause() else lecteurAudio.resume()
-                                },
-                                onQueueClick = { afficherFile = true }
+                                onTogglePlay = { lecteur.togglePlayPause() },
+                                onPrevious = { lecteur.jouerPrecedent() },
+                                onNext = { lecteur.jouerSuivant() },
+                                canPrevious = historique.isNotEmpty() || positionCourante > 3_000L,
+                                canNext = chansonsSuivantes.isNotEmpty()
                             )
                         }
                         NavigationBar(containerColor = KaloyDarkSurface) {
@@ -331,7 +332,10 @@ data class HomeScreen(
                                             Column(
                                                 modifier = Modifier
                                                     .width(110.dp)
-                                                    .clickable { navigateur.push(LecteurScreen(songId = chanson.id)) },
+                                                    .clickable {
+                                                        fileAttente.syncCurrent(chanson)
+                                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                                    },
                                                 horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
                                                 Box(
@@ -499,20 +503,6 @@ data class HomeScreen(
                     }
                 }
             }
-        }
-        if (afficherFile) {
-            UpNextSheet(
-                currentSong = chansonCourante,
-                songs = chansonsSuivantes,
-                onDismiss = { afficherFile = false },
-                onPlay = { chanson ->
-                    fileAttente.playFromQueue(chanson)
-                    afficherFile = false
-                    navigateur.push(LecteurScreen(chanson.id))
-                },
-                onRemove = fileAttente::remove,
-                onClear = fileAttente::clear
-            )
         }
     }
 }

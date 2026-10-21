@@ -18,11 +18,16 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
+import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.repository.PlaylistRepository
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
+import com.kaloy.app.presentation.lecteur.LecteurScreen
+import com.kaloy.app.presentation.lecteur.LecteurViewModel
+import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.ui.components.EmptyState
 import com.kaloy.app.ui.components.LoadingIndicator
 import com.kaloy.app.ui.theme.*
@@ -46,10 +51,18 @@ data class PlaylistDetailScreen(
 
         LaunchedEffect(Unit) { modeleVue.charger(playlistId, playlistName) }
 
+        val fileAttente = koinInject<QueueManager>()
+        val lecteur = koinInject<LecteurViewModel>()
+
         val uiState by modeleVue.uiState.collectAsState()
         val operationState by modeleVue.operationState.collectAsState()
         val activeDialog by modeleVue.activeDialog.collectAsState()
         val catalogueSongs by modeleVue.catalogueSongs.collectAsState()
+        val chansonCourante by fileAttente.currentSong.collectAsState()
+        val chansonsSuivantes by fileAttente.upNext.collectAsState()
+        val historique by fileAttente.history.collectAsState()
+        val lectureActive by lecteur.isPlaying.collectAsState()
+        val positionCourante by lecteur.currentPositionMs.collectAsState()
 
         LaunchedEffect(operationState) {
             when (operationState) {
@@ -85,6 +98,27 @@ data class PlaylistDetailScreen(
                         }
                     },
                     actions = {
+                        val songsForPlay = (uiState as? PlaylistDetailUiState.Success)?.songs ?: emptyList()
+                        if (songsForPlay.isNotEmpty()) {
+                            IconButton(onClick = {
+                                val songModels = songsForPlay.map { item ->
+                                    Song(
+                                        id = item.songId,
+                                        title = item.title,
+                                        artist = Artist(stageName = item.artistName),
+                                        durationSeconds = item.durationSeconds
+                                    )
+                                }
+                                fileAttente.setContext(songModels, songModels.first())
+                                navigateur.push(LecteurScreen(songModels.first().id))
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Lire la playlist",
+                                    tint = KaloyPurple
+                                )
+                            }
+                        }
                         if (modeleVue.isOrdreModifie) {
                             TextButton(onClick = { modeleVue.sauvegarderOrdre() }) {
                                 Text("Sauvegarder", color = KaloyPurple, fontWeight = FontWeight.SemiBold)
@@ -93,6 +127,20 @@ data class PlaylistDetailScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkSurface)
                 )
+            },
+            bottomBar = {
+                chansonCourante?.let { chanson ->
+                    MiniPlayer(
+                        song = chanson,
+                        isPlaying = lectureActive,
+                        onClick = { navigateur.push(LecteurScreen(chanson.id)) },
+                        onTogglePlay = { lecteur.togglePlayPause() },
+                        onPrevious = { lecteur.jouerPrecedent() },
+                        onNext = { lecteur.jouerSuivant() },
+                        canPrevious = historique.isNotEmpty() || positionCourante > 3_000L,
+                        canNext = chansonsSuivantes.isNotEmpty()
+                    )
+                }
             },
             floatingActionButton = {
                 FloatingActionButton(
@@ -242,6 +290,7 @@ data class PlaylistDetailScreen(
             )
             ActiveDialogDetail.None -> {}
         }
+
     }
 }
 

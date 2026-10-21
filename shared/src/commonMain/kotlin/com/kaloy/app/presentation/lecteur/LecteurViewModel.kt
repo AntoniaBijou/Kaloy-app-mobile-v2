@@ -3,11 +3,15 @@ package com.kaloy.app.presentation.lecteur
 import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.audio.MediaMetadata
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.data.model.Album
+import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.data.repository.LecteurRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +51,7 @@ class LecteurViewModel(
     private var activeSongId: Long? = null
     private var activeModeId: Long? = null
     private var autoPlayTriggered = false
+    private var loadJob: Job? = null
 
     init {
         audioPlayer.setOnTrackCompleted { jouerSuivant() }
@@ -76,16 +81,26 @@ class LecteurViewModel(
     }
 
     fun charger(songId: Long, silencieux: Boolean = false, startMode: ModeEcoute? = null) {
-        autoPlayTriggered = false
+        val loadedSong = (_uiState.value as? LecteurUiState.Success)?.song
+        if (loadedSong?.id == songId && queueManager.currentSong.value?.id == songId) {
+            if (startMode != null && startMode != _modeEcoute.value) changerMode(startMode)
+            return
+        }
+        if (!silencieux) autoPlayTriggered = false
         if (startMode != null) _modeEcoute.value = startMode
         saveHistoryForActiveSong()
-        scope.launch {
+        loadJob?.cancel()
+        loadJob = scope.launch {
             if (!silencieux) _uiState.value = LecteurUiState.Loading
             try {
                 val song = repository.getSongPlayerDetails(songId)
+                queueManager.syncCurrent(song.asQueueSong())
                 _uiState.value = LecteurUiState.Success(song)
                 lancerLecture(song, _modeEcoute.value)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                autoPlayTriggered = false
                 _uiState.value = LecteurUiState.Error(e.message ?: "Erreur de chargement")
             }
         }
@@ -108,6 +123,7 @@ class LecteurViewModel(
     }
 
     private fun lancerLecture(song: SongPlayerResponse, mode: ModeEcoute) {
+        autoPlayTriggered = false
         activeSongId = song.id
         activeModeId = mode.toPlayModeId()
         val url = when (mode) {
@@ -139,6 +155,12 @@ class LecteurViewModel(
         charger(nextSong.id, silencieux = true)
     }
 
+    fun jouerDepuisFile(song: Song) {
+        autoPlayTriggered = false
+        queueManager.playFromQueue(song)
+        charger(song.id, silencieux = true)
+    }
+
     fun jouerPrecedent() {
         if (currentPositionMs.value > 3_000L) {
             seekTo(0L)
@@ -151,8 +173,21 @@ class LecteurViewModel(
         charger(prevSong.id, silencieux = true)
     }
 
+    private fun SongPlayerResponse.asQueueSong(): Song = Song(
+        id = id,
+        title = title,
+        artist = Artist(stageName = artistStageName, photoUrl = artistPhotoUrl),
+        album = albumId?.let { Album(id = it, title = albumTitle.orEmpty(), coverUrl = albumCoverUrl) },
+        durationSeconds = durationSeconds
+    )
+
+    fun onPlayerScreenClosed() {
+        saveHistoryForActiveSong()
+    }
+
     fun dispose() {
         saveHistoryForActiveSong()
+        loadJob?.cancel()
         scope.cancel()
     }
 }
