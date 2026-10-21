@@ -48,6 +48,7 @@ class PlaylistScreen : Screen {
         val uiState by modeleVue.uiState.collectAsState()
         val operationState by modeleVue.operationState.collectAsState()
         val activeDialog by modeleVue.activeDialog.collectAsState()
+        val mergePreview by modeleVue.mergePreview.collectAsState()
         val requeteRecherche by modeleVue.requeteRecherche.collectAsState()
         val critereTri by modeleVue.critereTri.collectAsState()
 
@@ -423,6 +424,9 @@ class PlaylistScreen : Screen {
             is ActiveDialogPlaylist.Merge -> MergePlaylistsDialog(
                 playlists = mesPlaylists,
                 preSelected = d.preSelected,
+                previewState = mergePreview,
+                isMerging = operationState is PlaylistOperationState.Loading,
+                onSelectionChanged = modeleVue::chargerApercuFusion,
                 onMerge = { ids, nom -> modeleVue.fusionnerPlaylists(ids, nom) },
                 onDismiss = { modeleVue.fermerDialog() }
             )

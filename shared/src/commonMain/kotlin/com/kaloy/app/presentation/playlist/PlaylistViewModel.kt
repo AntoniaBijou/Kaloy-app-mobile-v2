@@ -4,12 +4,15 @@ import com.kaloy.app.core.error.UserErrorMessages
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.playlist.CreatePlaylistRequest
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
+import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
 import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
 import com.kaloy.app.data.model.EditorialPlaylist
 import com.kaloy.app.data.repository.PlaylistRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +40,17 @@ sealed class PlaylistOperationState {
     data object NeedsRelogin : PlaylistOperationState()
 }
 
+sealed class MergePreviewState {
+    data object Idle : MergePreviewState()
+    data object Loading : MergePreviewState()
+    data class Success(
+        val sourceIds: List<Long>,
+        val songs: List<PlaylistSongUiItem>,
+        val duplicateCount: Int
+    ) : MergePreviewState()
+    data class Error(val message: String) : MergePreviewState()
+}
+
 sealed class ActiveDialogPlaylist {
     data object None : ActiveDialogPlaylist()
     data object CreatePlaylist : ActiveDialogPlaylist()
@@ -62,8 +76,12 @@ class PlaylistViewModel(
     private val _activeDialog = MutableStateFlow<ActiveDialogPlaylist>(ActiveDialogPlaylist.None)
     val activeDialog: StateFlow<ActiveDialogPlaylist> = _activeDialog.asStateFlow()
 
+    private val _mergePreview = MutableStateFlow<MergePreviewState>(MergePreviewState.Idle)
+    val mergePreview: StateFlow<MergePreviewState> = _mergePreview.asStateFlow()
+
     private var toutesPlaylists: List<PlaylistUiItem> = emptyList()
     private var editoriales: List<EditorialPlaylist> = emptyList()
+    private var mergePreviewJob: Job? = null
 
     val requeteRecherche = MutableStateFlow("")
     val critereTri = MutableStateFlow(PlaylistSortCritere.DATE_DESC)
@@ -115,8 +133,64 @@ class PlaylistViewModel(
         if (_uiState.value !is PlaylistUiState.Loading) actualiserListeAffichee()
     }
 
-    fun afficherDialog(dialog: ActiveDialogPlaylist) { _activeDialog.value = dialog }
-    fun fermerDialog() { _activeDialog.value = ActiveDialogPlaylist.None }
+    fun afficherDialog(dialog: ActiveDialogPlaylist) {
+        _activeDialog.value = dialog
+        if (dialog !is ActiveDialogPlaylist.Merge) viderApercuFusion()
+    }
+
+    fun fermerDialog() {
+        _activeDialog.value = ActiveDialogPlaylist.None
+        viderApercuFusion()
+    }
+
+    fun chargerApercuFusion(ids: List<Long>) {
+        val idsOrdonnes = ordonnerIdsSelectionnes(ids)
+        mergePreviewJob?.cancel()
+        if (idsOrdonnes.size < 2) {
+            _mergePreview.value = MergePreviewState.Idle
+            return
+        }
+
+        _mergePreview.value = MergePreviewState.Loading
+        mergePreviewJob = scope.launch {
+            try {
+                val songsById = LinkedHashMap<Long, PlaylistSongUiItem>()
+                var totalSongCount = 0
+                idsOrdonnes.forEach { playlistId ->
+                    val songs = repository.getSongsInPlaylist(playlistId)
+                    totalSongCount += songs.size
+                    songs.forEach { song -> songsById.putIfAbsent(song.songId, song) }
+                }
+                _mergePreview.value = MergePreviewState.Success(
+                    sourceIds = idsOrdonnes,
+                    songs = songsById.values.toList(),
+                    duplicateCount = totalSongCount - songsById.size
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (e.message == "SESSION_EXPIRED") {
+                    sessionManager.clear()
+                    _operationState.value = PlaylistOperationState.NeedsRelogin
+                } else {
+                    _mergePreview.value = MergePreviewState.Error(UserErrorMessages.fromThrowable(e))
+                }
+            }
+        }
+    }
+
+    private fun viderApercuFusion() {
+        mergePreviewJob?.cancel()
+        mergePreviewJob = null
+        _mergePreview.value = MergePreviewState.Idle
+    }
+
+    private fun ordonnerIdsSelectionnes(ids: List<Long>): List<Long> {
+        val selection = ids.toSet()
+        val playlistsAffichees =
+            (_uiState.value as? PlaylistUiState.Success)?.mesPlaylists ?: toutesPlaylists
+        return playlistsAffichees.map { it.id }.filter { it in selection }
+    }
 
     fun creerPlaylist(nom: String, genreIds: List<Long>, artistIds: List<Long>, dureeMin: Int) {
         scope.launch {
@@ -161,10 +235,17 @@ class PlaylistViewModel(
     }
 
     fun fusionnerPlaylists(ids: List<Long>, nomResultat: String) {
+        val idsOrdonnes = ordonnerIdsSelectionnes(ids)
+        if (idsOrdonnes.size < 2 || nomResultat.isBlank() || nomResultat.trim().length > 150) {
+            _operationState.value = PlaylistOperationState.Error(
+                "Sélectionnez au moins deux playlists et saisissez un nom de 1 à 150 caractères."
+            )
+            return
+        }
         scope.launch {
             _operationState.value = PlaylistOperationState.Loading
             try {
-                repository.fusionnerPlaylists(MergePlaylistsRequest(ids, nomResultat))
+                repository.fusionnerPlaylists(MergePlaylistsRequest(idsOrdonnes, nomResultat.trim()))
                 _operationState.value = PlaylistOperationState.Success("Playlists fusionnées.")
                 fermerDialog()
                 charger()
@@ -188,5 +269,8 @@ class PlaylistViewModel(
     }
 
     fun resetOperationState() { _operationState.value = PlaylistOperationState.Idle }
-    fun dispose() = scope.cancel()
+    fun dispose() {
+        viderApercuFusion()
+        scope.cancel()
+    }
 }

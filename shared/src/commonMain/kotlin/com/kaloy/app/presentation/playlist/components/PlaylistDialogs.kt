@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
+import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
+import com.kaloy.app.presentation.playlist.MergePreviewState
 import com.kaloy.app.presentation.playlist.PlaylistSortCritere
 import com.kaloy.app.ui.theme.*
 
@@ -190,11 +192,19 @@ fun FilterSortBottomSheet(
 fun MergePlaylistsDialog(
     playlists: List<PlaylistUiItem>,
     preSelected: List<Long>,
+    previewState: MergePreviewState,
+    isMerging: Boolean,
+    onSelectionChanged: (ids: List<Long>) -> Unit,
     onMerge: (ids: List<Long>, nomResultat: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var nomResultat by remember { mutableStateOf("") }
-    var selection by remember { mutableStateOf(preSelected.toSet()) }
+    var selection by remember(preSelected) { mutableStateOf(preSelected.toSet()) }
+    val idsOrdonnes = playlists.map { it.id }.filter { it in selection }
+
+    LaunchedEffect(selection, playlists) {
+        onSelectionChanged(playlists.map { it.id }.filter { it in selection })
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -253,16 +263,83 @@ fun MergePlaylistsDialog(
                         }
                     }
                 }
+                Text(
+                    text = "Aperçu de la fusion",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = KaloyTextPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                when (val preview = previewState) {
+                    MergePreviewState.Idle -> Text(
+                        text = "Sélectionnez au moins deux playlists pour afficher l'aperçu.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = KaloyTextMuted
+                    )
+                    MergePreviewState.Loading -> Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = KaloyPurple,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text("Calcul de l'aperçu…", color = KaloyTextSecondary)
+                    }
+                    is MergePreviewState.Error -> Text(
+                        text = preview.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = KaloyRed
+                    )
+                    is MergePreviewState.Success -> if (preview.sourceIds != idsOrdonnes) {
+                        Text(
+                            text = "Mise à jour de l'aperçu…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = KaloyTextMuted
+                        )
+                    } else {
+                        Text(
+                            text = buildString {
+                                append("${preview.songs.size} chanson(s) dans le résultat")
+                                if (preview.duplicateCount > 0) {
+                                    append(" · ${preview.duplicateCount} doublon(s) supprimé(s)")
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = KaloyTextSecondary
+                        )
+                        if (preview.songs.isEmpty()) {
+                            Text(
+                                text = "Les playlists sélectionnées ne contiennent aucune chanson.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = KaloyTextMuted
+                            )
+                        } else {
+                            LazyColumn(modifier = Modifier.heightIn(max = 130.dp)) {
+                                items(preview.songs, key = { it.songId }) { song ->
+                                    MergePreviewSongRow(song)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onMerge(selection.toList(), nomResultat.trim()) },
+                onClick = { onMerge(idsOrdonnes, nomResultat.trim()) },
                 colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple),
                 shape = RoundedCornerShape(12.dp),
-                enabled = selection.size >= 2 && nomResultat.isNotBlank()
+                enabled = idsOrdonnes.size >= 2 &&
+                    nomResultat.isNotBlank() &&
+                    nomResultat.trim().length <= 150 &&
+                    previewState is MergePreviewState.Success &&
+                    previewState.sourceIds == idsOrdonnes &&
+                    !isMerging
             ) {
-                Text("Fusionner")
+                Text(if (isMerging) "Fusion en cours…" else "Confirmer la fusion")
             }
         },
         dismissButton = {
@@ -271,6 +348,36 @@ fun MergePlaylistsDialog(
             }
         }
     )
+}
+
+@Composable
+private fun MergePreviewSongRow(song: PlaylistSongUiItem) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.MusicNote,
+            contentDescription = null,
+            tint = KaloyPurple,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                color = KaloyTextPrimary,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1
+            )
+            Text(
+                text = song.artistName,
+                color = KaloyTextMuted,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1
+            )
+        }
+    }
 }
 
 // ============================================================
