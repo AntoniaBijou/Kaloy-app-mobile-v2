@@ -33,3 +33,28 @@ data class UpdatePlaylistRequest(
     val name: String,
     val description: String? = null
 )
+
+@Serializable
+data class PlaylistSongUiItem(
+    val playlistSongId: Long = 0,
+    val songId: Long = 0,
+    val title: String = "",
+    val artistName: String = "",
+    val durationSeconds: Int? = null,
+    val coverUrl: String? = null,
+    val position: Int = 0,
+    val addedAt: String? = null
+)
+
+@Serializable
+data class AddSongsRequest(val songIds: List<Long>)
+
+@Serializable
+data class ReorderSongItem(val songId: Long, val position: Int)
+
+@Serializable
+data class AddSongsResult(
+    val added: List<PlaylistSongUiItem> = emptyList(),
+    val alreadyPresent: List<Long> = emptyList(),
+    val notFound: List<Long> = emptyList()
+)

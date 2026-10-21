@@ -3,12 +3,18 @@ package com.kaloy.app.data.repository
 import com.kaloy.app.core.network.BASE_URL
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.RestResponse
+import com.kaloy.app.data.dto.playlist.AddSongsRequest
+import com.kaloy.app.data.dto.playlist.AddSongsResult
 import com.kaloy.app.data.dto.playlist.CreatePlaylistRequest
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
+import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
+import com.kaloy.app.data.dto.playlist.ReorderSongItem
 import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
 import com.kaloy.app.data.model.EditorialPlaylist
+import com.kaloy.app.data.model.PageResponse
 import com.kaloy.app.data.model.Playlist
+import com.kaloy.app.data.model.Song
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -80,4 +86,32 @@ class PlaylistRepositoryImpl(
     override suspend fun telechargerPlaylist(id: Long) {
         client.post("$BASE_URL/playlists/$id/download") { withSessionToken() }
     }
+
+    override suspend fun getSongsInPlaylist(playlistId: Long): List<PlaylistSongUiItem> =
+        client.get("$BASE_URL/playlists/me/$playlistId/songs") { withSessionToken() }
+            .decodeData<List<PlaylistSongUiItem>>()
+
+    override suspend fun addSongsToPlaylist(playlistId: Long, request: AddSongsRequest): AddSongsResult =
+        client.post("$BASE_URL/playlists/me/$playlistId/songs") {
+            withSessionToken()
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.decodeData<AddSongsResult>()
+
+    override suspend fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
+        client.delete("$BASE_URL/playlists/me/$playlistId/songs/$songId") { withSessionToken() }
+    }
+
+    override suspend fun reorderSongs(playlistId: Long, items: List<ReorderSongItem>) {
+        client.put("$BASE_URL/playlists/me/$playlistId/songs/reorder") {
+            withSessionToken()
+            contentType(ContentType.Application.Json)
+            setBody(items)
+        }
+    }
+
+    override suspend fun getCatalogueSongs(): List<Song> = try {
+        client.get("$BASE_URL/songs?page=0&size=100") { withSessionToken() }
+            .decodeData<PageResponse<Song>>().content
+    } catch (_: Exception) { emptyList() }
 }

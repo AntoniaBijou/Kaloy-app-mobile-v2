@@ -329,7 +329,7 @@ class PlaylistScreen : Screen {
                                 PlaylistItemRow(
                                     item = pl,
                                     limiteAtteinte = etat.nombreTelecharges >= 10,
-                                    onPlay = { /* TODO: lancer lecteur avec contexte playlist */ },
+                                    onPlay = { navigateur.push(PlaylistDetailScreen(pl.id, pl.name)) },
                                     onDownload = { modeleVue.telechargerPlaylist(pl.id) },
                                     onMoreClick = {
                                         modeleVue.afficherDialog(ActiveDialogPlaylist.Options(pl))
