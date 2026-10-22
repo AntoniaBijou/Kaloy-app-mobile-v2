@@ -23,6 +23,38 @@ data class CreatePlaylistRequest(
 )
 
 @Serializable
+data class PlaylistGenerationRequest(
+    val durationMinutes: Int = 30,
+    val includedGenreIds: List<Long> = emptyList(),
+    val excludedGenreIds: List<Long> = emptyList(),
+    val includedArtistIds: List<Long> = emptyList(),
+    val excludedArtistIds: List<Long> = emptyList()
+)
+
+@Serializable
+data class PlaylistGenerationSong(
+    val id: Long = 0,
+    val title: String = "",
+    val artistName: String = "",
+    val durationSeconds: Int = 0,
+    val coverUrl: String? = null
+)
+
+@Serializable
+data class PlaylistGenerationProposal(
+    val proposalNumber: Int = 0,
+    val totalDurationSeconds: Int = 0,
+    val songs: List<PlaylistGenerationSong> = emptyList()
+)
+
+@Serializable
+data class SaveGeneratedPlaylistRequest(
+    val name: String,
+    val criteria: PlaylistGenerationRequest,
+    val songIds: List<Long>
+)
+
+@Serializable
 data class MergePlaylistsRequest(
     val sourceIds: List<Long>,
     val resultName: String

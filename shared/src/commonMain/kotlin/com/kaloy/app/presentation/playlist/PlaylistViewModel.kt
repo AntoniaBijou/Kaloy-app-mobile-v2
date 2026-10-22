@@ -2,12 +2,16 @@ package com.kaloy.app.presentation.playlist
 
 import com.kaloy.app.core.error.UserErrorMessages
 import com.kaloy.app.core.session.AuthSessionManager
-import com.kaloy.app.data.dto.playlist.CreatePlaylistRequest
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
+import com.kaloy.app.data.dto.playlist.PlaylistGenerationProposal
+import com.kaloy.app.data.dto.playlist.PlaylistGenerationRequest
 import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
+import com.kaloy.app.data.dto.playlist.SaveGeneratedPlaylistRequest
 import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
+import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.EditorialPlaylist
+import com.kaloy.app.data.model.Genre
 import com.kaloy.app.data.repository.PlaylistRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -51,6 +55,26 @@ sealed class MergePreviewState {
     data class Error(val message: String) : MergePreviewState()
 }
 
+sealed class PlaylistGenerationUiState {
+    data object Idle : PlaylistGenerationUiState()
+    data object LoadingOptions : PlaylistGenerationUiState()
+    data class Ready(val genres: List<Genre>, val artists: List<Artist>) : PlaylistGenerationUiState()
+    data class Generating(val genres: List<Genre>, val artists: List<Artist>) : PlaylistGenerationUiState()
+    data class Proposals(
+        val genres: List<Genre>,
+        val artists: List<Artist>,
+        val criteria: PlaylistGenerationRequest,
+        val proposals: List<PlaylistGenerationProposal>,
+        val savedProposalNumbers: Set<Int> = emptySet()
+    ) : PlaylistGenerationUiState()
+    data class Error(
+        val message: String,
+        val genres: List<Genre> = emptyList(),
+        val artists: List<Artist> = emptyList(),
+        val optionsLoaded: Boolean = false
+    ) : PlaylistGenerationUiState()
+}
+
 sealed class ActiveDialogPlaylist {
     data object None : ActiveDialogPlaylist()
     data object CreatePlaylist : ActiveDialogPlaylist()
@@ -78,6 +102,10 @@ class PlaylistViewModel(
 
     private val _mergePreview = MutableStateFlow<MergePreviewState>(MergePreviewState.Idle)
     val mergePreview: StateFlow<MergePreviewState> = _mergePreview.asStateFlow()
+
+    private val _generationState =
+        MutableStateFlow<PlaylistGenerationUiState>(PlaylistGenerationUiState.Idle)
+    val generationState: StateFlow<PlaylistGenerationUiState> = _generationState.asStateFlow()
 
     private var toutesPlaylists: List<PlaylistUiItem> = emptyList()
     private var editoriales: List<EditorialPlaylist> = emptyList()
@@ -136,11 +164,14 @@ class PlaylistViewModel(
     fun afficherDialog(dialog: ActiveDialogPlaylist) {
         _activeDialog.value = dialog
         if (dialog !is ActiveDialogPlaylist.Merge) viderApercuFusion()
+        if (dialog is ActiveDialogPlaylist.CreatePlaylist) chargerOptionsGeneration()
+        else _generationState.value = PlaylistGenerationUiState.Idle
     }
 
     fun fermerDialog() {
         _activeDialog.value = ActiveDialogPlaylist.None
         viderApercuFusion()
+        _generationState.value = PlaylistGenerationUiState.Idle
     }
 
     fun chargerApercuFusion(ids: List<Long>) {
@@ -192,13 +223,89 @@ class PlaylistViewModel(
         return playlistsAffichees.map { it.id }.filter { it in selection }
     }
 
-    fun creerPlaylist(nom: String, genreIds: List<Long>, artistIds: List<Long>, dureeMin: Int) {
+    private fun chargerOptionsGeneration() {
+        scope.launch {
+            _generationState.value = PlaylistGenerationUiState.LoadingOptions
+            try {
+                val genres = repository.getGenerationGenres()
+                val artists = repository.getGenerationArtists()
+                _generationState.value = PlaylistGenerationUiState.Ready(genres, artists)
+            } catch (e: Exception) {
+                _generationState.value = PlaylistGenerationUiState.Error(
+                    UserErrorMessages.fromThrowable(e)
+                )
+            }
+        }
+    }
+
+    fun genererPlaylists(criteria: PlaylistGenerationRequest) {
+        val current = _generationState.value
+        val genres = when (current) {
+            is PlaylistGenerationUiState.Ready -> current.genres
+            is PlaylistGenerationUiState.Generating -> current.genres
+            is PlaylistGenerationUiState.Proposals -> current.genres
+            is PlaylistGenerationUiState.Error -> current.genres
+            else -> emptyList()
+        }
+        val artists = when (current) {
+            is PlaylistGenerationUiState.Ready -> current.artists
+            is PlaylistGenerationUiState.Generating -> current.artists
+            is PlaylistGenerationUiState.Proposals -> current.artists
+            is PlaylistGenerationUiState.Error -> current.artists
+            else -> emptyList()
+        }
+        scope.launch {
+            _generationState.value = PlaylistGenerationUiState.Generating(genres, artists)
+            try {
+                val proposals = repository.genererPlaylists(criteria)
+                _generationState.value = if (proposals.isEmpty()) {
+                    PlaylistGenerationUiState.Error(
+                        "Aucune proposition ne correspond à ces critères.",
+                        genres,
+                        artists
+                    )
+                } else {
+                    PlaylistGenerationUiState.Proposals(genres, artists, criteria, proposals)
+                }
+            } catch (e: Exception) {
+                _generationState.value = PlaylistGenerationUiState.Error(
+                    UserErrorMessages.fromThrowable(e),
+                    genres,
+                    artists,
+                    optionsLoaded = true
+                )
+            }
+        }
+    }
+
+    fun conserverPlaylistGeneree(
+        criteria: PlaylistGenerationRequest,
+        proposal: PlaylistGenerationProposal,
+        nom: String
+    ) {
+        if (nom.isBlank() || nom.trim().length > 150) {
+            _operationState.value = PlaylistOperationState.Error(
+                "Le nom doit contenir entre 1 et 150 caractères."
+            )
+            return
+        }
         scope.launch {
             _operationState.value = PlaylistOperationState.Loading
             try {
-                repository.creerPlaylist(CreatePlaylistRequest(nom, genreIds, artistIds, dureeMin))
-                _operationState.value = PlaylistOperationState.Success("Playlist créée avec succès.")
-                fermerDialog()
+                repository.conserverPlaylistGeneree(
+                    SaveGeneratedPlaylistRequest(
+                        name = nom.trim(),
+                        criteria = criteria,
+                        songIds = proposal.songs.map { it.id }
+                    )
+                )
+                val current = _generationState.value as? PlaylistGenerationUiState.Proposals
+                if (current != null) {
+                    _generationState.value = current.copy(
+                        savedProposalNumbers = current.savedProposalNumbers + proposal.proposalNumber
+                    )
+                }
+                _operationState.value = PlaylistOperationState.Success("Proposition conservée dans vos playlists.")
                 charger()
             } catch (e: Exception) {
                 _operationState.value = PlaylistOperationState.Error(UserErrorMessages.fromThrowable(e))

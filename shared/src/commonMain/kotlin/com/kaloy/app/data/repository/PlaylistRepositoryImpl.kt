@@ -5,15 +5,19 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.RestResponse
 import com.kaloy.app.data.dto.playlist.AddSongsRequest
 import com.kaloy.app.data.dto.playlist.AddSongsResult
-import com.kaloy.app.data.dto.playlist.CreatePlaylistRequest
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
+import com.kaloy.app.data.dto.playlist.PlaylistGenerationProposal
+import com.kaloy.app.data.dto.playlist.PlaylistGenerationRequest
 import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
 import com.kaloy.app.data.dto.playlist.ReorderSongItem
+import com.kaloy.app.data.dto.playlist.SaveGeneratedPlaylistRequest
 import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
+import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.EditorialPlaylist
-import com.kaloy.app.data.model.PageResponse
+import com.kaloy.app.data.model.Genre
 import com.kaloy.app.data.model.Playlist
+import com.kaloy.app.data.model.PageResponse
 import com.kaloy.app.data.model.Song
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -57,12 +61,40 @@ class PlaylistRepositoryImpl(
             .decodeData<List<EditorialPlaylist>>()
     } catch (_: Exception) { emptyList() }
 
-    override suspend fun creerPlaylist(request: CreatePlaylistRequest): Playlist =
-        client.post("$BASE_URL/playlists/me") {
+    override suspend fun getGenerationGenres(): List<Genre> =
+        getAllPages { page, size ->
+            client.get("$BASE_URL/genres?page=$page&size=$size") { withSessionToken() }
+                .decodeData<PageResponse<Genre>>()
+        }
+
+    override suspend fun getGenerationArtists(): List<Artist> =
+        getAllPages { page, size ->
+            client.get("$BASE_URL/artists?page=$page&size=$size") { withSessionToken() }
+                .decodeData<PageResponse<Artist>>()
+        }
+
+    override suspend fun genererPlaylists(request: PlaylistGenerationRequest): List<PlaylistGenerationProposal> =
+        client.post("$BASE_URL/playlists/me/generate") {
+            withSessionToken()
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.decodeData<List<PlaylistGenerationProposal>>()
+
+    override suspend fun conserverPlaylistGeneree(request: SaveGeneratedPlaylistRequest): Playlist =
+        client.post("$BASE_URL/playlists/me/generated") {
             withSessionToken()
             contentType(ContentType.Application.Json)
             setBody(request)
         }.decodeData<Playlist>()
+
+    override suspend fun getCatalogueSongs(): List<Song> = try {
+        getAllPages { page, size ->
+            client.get("$BASE_URL/songs?page=$page&size=$size") { withSessionToken() }
+                .decodeData<PageResponse<Song>>()
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
 
     override suspend fun modifierPlaylist(id: Long, request: UpdatePlaylistRequest) {
         client.put("$BASE_URL/playlists/me/$id") {
@@ -110,8 +142,20 @@ class PlaylistRepositoryImpl(
         }
     }
 
-    override suspend fun getCatalogueSongs(): List<Song> = try {
-        client.get("$BASE_URL/songs?page=0&size=100") { withSessionToken() }
-            .decodeData<PageResponse<Song>>().content
-    } catch (_: Exception) { emptyList() }
+    private suspend fun <T> getAllPages(
+        loadPage: suspend (page: Int, size: Int) -> PageResponse<T>
+    ): List<T> {
+        val pageSize = 100
+        val results = mutableListOf<T>()
+        var pageNumber = 0
+        var lastPage = false
+        while (!lastPage) {
+            val page = loadPage(pageNumber, pageSize)
+            results += page.content
+            lastPage = page.last || page.content.isEmpty() ||
+                (page.totalPages == 0 && page.content.size < pageSize)
+            pageNumber++
+        }
+        return results
+    }
 }

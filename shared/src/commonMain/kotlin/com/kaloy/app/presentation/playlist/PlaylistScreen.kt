@@ -49,6 +49,7 @@ class PlaylistScreen : Screen {
         val operationState by modeleVue.operationState.collectAsState()
         val activeDialog by modeleVue.activeDialog.collectAsState()
         val mergePreview by modeleVue.mergePreview.collectAsState()
+        val generationState by modeleVue.generationState.collectAsState()
         val requeteRecherche by modeleVue.requeteRecherche.collectAsState()
         val critereTri by modeleVue.critereTri.collectAsState()
 
@@ -411,9 +412,9 @@ class PlaylistScreen : Screen {
 
         when (val d = activeDialog) {
             ActiveDialogPlaylist.CreatePlaylist -> CreatePlaylistDialog(
-                onCreate = { nom, genreIds, artistIds, duree ->
-                    modeleVue.creerPlaylist(nom, genreIds, artistIds, duree)
-                },
+                state = generationState,
+                onGenerate = modeleVue::genererPlaylists,
+                onSave = modeleVue::conserverPlaylistGeneree,
                 onDismiss = { modeleVue.fermerDialog() }
             )
             ActiveDialogPlaylist.FilterSort -> FilterSortBottomSheet(

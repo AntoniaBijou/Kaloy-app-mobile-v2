@@ -21,7 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
 import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
+import com.kaloy.app.data.dto.playlist.PlaylistGenerationProposal
+import com.kaloy.app.data.dto.playlist.PlaylistGenerationRequest
+import com.kaloy.app.data.model.Artist
+import com.kaloy.app.data.model.Genre
 import com.kaloy.app.presentation.playlist.MergePreviewState
+import com.kaloy.app.presentation.playlist.PlaylistGenerationUiState
 import com.kaloy.app.presentation.playlist.PlaylistSortCritere
 import com.kaloy.app.ui.theme.*
 
@@ -62,62 +67,178 @@ fun KaloyTextField(
 
 @Composable
 fun CreatePlaylistDialog(
-    onCreate: (nom: String, genreIds: List<Long>, artistIds: List<Long>, dureeMin: Int) -> Unit,
+    state: PlaylistGenerationUiState,
+    onGenerate: (PlaylistGenerationRequest) -> Unit,
+    onSave: (PlaylistGenerationRequest, PlaylistGenerationProposal, String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var nom by remember { mutableStateOf("") }
     var dureeMin by remember { mutableStateOf(30f) }
+    val includedGenres = remember { mutableStateListOf<Long>() }
+    val excludedGenres = remember { mutableStateListOf<Long>() }
+    val includedArtists = remember { mutableStateListOf<Long>() }
+    val excludedArtists = remember { mutableStateListOf<Long>() }
+    val proposalNames = remember { mutableStateMapOf<Int, String>() }
+    var showGenres by remember { mutableStateOf(false) }
+    var showArtists by remember { mutableStateOf(false) }
+    var generatedCriteria by remember { mutableStateOf<PlaylistGenerationRequest?>(null) }
+
+    val options = when (state) {
+        is PlaylistGenerationUiState.Ready -> state.genres to state.artists
+        is PlaylistGenerationUiState.Generating -> state.genres to state.artists
+        is PlaylistGenerationUiState.Proposals -> state.genres to state.artists
+        is PlaylistGenerationUiState.Error -> state.genres to state.artists
+        else -> emptyList<Genre>() to emptyList<Artist>()
+    }
+    val proposalsState = state as? PlaylistGenerationUiState.Proposals
+    val isGenerating = state is PlaylistGenerationUiState.Generating
+    val optionsFailed = state is PlaylistGenerationUiState.Error && !state.optionsLoaded
+    val criteria = proposalsState?.criteria ?: generatedCriteria
+
+    fun makeCriteria() = PlaylistGenerationRequest(
+        durationMinutes = dureeMin.toInt(),
+        includedGenreIds = includedGenres.toList(),
+        excludedGenreIds = excludedGenres.toList(),
+        includedArtistIds = includedArtists.toList(),
+        excludedArtistIds = excludedArtists.toList()
+    )
+
+    fun toggleSelection(selected: MutableList<Long>, opposite: MutableList<Long>, id: Long) {
+        if (id in selected) selected.remove(id) else {
+            selected.add(id)
+            opposite.remove(id)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = KaloyDarkCard,
         title = {
-            Text("Créer une playlist", color = KaloyTextPrimary, fontWeight = FontWeight.Bold)
+            Text("Générer une playlist", color = KaloyTextPrimary, fontWeight = FontWeight.Bold)
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                KaloyTextField(
-                    value = nom,
-                    onValueChange = { nom = it },
-                    label = "Nom de la playlist",
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Column {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 480.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
                     Text(
-                        text = "Durée cible : ${dureeMin.toInt()} min",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = KaloyTextSecondary
+                        "Durée maximale : ${dureeMin.toInt()} min",
+                        color = KaloyTextSecondary,
+                        style = MaterialTheme.typography.bodySmall
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Slider(
                         value = dureeMin,
                         onValueChange = { dureeMin = it },
-                        valueRange = 15f..180f,
-                        steps = 10,
-                        colors = SliderDefaults.colors(
-                            thumbColor = KaloyPurple,
-                            activeTrackColor = KaloyPurple,
-                            inactiveTrackColor = KaloyDarkElevated
-                        )
+                        valueRange = 1f..180f,
+                        steps = 178,
+                        colors = SliderDefaults.colors(thumbColor = KaloyPurple, activeTrackColor = KaloyPurple)
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("15 min", style = MaterialTheme.typography.labelSmall, color = KaloyTextMuted)
-                        Text("180 min", style = MaterialTheme.typography.labelSmall, color = KaloyTextMuted)
+                }
+                item {
+                    TextButton(onClick = { showGenres = !showGenres }) {
+                        Text("${if (showGenres) "▾" else "▸"} Genres (${options.first.size})", color = KaloyTextPrimary)
                     }
+                    Text("+ inclure · − exclure", color = KaloyTextMuted, style = MaterialTheme.typography.labelSmall)
+                }
+                if (showGenres) items(options.first, key = { "genre-${it.id}" }) { genre ->
+                    GenerationCriterionRow(
+                        label = genre.name,
+                        included = genre.id in includedGenres,
+                        excluded = genre.id in excludedGenres,
+                        onInclude = { toggleSelection(includedGenres, excludedGenres, genre.id) },
+                        onExclude = { toggleSelection(excludedGenres, includedGenres, genre.id) }
+                    )
+                }
+                item {
+                    TextButton(onClick = { showArtists = !showArtists }) {
+                        Text("${if (showArtists) "▾" else "▸"} Artistes (${options.second.size})", color = KaloyTextPrimary)
+                    }
+                }
+                if (showArtists) items(options.second, key = { "artist-${it.id}" }) { artist ->
+                    GenerationCriterionRow(
+                        label = artist.stageName,
+                        included = artist.id in includedArtists,
+                        excluded = artist.id in excludedArtists,
+                        onInclude = { toggleSelection(includedArtists, excludedArtists, artist.id) },
+                        onExclude = { toggleSelection(excludedArtists, includedArtists, artist.id) }
+                    )
+                }
+                when (state) {
+                    PlaylistGenerationUiState.LoadingOptions -> item {
+                        CircularProgressIndicator(color = KaloyPurple)
+                    }
+                    is PlaylistGenerationUiState.Error -> item {
+                        Text(state.message, color = KaloyRed, style = MaterialTheme.typography.bodySmall)
+                    }
+                    is PlaylistGenerationUiState.Proposals -> {
+                        if (state.proposals.isEmpty()) item {
+                            Text("Aucune proposition disponible.", color = KaloyTextSecondary)
+                        }
+                        items(state.proposals, key = { "proposal-${it.proposalNumber}" }) { proposal ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = KaloyDarkElevated),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        "Proposition ${proposal.proposalNumber} · ${formatDuration(proposal.totalDurationSeconds)} · ${proposal.songs.size} titres",
+                                        color = KaloyTextPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    proposal.songs.forEach { song ->
+                                        Text(
+                                            "${song.title} — ${song.artistName}",
+                                            color = KaloyTextSecondary,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    val alreadySaved = proposal.proposalNumber in state.savedProposalNumbers
+                                    if (!alreadySaved) {
+                                        KaloyTextField(
+                                            value = proposalNames[proposal.proposalNumber] ?: "Ma playlist ${proposal.proposalNumber}",
+                                            onValueChange = { proposalNames[proposal.proposalNumber] = it },
+                                            label = "Nom de la playlist",
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            criteria?.let {
+                                                onSave(
+                                                    it,
+                                                    proposal,
+                                                    proposalNames[proposal.proposalNumber] ?: "Ma playlist ${proposal.proposalNumber}"
+                                                )
+                                            }
+                                        },
+                                        enabled = !alreadySaved && criteria != null,
+                                        colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
+                                    ) {
+                                        Text(if (alreadySaved) "Conservée" else "Conserver cette proposition")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else -> Unit
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = { if (nom.isNotBlank()) onCreate(nom.trim(), emptyList(), emptyList(), dureeMin.toInt()) },
+                onClick = {
+                    val request = makeCriteria()
+                    generatedCriteria = request
+                    onGenerate(request)
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple),
                 shape = RoundedCornerShape(12.dp),
-                enabled = nom.isNotBlank()
+                enabled = !isGenerating && state !is PlaylistGenerationUiState.LoadingOptions && !optionsFailed
             ) {
-                Text("Créer")
+                Text(if (isGenerating) "Génération…" else "Générer (max. 3)")
             }
         },
         dismissButton = {
@@ -127,6 +248,36 @@ fun CreatePlaylistDialog(
         }
     )
 }
+
+@Composable
+private fun GenerationCriterionRow(
+    label: String,
+    included: Boolean,
+    excluded: Boolean,
+    onInclude: () -> Unit,
+    onExclude: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = KaloyTextPrimary, modifier = Modifier.weight(1f))
+        FilterChip(
+            selected = included,
+            onClick = onInclude,
+            label = { Text("+ Inclure") }
+        )
+        Spacer(Modifier.width(4.dp))
+        FilterChip(
+            selected = excluded,
+            onClick = onExclude,
+            label = { Text("− Exclure") }
+        )
+    }
+}
+
+private fun formatDuration(seconds: Int): String =
+    "${seconds / 60} min ${seconds % 60} s"
 
 // ============================================================
 // Bottom Sheet — Filtre / Tri
