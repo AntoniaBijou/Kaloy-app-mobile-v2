@@ -91,6 +91,20 @@ kotlin {
             // qui exige compileSdk 37 alors que le projet est en 36 — et le
             // build echouait sur checkReleaseAarMetadata.
         }
+        // Moteur HTTP de Ktor pour iOS.
+        //
+        // Ktor est en deux morceaux : le coeur, commun, et un moteur par
+        // plateforme. Le coeur cherche un moteur au premier HttpClient { } et
+        // echoue a l execution s il n en trouve aucun. Android avait le sien,
+        // iOS n en avait aucun : la premiere execution de l application iOS,
+        // le 26/10/2026, est morte sur
+        // « Failed to find HTTP client engine implementation ».
+        //
+        // La recherche se fait a l execution, pas a la compilation : c est
+        // pour ca que le defaut a survecu a des semaines de compilation verte.
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+        }
         commonMain {
             kotlin.srcDir(generateNetworkConfig.map { it.outputs.files })
         }
