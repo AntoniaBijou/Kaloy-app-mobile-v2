@@ -42,6 +42,8 @@ import com.kaloy.app.data.model.*
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
+import com.kaloy.app.presentation.common.BarreNavigationPrincipale
+import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import com.kaloy.app.presentation.queue.MiniPlayer
@@ -153,9 +155,6 @@ data class HomeScreen(
         val lectureActive by lecteurAudio.isPlaying.collectAsState()
         var afficherFile by remember { mutableStateOf(false) }
 
-        // Onglet sélectionné dans la barre de navigation
-        var ongletSelectionne by remember { mutableStateOf(0) }
-
         LaunchedEffect(Unit) {
             if (!isVisitor && !gestionSession.isLoggedIn()) {
                 navigateur.replace(WelcomeScreen())
@@ -177,55 +176,12 @@ data class HomeScreen(
                                 onQueueClick = { afficherFile = true }
                             )
                         }
-                        NavigationBar(containerColor = KaloyDarkSurface) {
-                        NavigationBarItem(
-                            selected = ongletSelectionne == 0,
-                            onClick = { ongletSelectionne = 0 },
-                            icon = {
-                                Icon(Icons.Default.Home, contentDescription = "Accueil")
-                            },
-                            label = { Text("Accueil") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
+                        BarreNavigationPrincipale(
+                            ongletActif = OngletPrincipal.ACCUEIL,
+                            onAccueil = {},
+                            onRecherche = { navigateur.push(EcranRechercheVoyager()) },
+                            onMoi = { navigateur.push(MoiScreen()) }
                         )
-                        NavigationBarItem(
-                            selected = ongletSelectionne == 1,
-                            onClick = {
-                                navigateur.push(EcranRechercheVoyager())
-                            },
-                            icon = {
-                                Icon(Icons.Default.Search, contentDescription = "Recherche")
-                            },
-                            label = { Text("Recherche") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = ongletSelectionne == 2,
-                            onClick = { navigateur.push(MoiScreen()) },
-                            icon = {
-                                Icon(Icons.Default.Person, contentDescription = "Mon profil")
-                            },
-                            label = { Text("Moi") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
-                        )
-                        }
                     }
                 }
             },
