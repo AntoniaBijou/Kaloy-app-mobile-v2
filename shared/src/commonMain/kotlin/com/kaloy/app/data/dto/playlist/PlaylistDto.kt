@@ -11,8 +11,15 @@ data class PlaylistUiItem(
     val dureeSecondes: Int = 0,
     val estTelecharge: Boolean = false,
     val shareToken: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    val visibility: String = "PRIVATE",
+    val ownerName: String? = null,
+    val ownerPhotoUrl: String? = null,
+    val owner: Boolean = false
 )
+
+@Serializable
+data class PlaylistVisibilityRequest(val visibility: String)
 
 @Serializable
 data class CreatePlaylistRequest(

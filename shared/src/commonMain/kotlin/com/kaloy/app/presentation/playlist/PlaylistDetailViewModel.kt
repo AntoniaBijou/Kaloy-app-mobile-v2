@@ -60,19 +60,24 @@ class PlaylistDetailViewModel(
 
     private var playlistId: Long = 0L
     private var playlistName: String = ""
+    private var playlistIsPublic: Boolean = false
+    private var canManagePlaylist: Boolean = true
 
     // Tracks whether local reorder differs from persisted order
     private var ordreModifie: Boolean = false
     val isOrdreModifie: Boolean get() = ordreModifie
 
-    fun charger(id: Long, name: String) {
+    fun charger(id: Long, name: String, isPublic: Boolean = false, canManage: Boolean = true) {
         playlistId = id
         playlistName = name
+        playlistIsPublic = isPublic
+        canManagePlaylist = canManage
         ordreModifie = false
         scope.launch {
             _uiState.value = PlaylistDetailUiState.Loading
             try {
-                val songs = repository.getSongsInPlaylist(id)
+                val songs = if (isPublic) repository.getPublicPlaylistSongs(id)
+                    else repository.getSongsInPlaylist(id)
                 _uiState.value = PlaylistDetailUiState.Success(id, name, songs)
             } catch (e: Exception) {
                 if (e.message == "SESSION_EXPIRED") {
@@ -97,6 +102,7 @@ class PlaylistDetailViewModel(
     }
 
     fun ajouterChansons(songIds: List<Long>) {
+        if (!canManagePlaylist) return
         scope.launch {
             _operationState.value = PlaylistDetailOperationState.Loading
             fermerDialog()
@@ -108,7 +114,7 @@ class PlaylistDetailViewModel(
                     if (result.notFound.isNotEmpty()) append("${result.notFound.size} introuvable(s).")
                 }
                 _operationState.value = PlaylistDetailOperationState.Success(message.trim())
-                charger(playlistId, playlistName)
+                charger(playlistId, playlistName, playlistIsPublic, canManagePlaylist)
             } catch (e: Exception) {
                 _operationState.value = PlaylistDetailOperationState.Error(UserErrorMessages.fromThrowable(e))
             }
@@ -116,13 +122,14 @@ class PlaylistDetailViewModel(
     }
 
     fun retirerChanson(item: PlaylistSongUiItem) {
+        if (!canManagePlaylist) return
         scope.launch {
             _operationState.value = PlaylistDetailOperationState.Loading
             fermerDialog()
             try {
                 repository.removeSongFromPlaylist(playlistId, item.songId)
                 _operationState.value = PlaylistDetailOperationState.Success("Chanson retirée.")
-                charger(playlistId, playlistName)
+                charger(playlistId, playlistName, playlistIsPublic, canManagePlaylist)
             } catch (e: Exception) {
                 _operationState.value = PlaylistDetailOperationState.Error(UserErrorMessages.fromThrowable(e))
             }
@@ -130,6 +137,7 @@ class PlaylistDetailViewModel(
     }
 
     fun deplacerVersHaut(item: PlaylistSongUiItem) {
+        if (!canManagePlaylist) return
         val current = (_uiState.value as? PlaylistDetailUiState.Success)?.songs ?: return
         val idx = current.indexOfFirst { it.playlistSongId == item.playlistSongId }
         if (idx <= 0) return
@@ -142,6 +150,7 @@ class PlaylistDetailViewModel(
     }
 
     fun deplacerVersBas(item: PlaylistSongUiItem) {
+        if (!canManagePlaylist) return
         val current = (_uiState.value as? PlaylistDetailUiState.Success)?.songs ?: return
         val idx = current.indexOfFirst { it.playlistSongId == item.playlistSongId }
         if (idx < 0 || idx >= current.size - 1) return
@@ -154,6 +163,7 @@ class PlaylistDetailViewModel(
     }
 
     fun sauvegarderOrdre() {
+        if (!canManagePlaylist) return
         val songs = (_uiState.value as? PlaylistDetailUiState.Success)?.songs ?: return
         val items = songs.mapIndexed { index, song ->
             ReorderSongItem(song.songId, index)
@@ -164,7 +174,7 @@ class PlaylistDetailViewModel(
                 repository.reorderSongs(playlistId, items)
                 ordreModifie = false
                 _operationState.value = PlaylistDetailOperationState.Success("Ordre sauvegardé.")
-                charger(playlistId, playlistName)
+                charger(playlistId, playlistName, playlistIsPublic, canManagePlaylist)
             } catch (e: Exception) {
                 _operationState.value = PlaylistDetailOperationState.Error(UserErrorMessages.fromThrowable(e))
             }

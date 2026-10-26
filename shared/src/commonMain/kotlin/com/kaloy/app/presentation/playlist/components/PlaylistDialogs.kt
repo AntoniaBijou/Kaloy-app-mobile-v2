@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LibraryAdd
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -541,6 +542,7 @@ fun PlaylistOptionsSheet(
     playlist: PlaylistUiItem,
     onModifier: () -> Unit,
     onPartager: () -> Unit,
+    visibilityActionLabel: String = "Partager",
     onFusionner: () -> Unit,
     onSupprimer: () -> Unit,
     onDismiss: () -> Unit
@@ -574,7 +576,12 @@ fun PlaylistOptionsSheet(
             }
             HorizontalDivider(color = KaloyDarkElevated)
             OptionsSheetItem(Icons.Filled.Edit, "Modifier", onModifier, onDismiss)
-            OptionsSheetItem(Icons.Filled.Share, "Partager", onPartager, onDismiss)
+            OptionsSheetItem(
+                if (playlist.visibility == "PUBLIC") Icons.Filled.Lock else Icons.Filled.Share,
+                visibilityActionLabel,
+                onPartager,
+                onDismiss
+            )
             OptionsSheetItem(Icons.Filled.LibraryAdd, "Fusionner", onFusionner, onDismiss)
             OptionsSheetItem(Icons.Filled.Delete, "Supprimer", onSupprimer, onDismiss, destructif = true)
         }

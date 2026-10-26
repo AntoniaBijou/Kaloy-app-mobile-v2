@@ -10,6 +10,7 @@ import com.kaloy.app.data.dto.playlist.PlaylistGenerationProposal
 import com.kaloy.app.data.dto.playlist.PlaylistGenerationRequest
 import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
+import com.kaloy.app.data.dto.playlist.PlaylistVisibilityRequest
 import com.kaloy.app.data.dto.playlist.ReorderSongItem
 import com.kaloy.app.data.dto.playlist.SaveGeneratedPlaylistRequest
 import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
@@ -55,6 +56,29 @@ class PlaylistRepositoryImpl(
         client.get("$BASE_URL/playlists/me") { withSessionToken() }
             .decodeData<List<PlaylistUiItem>>()
     } catch (_: Exception) { emptyList() }
+
+    override suspend fun setPlaylistVisibility(id: Long, visibility: String): PlaylistUiItem =
+        client.put("$BASE_URL/playlists/$id/visibility") {
+            withSessionToken()
+            contentType(ContentType.Application.Json)
+            setBody(PlaylistVisibilityRequest(visibility))
+        }.decodeData()
+
+    override suspend fun getPublicPlaylists(
+        search: String,
+        page: Int,
+        size: Int
+    ): PageResponse<PlaylistUiItem> =
+        client.get("$BASE_URL/playlists/public") {
+            withSessionToken()
+            parameter("page", page)
+            parameter("size", size)
+            if (search.isNotBlank()) parameter("search", search)
+        }.decodeData()
+
+    override suspend fun getPublicPlaylistSongs(playlistId: Long): List<PlaylistSongUiItem> =
+        client.get("$BASE_URL/playlists/public/$playlistId/songs") { withSessionToken() }
+            .decodeData()
 
     override suspend fun getPlaylistsEditoriales(): List<EditorialPlaylist> = try {
         client.get("$BASE_URL/editorialplaylists/featured") { withSessionToken() }

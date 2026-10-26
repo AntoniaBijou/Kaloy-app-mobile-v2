@@ -2,6 +2,7 @@ package com.kaloy.app.presentation.playlist
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,6 +13,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,12 +34,17 @@ import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.ui.components.EmptyState
 import com.kaloy.app.ui.components.LoadingIndicator
 import com.kaloy.app.ui.theme.*
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 
 data class PlaylistDetailScreen(
     val playlistId: Long,
-    val playlistName: String
+    val playlistName: String,
+    val isPublicPlaylist: Boolean = false,
+    val isOwner: Boolean = true,
+    val ownerName: String? = null,
+    val ownerPhotoUrl: String? = null
 ) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -49,7 +57,9 @@ data class PlaylistDetailScreen(
         val modeleVue = remember { PlaylistDetailViewModel(repository, sessionManager) }
         DisposableEffect(Unit) { onDispose { modeleVue.dispose() } }
 
-        LaunchedEffect(Unit) { modeleVue.charger(playlistId, playlistName) }
+        LaunchedEffect(playlistId, playlistName, isPublicPlaylist, isOwner) {
+            modeleVue.charger(playlistId, playlistName, isPublicPlaylist, isOwner)
+        }
 
         val fileAttente = koinInject<QueueManager>()
         val lecteur = koinInject<LecteurViewModel>()
@@ -119,7 +129,7 @@ data class PlaylistDetailScreen(
                                 )
                             }
                         }
-                        if (modeleVue.isOrdreModifie) {
+                        if (isOwner && modeleVue.isOrdreModifie) {
                             TextButton(onClick = { modeleVue.sauvegarderOrdre() }) {
                                 Text("Sauvegarder", color = KaloyPurple, fontWeight = FontWeight.SemiBold)
                             }
@@ -143,15 +153,17 @@ data class PlaylistDetailScreen(
                 }
             },
             floatingActionButton = {
-                FloatingActionButton(
-                    onClick = {
-                        modeleVue.chargerCatalogue()
-                        modeleVue.afficherDialog(ActiveDialogDetail.AddSongs)
-                    },
-                    containerColor = KaloyPurple,
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Ajouter des chansons", tint = KaloyTextPrimary)
+                if (isOwner) {
+                    FloatingActionButton(
+                        onClick = {
+                            modeleVue.chargerCatalogue()
+                            modeleVue.afficherDialog(ActiveDialogDetail.AddSongs)
+                        },
+                        containerColor = KaloyPurple,
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Ajouter des chansons", tint = KaloyTextPrimary)
+                    }
                 }
             }
         ) { paddingValues ->
@@ -181,6 +193,40 @@ data class PlaylistDetailScreen(
                         }
                     }
                     is PlaylistDetailUiState.Success -> {
+                        if (isPublicPlaylist) {
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (!ownerPhotoUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = ownerPhotoUrl,
+                                            contentDescription = "Profil de ${ownerName ?: "l'auteur"}",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.size(42.dp).clip(CircleShape)
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Default.Person,
+                                            contentDescription = "Propriétaire",
+                                            tint = KaloyPurpleLight,
+                                            modifier = Modifier.size(42.dp).padding(8.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text("Playlist publique", color = KaloyPurpleLight,
+                                            style = MaterialTheme.typography.labelMedium)
+                                        Text(ownerName ?: "Créateur", color = KaloyTextPrimary,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
                         item {
                             Row(
                                 modifier = Modifier
@@ -205,7 +251,11 @@ data class PlaylistDetailScreen(
 
                         if (etat.songs.isEmpty()) {
                             item {
-                                EmptyState(message = "Aucune chanson dans cette playlist.\nAppuyez sur + pour en ajouter.")
+                                EmptyState(
+                                    message = if (isOwner)
+                                        "Aucune chanson dans cette playlist.\nAppuyez sur + pour en ajouter."
+                                    else "Cette playlist publique ne contient pas encore de chanson."
+                                )
                             }
                         } else {
                             items(etat.songs, key = { it.playlistSongId }) { song ->
@@ -213,6 +263,7 @@ data class PlaylistDetailScreen(
                                     item = song,
                                     isFirst = etat.songs.first().playlistSongId == song.playlistSongId,
                                     isLast = etat.songs.last().playlistSongId == song.playlistSongId,
+                                    editable = isOwner,
                                     onMoveUp = { modeleVue.deplacerVersHaut(song) },
                                     onMoveDown = { modeleVue.deplacerVersBas(song) },
                                     onRemove = { modeleVue.afficherDialog(ActiveDialogDetail.ConfirmRemove(song)) }
@@ -278,12 +329,12 @@ data class PlaylistDetailScreen(
         }
 
         when (val d = activeDialog) {
-            ActiveDialogDetail.AddSongs -> AddSongsDialog(
+            ActiveDialogDetail.AddSongs -> if (isOwner) AddSongsDialog(
                 songs = catalogueSongs,
                 onAjouter = { modeleVue.ajouterChansons(it) },
                 onDismiss = { modeleVue.fermerDialog() }
             )
-            is ActiveDialogDetail.ConfirmRemove -> ConfirmRemoveSongDialog(
+            is ActiveDialogDetail.ConfirmRemove -> if (isOwner) ConfirmRemoveSongDialog(
                 titre = d.item.title,
                 onConfirm = { modeleVue.retirerChanson(d.item) },
                 onDismiss = { modeleVue.fermerDialog() }
@@ -303,6 +354,7 @@ private fun PlaylistDetailSongRow(
     item: PlaylistSongUiItem,
     isFirst: Boolean,
     isLast: Boolean,
+    editable: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onRemove: () -> Unit
@@ -342,40 +394,42 @@ private fun PlaylistDetailSongRow(
             )
         }
 
-        IconButton(
-            onClick = onMoveUp,
-            enabled = !isFirst,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.KeyboardArrowUp,
-                contentDescription = "Monter",
-                tint = if (!isFirst) KaloyTextSecondary else KaloyDarkElevated,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        IconButton(
-            onClick = onMoveDown,
-            enabled = !isLast,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = "Descendre",
-                tint = if (!isLast) KaloyTextSecondary else KaloyDarkElevated,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        IconButton(
-            onClick = onRemove,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Retirer",
-                tint = KaloyRed,
-                modifier = Modifier.size(20.dp)
-            )
+        if (editable) {
+            IconButton(
+                onClick = onMoveUp,
+                enabled = !isFirst,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = "Monter",
+                    tint = if (!isFirst) KaloyTextSecondary else KaloyDarkElevated,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            IconButton(
+                onClick = onMoveDown,
+                enabled = !isLast,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Descendre",
+                    tint = if (!isLast) KaloyTextSecondary else KaloyDarkElevated,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Retirer",
+                    tint = KaloyRed,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

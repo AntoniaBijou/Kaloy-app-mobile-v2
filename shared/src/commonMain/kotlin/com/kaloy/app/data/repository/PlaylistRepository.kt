@@ -7,6 +7,7 @@ import com.kaloy.app.data.dto.playlist.PlaylistGenerationProposal
 import com.kaloy.app.data.dto.playlist.PlaylistGenerationRequest
 import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
 import com.kaloy.app.data.dto.playlist.PlaylistUiItem
+import com.kaloy.app.data.model.PageResponse
 import com.kaloy.app.data.dto.playlist.ReorderSongItem
 import com.kaloy.app.data.dto.playlist.SaveGeneratedPlaylistRequest
 import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
@@ -18,6 +19,9 @@ import com.kaloy.app.data.model.Song
 
 interface PlaylistRepository {
     suspend fun getMesPlaylists(): List<PlaylistUiItem>
+    suspend fun setPlaylistVisibility(id: Long, visibility: String): PlaylistUiItem
+    suspend fun getPublicPlaylists(search: String, page: Int, size: Int): PageResponse<PlaylistUiItem>
+    suspend fun getPublicPlaylistSongs(playlistId: Long): List<PlaylistSongUiItem>
     suspend fun getPlaylistsEditoriales(): List<EditorialPlaylist>
     suspend fun getGenerationGenres(): List<Genre>
     suspend fun getGenerationArtists(): List<Artist>

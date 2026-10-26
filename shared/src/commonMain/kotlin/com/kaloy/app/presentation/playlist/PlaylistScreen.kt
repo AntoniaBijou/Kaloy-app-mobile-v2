@@ -52,6 +52,9 @@ class PlaylistScreen : Screen {
         val generationState by modeleVue.generationState.collectAsState()
         val requeteRecherche by modeleVue.requeteRecherche.collectAsState()
         val critereTri by modeleVue.critereTri.collectAsState()
+        val discoveryMode by modeleVue.discoveryMode.collectAsState()
+        val publicSearchQuery by modeleVue.publicSearchQuery.collectAsState()
+        val publicPlaylistState by modeleVue.publicPlaylistState.collectAsState()
 
         val chansonCourante by fileAttente.currentSong.collectAsState()
         val chansonsSuivantes by fileAttente.upNext.collectAsState()
@@ -77,7 +80,7 @@ class PlaylistScreen : Screen {
                 TopAppBar(
                     title = {
                         Text(
-                            text = "Mes Playlists",
+                            text = if (discoveryMode) "Découvrir des playlists" else "Playlists",
                             fontWeight = FontWeight.Bold,
                             color = KaloyTextPrimary
                         )
@@ -92,12 +95,18 @@ class PlaylistScreen : Screen {
                         }
                     },
                     actions = {
-                        IconButton(onClick = { modeleVue.afficherDialog(ActiveDialogPlaylist.FilterSort) }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Filtres et tri",
-                                tint = KaloyTextPrimary
-                            )
+                        if (discoveryMode) {
+                            IconButton(onClick = { modeleVue.chargerPlaylistsPubliques() }) {
+                                Icon(Icons.Default.Refresh, "Actualiser", tint = KaloyTextPrimary)
+                            }
+                        } else {
+                            IconButton(onClick = { modeleVue.afficherDialog(ActiveDialogPlaylist.FilterSort) }) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Filtres et tri",
+                                    tint = KaloyTextPrimary
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -172,17 +181,28 @@ class PlaylistScreen : Screen {
                 // ---- Barre de recherche interne ----
                 item {
                     OutlinedTextField(
-                        value = requeteRecherche,
-                        onValueChange = { modeleVue.rechercherQuery(it) },
+                        value = if (discoveryMode) publicSearchQuery else requeteRecherche,
+                        onValueChange = {
+                            if (discoveryMode) modeleVue.rechercherPlaylistsPubliques(it)
+                            else modeleVue.rechercherQuery(it)
+                        },
                         placeholder = {
-                            Text("Rechercher dans mes playlists...", color = KaloyTextMuted)
+                            Text(
+                                if (discoveryMode) "Rechercher des playlists publiques..."
+                                else "Rechercher dans mes playlists...",
+                                color = KaloyTextMuted
+                            )
                         },
                         leadingIcon = {
                             Icon(Icons.Default.Search, contentDescription = null, tint = KaloyTextMuted)
                         },
                         trailingIcon = {
-                            if (requeteRecherche.isNotEmpty()) {
-                                IconButton(onClick = { modeleVue.rechercherQuery("") }) {
+                            val activeQuery = if (discoveryMode) publicSearchQuery else requeteRecherche
+                            if (activeQuery.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    if (discoveryMode) modeleVue.rechercherPlaylistsPubliques("")
+                                    else modeleVue.rechercherQuery("")
+                                }) {
                                     Icon(Icons.Default.Clear, "Effacer", tint = KaloyTextMuted)
                                 }
                             }
@@ -204,8 +224,41 @@ class PlaylistScreen : Screen {
                     )
                 }
 
-                // ---- Actions rapides ----
                 item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (!discoveryMode) {
+                            Button(
+                                onClick = { modeleVue.afficherMesPlaylists() },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("Mes playlists") }
+                            OutlinedButton(
+                                onClick = { modeleVue.afficherDecouverte() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("Découvrir", color = KaloyPurpleLight) }
+                        } else {
+                            OutlinedButton(
+                                onClick = { modeleVue.afficherMesPlaylists() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("Mes playlists", color = KaloyPurpleLight) }
+                            Button(
+                                onClick = { modeleVue.afficherDecouverte() },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("Découvrir") }
+                        }
+                    }
+                }
+
+                // ---- Actions rapides ----
+                if (!discoveryMode) item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -245,7 +298,62 @@ class PlaylistScreen : Screen {
                 }
 
                 // ---- Contenu dynamique ----
-                when (val etat = uiState) {
+                if (discoveryMode) {
+                    when (val etat = publicPlaylistState) {
+                        PublicPlaylistUiState.Idle, PublicPlaylistUiState.Loading -> {
+                            item { LoadingIndicator(modifier = Modifier.padding(top = 32.dp)) }
+                        }
+                        is PublicPlaylistUiState.Error -> {
+                            item {
+                                ErrorState(
+                                    message = etat.message,
+                                    onRetry = { modeleVue.chargerPlaylistsPubliques() }
+                                )
+                            }
+                        }
+                        is PublicPlaylistUiState.Success -> {
+                            item {
+                                Text(
+                                    text = "Playlists publiques",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = KaloyTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+                            if (etat.playlists.isEmpty()) {
+                                item {
+                                    EmptyState(
+                                        message = if (publicSearchQuery.isNotBlank())
+                                            "Aucune playlist publique ne correspond à cette recherche."
+                                        else "Aucune playlist publique n'est disponible pour le moment."
+                                    )
+                                }
+                            } else {
+                                items(etat.playlists, key = { it.id }) { pl ->
+                                    PublicPlaylistCard(
+                                        item = pl,
+                                        onClick = {
+                                            navigateur.push(
+                                                PlaylistDetailScreen(
+                                                    playlistId = pl.id,
+                                                    playlistName = pl.name,
+                                                    isPublicPlaylist = true,
+                                                    isOwner = pl.owner,
+                                                    ownerName = pl.ownerName,
+                                                    ownerPhotoUrl = pl.ownerPhotoUrl
+                                                )
+                                            )
+                                        },
+                                        onMoreClick = {
+                                            modeleVue.afficherDialog(ActiveDialogPlaylist.Options(pl))
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else when (val etat = uiState) {
                     PlaylistUiState.Loading -> {
                         item { LoadingIndicator(modifier = Modifier.padding(top = 32.dp)) }
                     }
@@ -259,7 +367,7 @@ class PlaylistScreen : Screen {
                     }
                     is PlaylistUiState.Success -> {
                         // Playlists éditoriales (carrousel)
-                        if (etat.editoriales.isNotEmpty()) {
+                        if (etat.editoriales.isNotEmpty() && !discoveryMode) {
                             item {
                                 SectionHeader(
                                     title = "Playlists à la une",
@@ -332,7 +440,18 @@ class PlaylistScreen : Screen {
                                 PlaylistItemRow(
                                     item = pl,
                                     limiteAtteinte = etat.nombreTelecharges >= 10,
-                                    onPlay = { navigateur.push(PlaylistDetailScreen(pl.id, pl.name)) },
+                                    onPlay = {
+                                        navigateur.push(
+                                            PlaylistDetailScreen(
+                                                playlistId = pl.id,
+                                                playlistName = pl.name,
+                                                isPublicPlaylist = pl.visibility == "PUBLIC",
+                                                isOwner = true,
+                                                ownerName = pl.ownerName,
+                                                ownerPhotoUrl = pl.ownerPhotoUrl
+                                            )
+                                        )
+                                    },
                                     onDownload = { modeleVue.telechargerPlaylist(pl.id) },
                                     onMoreClick = {
                                         modeleVue.afficherDialog(ActiveDialogPlaylist.Options(pl))
@@ -434,7 +553,8 @@ class PlaylistScreen : Screen {
             is ActiveDialogPlaylist.Options -> PlaylistOptionsSheet(
                 playlist = d.playlist,
                 onModifier = { modeleVue.afficherDialog(ActiveDialogPlaylist.ModifierPlaylist(d.playlist)) },
-                onPartager = { },
+                onPartager = { modeleVue.afficherDialog(ActiveDialogPlaylist.ConfirmVisibility(d.playlist)) },
+                visibilityActionLabel = if (d.playlist.visibility == "PUBLIC") "Rendre privée" else "Rendre publique",
                 onFusionner = {
                     modeleVue.afficherDialog(ActiveDialogPlaylist.Merge(listOf(d.playlist.id)))
                 },
@@ -454,6 +574,40 @@ class PlaylistScreen : Screen {
                     nom = nomPlaylist,
                     onConfirm = { modeleVue.supprimerPlaylist(d.id) },
                     onDismiss = { modeleVue.fermerDialog() }
+                )
+            }
+            is ActiveDialogPlaylist.ConfirmVisibility -> {
+                val isPublic = d.playlist.visibility == "PUBLIC"
+                AlertDialog(
+                    onDismissRequest = { modeleVue.fermerDialog() },
+                    containerColor = KaloyDarkCard,
+                    title = {
+                        Text(
+                            if (isPublic) "Rendre cette playlist privée ?" else "Partager cette playlist ?",
+                            color = KaloyTextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Text(
+                            if (isPublic)
+                                "Elle ne sera plus visible dans la découverte et seul vous pourrez l'ouvrir."
+                            else
+                                "Tous les utilisateurs connectés pourront la trouver, consulter ses titres et l'écouter.",
+                            color = KaloyTextSecondary
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = { modeleVue.changerVisibilite(d.playlist) },
+                            colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
+                        ) { Text(if (isPublic) "Rendre privée" else "Partager") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { modeleVue.fermerDialog() }) {
+                            Text("Annuler", color = KaloyTextSecondary)
+                        }
+                    }
                 )
             }
             ActiveDialogPlaylist.None -> {}

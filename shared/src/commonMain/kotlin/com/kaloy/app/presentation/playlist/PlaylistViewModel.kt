@@ -12,6 +12,7 @@ import com.kaloy.app.data.dto.playlist.UpdatePlaylistRequest
 import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.EditorialPlaylist
 import com.kaloy.app.data.model.Genre
+import com.kaloy.app.data.model.PageResponse
 import com.kaloy.app.data.repository.PlaylistRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +44,13 @@ sealed class PlaylistOperationState {
     data class Success(val message: String) : PlaylistOperationState()
     data class Error(val message: String) : PlaylistOperationState()
     data object NeedsRelogin : PlaylistOperationState()
+}
+
+sealed class PublicPlaylistUiState {
+    data object Idle : PublicPlaylistUiState()
+    data object Loading : PublicPlaylistUiState()
+    data class Success(val playlists: List<PlaylistUiItem>) : PublicPlaylistUiState()
+    data class Error(val message: String) : PublicPlaylistUiState()
 }
 
 sealed class MergePreviewState {
@@ -81,6 +90,7 @@ sealed class ActiveDialogPlaylist {
     data object FilterSort : ActiveDialogPlaylist()
     data class Merge(val preSelected: List<Long> = emptyList()) : ActiveDialogPlaylist()
     data class Options(val playlist: PlaylistUiItem) : ActiveDialogPlaylist()
+    data class ConfirmVisibility(val playlist: PlaylistUiItem) : ActiveDialogPlaylist()
     data class ConfirmDelete(val id: Long) : ActiveDialogPlaylist()
     data class ModifierPlaylist(val playlist: PlaylistUiItem) : ActiveDialogPlaylist()
 }
@@ -107,9 +117,15 @@ class PlaylistViewModel(
         MutableStateFlow<PlaylistGenerationUiState>(PlaylistGenerationUiState.Idle)
     val generationState: StateFlow<PlaylistGenerationUiState> = _generationState.asStateFlow()
 
+    private val _publicPlaylistState = MutableStateFlow<PublicPlaylistUiState>(PublicPlaylistUiState.Idle)
+    val publicPlaylistState: StateFlow<PublicPlaylistUiState> = _publicPlaylistState.asStateFlow()
+    val discoveryMode = MutableStateFlow(false)
+    val publicSearchQuery = MutableStateFlow("")
+
     private var toutesPlaylists: List<PlaylistUiItem> = emptyList()
     private var editoriales: List<EditorialPlaylist> = emptyList()
     private var mergePreviewJob: Job? = null
+    private var publicSearchJob: Job? = null
 
     val requeteRecherche = MutableStateFlow("")
     val critereTri = MutableStateFlow(PlaylistSortCritere.DATE_DESC)
@@ -154,6 +170,55 @@ class PlaylistViewModel(
     fun rechercherQuery(query: String) {
         requeteRecherche.value = query
         if (_uiState.value !is PlaylistUiState.Loading) actualiserListeAffichee()
+    }
+
+    fun afficherDecouverte() {
+        discoveryMode.value = true
+        if (_publicPlaylistState.value is PublicPlaylistUiState.Idle) chargerPlaylistsPubliques()
+    }
+
+    fun afficherMesPlaylists() {
+        discoveryMode.value = false
+    }
+
+    fun rechercherPlaylistsPubliques(query: String) {
+        publicSearchQuery.value = query
+        publicSearchJob?.cancel()
+        _publicPlaylistState.value = PublicPlaylistUiState.Loading
+        publicSearchJob = scope.launch {
+            delay(350)
+            chargerPlaylistsPubliques(query)
+        }
+    }
+
+    fun chargerPlaylistsPubliques(query: String = publicSearchQuery.value) {
+        publicSearchJob?.cancel()
+        publicSearchJob = scope.launch {
+            _publicPlaylistState.value = PublicPlaylistUiState.Loading
+            try {
+                val playlists = mutableListOf<PlaylistUiItem>()
+                var page = 0
+                var isLastPage = false
+                while (!isLastPage) {
+                    val response: PageResponse<PlaylistUiItem> =
+                        repository.getPublicPlaylists(query, page, 30)
+                    playlists += response.content
+                    isLastPage = response.last || response.content.isEmpty()
+                    page++
+                }
+                _publicPlaylistState.value = PublicPlaylistUiState.Success(playlists)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (e.message == "SESSION_EXPIRED") {
+                    sessionManager.clear()
+                    _operationState.value = PlaylistOperationState.NeedsRelogin
+                } else {
+                    _publicPlaylistState.value =
+                        PublicPlaylistUiState.Error(UserErrorMessages.fromThrowable(e))
+                }
+            }
+        }
     }
 
     fun trierPar(critere: PlaylistSortCritere) {
@@ -327,6 +392,27 @@ class PlaylistViewModel(
         }
     }
 
+    fun changerVisibilite(playlist: PlaylistUiItem) {
+        val nouvelleVisibilite = if (playlist.visibility == "PUBLIC") "PRIVATE" else "PUBLIC"
+        scope.launch {
+            _operationState.value = PlaylistOperationState.Loading
+            try {
+                repository.setPlaylistVisibility(playlist.id, nouvelleVisibilite)
+                fermerDialog()
+                _operationState.value = PlaylistOperationState.Success(
+                    if (nouvelleVisibilite == "PUBLIC")
+                        "Playlist partagée avec les utilisateurs connectés."
+                    else
+                        "Playlist rendue privée."
+                )
+                charger()
+                if (discoveryMode.value) chargerPlaylistsPubliques()
+            } catch (e: Exception) {
+                _operationState.value = PlaylistOperationState.Error(UserErrorMessages.fromThrowable(e))
+            }
+        }
+    }
+
     fun supprimerPlaylist(id: Long) {
         scope.launch {
             _operationState.value = PlaylistOperationState.Loading
@@ -378,6 +464,7 @@ class PlaylistViewModel(
     fun resetOperationState() { _operationState.value = PlaylistOperationState.Idle }
     fun dispose() {
         viderApercuFusion()
+        publicSearchJob?.cancel()
         scope.cancel()
     }
 }

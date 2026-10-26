@@ -82,6 +82,19 @@ fun PlaylistItemRow(
                 color = KaloyTextSecondary,
                 maxLines = 1
             )
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = if (item.visibility == "PUBLIC")
+                    KaloyPurple.copy(alpha = 0.18f)
+                else KaloyDarkElevated
+            ) {
+                Text(
+                    text = if (item.visibility == "PUBLIC") "PUBLIQUE" else "PRIVÉE",
+                    color = if (item.visibility == "PUBLIC") KaloyPurpleLight else KaloyTextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(4.dp))
