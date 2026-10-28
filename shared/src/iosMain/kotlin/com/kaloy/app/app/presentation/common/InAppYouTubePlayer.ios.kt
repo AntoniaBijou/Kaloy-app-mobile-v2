@@ -12,41 +12,116 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.UIKitView
 import com.kaloy.app.ui.theme.KaloyDarkCard
 import com.kaloy.app.ui.theme.KaloyPurple
 import com.kaloy.app.ui.theme.KaloyTextPrimary
 import com.kaloy.app.ui.theme.KaloyTextSecondary
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.readValue
+import platform.CoreGraphics.CGRectZero
+import platform.Foundation.NSURL
+import platform.WebKit.WKAudiovisualMediaTypeNone
+import platform.WebKit.WKScriptMessage
+import platform.WebKit.WKScriptMessageHandlerProtocol
+import platform.WebKit.WKUserContentController
+import platform.WebKit.WKWebView
+import platform.WebKit.WKWebViewConfiguration
+import platform.darwin.NSObject
 
 /**
- * Pendant iOS du lecteur YouTube integre : renvoie vers Safari.
+ * Lecteur YouTube integre, cote iOS.
  *
- * Cette implementation manquait depuis le commit 876a66f du 1er octobre, qui a
- * cree l'expect sans son actual. La cible iOS ne compilait donc plus pendant
- * deux semaines, alors que le todo affirmait le contraire.
+ * Il n'existe pas d'equivalent iOS a la bibliotheque androidyoutubeplayer : on
+ * fabrique donc la page d'integration nous-memes et on la sert dans une
+ * WKWebView.
  *
- * Pourquoi un renvoi vers Safari et non un vrai lecteur :
+ * Le point qui decide de tout est le couple loadHTMLString / baseURL. Charger
+ * directement l'URL youtu.be — ce que faisait SmartVideoPlayerComposable
+ * jusqu'au 28/10/2026 — revient a presenter a YouTube une page embarquee sans
+ * origine declaree, et son lecteur refuse : « This video is unavailable,
+ * Error code 152 ».
  *
- * Cote Android, le lecteur s'appuie sur la bibliotheque android-youtube-player,
- * qui n'a pas d'equivalent iOS. Il faudrait donc un WKWebView chargeant l'URL
- * d'integration, avec les memes questions d'origine et de referent qui
- * produisent l'erreur 152 cote Android — et aucun moyen de verifier quoi que ce
- * soit sans un Mac.
- *
- * Ecrire ce lecteur aurait donne du code qui a l'air de marcher sans l'avoir
- * jamais ete. C'est exactement ce qui s'est produit avec YoutubeWebPlayer :
- * modifie le 7 octobre pour corriger l'erreur 152, alors qu'il etait mort
- * depuis le 1er — la correction n'a jamais tourne.
- *
- * Ce renvoi, lui, est honnete : il fait ce qu'il annonce, et le bouton
- * « Regarder sur YouTube » est de toute facon le repli que le lecteur Android
- * propose quand l'integration echoue.
+ * En servant la page sous une origine explicite, et en annoncant la meme dans
+ * playerVars.origin, les deux correspondent et le lecteur accepte. C'est la
+ * meme correction que celle apportee cote Android par le passage de la
+ * bibliotheque en 13.0.0, qui utilise desormais le nom de paquet de
+ * l'application comme origine.
  */
+@OptIn(ExperimentalForeignApi::class)
 @Composable
 actual fun InAppYouTubePlayer(videoUrl: String, modifier: Modifier) {
+    val videoId = YouTubeEmbedUtils.extractVideoId(videoUrl)
+
+    if (videoId == null) {
+        RepliOuvrirDansYouTube(videoUrl = videoUrl, modifier = modifier)
+        return
+    }
+
+    val journal = remember { JournalLecteurYouTube() }
+    val configuration = remember(journal) {
+        WKWebViewConfiguration().apply {
+            // Sans ceci, iOS bascule la video en plein ecran des le lancement.
+            allowsInlineMediaPlayback = true
+            // Sans ceci, autoplay est ignore : iOS exige un geste de
+            // l'utilisateur avant de lancer un media.
+            mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone
+            userContentController.addScriptMessageHandler(
+                journal,
+                YouTubeEmbedUtils.CANAL_JOURNAL
+            )
+        }
+    }
+
+    // key plutot qu'un bloc update : recharger la page a chaque recomposition
+    // relancerait la video depuis le debut. Ici la vue n'est reconstruite que
+    // si l'on change de clip.
+    key(videoId) {
+        UIKitView(
+            factory = {
+                WKWebView(
+                    frame = CGRectZero.readValue(),
+                    configuration = configuration
+                ).apply {
+                    loadHTMLString(
+                        string = YouTubeEmbedUtils.getIframeHtml(videoId),
+                        baseURL = NSURL.URLWithString(YouTubeEmbedUtils.ORIGINE)
+                    )
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+/**
+ * Remonte dans les journaux ce que la page dit d'elle-meme.
+ *
+ * Sans ce canal, un refus de YouTube resterait des pixels dans une WebView,
+ * sans la moindre trace cote application. C'est precisement ce qui a rendu
+ * l'erreur 152 si longue a cerner cote Android : on voyait l'ecran, jamais le
+ * code.
+ *
+ * Visible dans la console Xcode, ou par `xcrun simctl spawn booted log stream`.
+ */
+private class JournalLecteurYouTube : NSObject(), WKScriptMessageHandlerProtocol {
+    override fun userContentController(
+        userContentController: WKUserContentController,
+        didReceiveScriptMessage: WKScriptMessage
+    ) {
+        println("KaloyVideo : ${didReceiveScriptMessage.body}")
+    }
+}
+
+/** Repli quand l'URL ne contient aucun identifiant exploitable. */
+@Composable
+private fun RepliOuvrirDansYouTube(videoUrl: String, modifier: Modifier) {
     val ouvrirDansLeNavigateur = rememberBrowserLauncher()
 
     Card(
@@ -65,8 +140,7 @@ actual fun InAppYouTubePlayer(videoUrl: String, modifier: Modifier) {
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                text = "La lecture intégrée n'est pas disponible sur iOS. "
-                        + "Le clip s'ouvre dans votre navigateur.",
+                text = "Ce lien n'a pas pu être reconnu comme une vidéo YouTube.",
                 color = KaloyTextSecondary,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center
@@ -76,7 +150,7 @@ actual fun InAppYouTubePlayer(videoUrl: String, modifier: Modifier) {
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
             ) {
-                Text("Regarder sur YouTube")
+                Text("Ouvrir dans YouTube")
             }
         }
     }
