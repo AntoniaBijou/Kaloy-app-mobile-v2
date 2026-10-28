@@ -14,6 +14,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Image
@@ -29,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -658,6 +661,16 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
         var mediaASignaler by remember { mutableStateOf<EventMedia?>(null) }
         var commentaireASupprimer by remember { mutableStateOf<Comment?>(null) }
 
+        // Sections repliees a l'ouverture : la fiche tient alors sur un
+        // ecran, et on descend vers ce qu'on cherche au lieu de faire
+        // defiler toute la galerie pour atteindre les commentaires.
+        var galerieOuverte by remember { mutableStateOf(false) }
+        var commentairesOuverts by remember { mutableStateOf(false) }
+        // Un jour du programme a la fois : l'identifiant du jour ouvert,
+        // null si tous sont replies. Volontairement pas un Set — ouvrir un
+        // jour referme le precedent, ce qui garde la liste lisible.
+        var jourOuvert by remember { mutableStateOf<String?>(null) }
+
         when {
             modeleVue.enChargement -> LoadingIndicator()
 
@@ -769,72 +782,62 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                         }
                     }
 
-                    // ---- Lieux ----
-                    if (modeleVue.lieux.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "Lieux (${modeleVue.lieux.size})",
-                                icon = Icons.Filled.Place
-                            )
-                        }
-                        items(modeleVue.lieux) { lieu ->
-                            Text(
-                                text = "• $lieu",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = KaloyTextSecondary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                            )
-                        }
-                        item { Spacer(modifier = Modifier.height(8.dp)) }
-                    }
-
-                    // ---- Artistes confirmes ----
-                    if (modeleVue.artistesConfirmes.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "Artistes confirmés (${modeleVue.artistesConfirmes.size})",
-                                icon = Icons.Filled.Mic
-                            )
-                        }
-                        items(modeleVue.artistesConfirmes, key = { it.id }) { concert ->
-                            LigneArtisteParticipant(
-                                concert = concert,
-                                onClick = {
-                                    concert.artist?.let {
-                                        navigateur.push(EcranDetailArtisteVoyager(idArtiste = it.id))
-                                    }
-                                }
-                            )
-                        }
-                        item { Spacer(modifier = Modifier.height(8.dp)) }
-                    }
-
                     // ---- Programme, par jour puis par scene (Sprint 5) ----
+                    //
+                    // Il a absorbe les sections « Lieux » et « Artistes confirmes »,
+                    // qui disaient a plat ce qu'on lit ici organise : la scene porte
+                    // le lieu, la ligne porte l'artiste et son horaire.
                     if (modeleVue.programme.isNotEmpty()) {
                         item {
                             SectionHeader(title = "Programme", icon = Icons.Filled.Event)
                         }
                         modeleVue.programme.forEach { journee ->
+                            val ouvert = jourOuvert == journee.jour
                             item(key = "jour_${journee.jour}") {
-                                Text(
-                                    text = dateLisible(journee.jour) ?: journee.jour,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = KaloyPurple,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                EnteteRepliable(
+                                    titre = dateLisible(journee.jour) ?: journee.jour,
+                                    ouvert = ouvert,
+                                    couleur = KaloyPurple,
+                                    onBasculer = {
+                                        jourOuvert = if (ouvert) null else journee.jour
+                                    }
                                 )
                             }
-                            journee.scenes.forEach { scene ->
-                                item(key = "scene_${journee.jour}_${scene.scene}") {
-                                    Text(
-                                        text = scene.scene,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = KaloyTextMuted,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                                    )
-                                }
-                                items(scene.concerts, key = { "c_${it.id}" }) { concert ->
-                                    LigneProgramme(concert = concert)
+                            if (ouvert) {
+                                journee.scenes.forEach { scene ->
+                                    item(key = "scene_${journee.jour}_${scene.scene}") {
+                                        Row(
+                                            modifier = Modifier.padding(
+                                                start = 32.dp, end = 16.dp, top = 8.dp, bottom = 2.dp
+                                            ),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Place,
+                                                contentDescription = null,
+                                                tint = KaloyTextMuted,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = scene.scene,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = KaloyTextMuted
+                                            )
+                                        }
+                                    }
+                                    items(scene.concerts, key = { "c_${it.id}" }) { concert ->
+                                        LigneProgramme(
+                                            concert = concert,
+                                            onClick = {
+                                                concert.artist?.let {
+                                                    navigateur.push(
+                                                        EcranDetailArtisteVoyager(idArtiste = it.id)
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -843,134 +846,151 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
 
                     // ---- Galerie post-evenement ----
                     item {
-                        SectionHeader(title = "Galerie", icon = Icons.Filled.PhotoCamera)
-                        BoutonAjoutMedia(
-                            visible = modeleVue.peutAjouterPhoto,
-                            enCours = modeleVue.envoiPhotoEnCours,
-                            etape = modeleVue.etapeEnvoi,
-                            envoiEnAttente = modeleVue.envoiEnAttente != null,
-                            onMediaSelectionne = { media -> modeleVue.ajouterMedia(media) },
-                            onReprendre = { modeleVue.reprendreEnvoi() },
-                            onAbandonner = { modeleVue.abandonnerEnvoi() }
+                        EnteteRepliable(
+                            titre = "Galerie (${modeleVue.photos.size + modeleVue.videos.size})",
+                            ouvert = galerieOuverte,
+                            icone = Icons.Filled.PhotoCamera,
+                            onBasculer = { galerieOuverte = !galerieOuverte }
                         )
                     }
 
-                    if (modeleVue.galerieVide) {
+                    if (galerieOuverte) {
                         item {
-                            EmptyState(message = "Aucune photo ni vidéo pour cet événement")
-                        }
-                    } else {
-                        if (modeleVue.photos.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "Photos (${modeleVue.photos.size})",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = KaloyTextPrimary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
-                                LazyRow(
-                                    contentPadding = PaddingValues(horizontal = 16.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    items(modeleVue.photos, key = { it.id }) { photo ->
-                                        VignettePhoto(
-                                            media = photo,
-                                            peutSignaler = modeleVue.estConnecte,
-                                            onSignaler = { mediaASignaler = photo }
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
+                            BoutonAjoutMedia(
+                                visible = modeleVue.peutAjouterPhoto,
+                                enCours = modeleVue.envoiPhotoEnCours,
+                                etape = modeleVue.etapeEnvoi,
+                                envoiEnAttente = modeleVue.envoiEnAttente != null,
+                                onMediaSelectionne = { media -> modeleVue.ajouterMedia(media) },
+                                onReprendre = { modeleVue.reprendreEnvoi() },
+                                onAbandonner = { modeleVue.abandonnerEnvoi() }
+                            )
                         }
 
-                        if (modeleVue.videos.isNotEmpty()) {
+                        if (modeleVue.galerieVide) {
                             item {
-                                Text(
-                                    text = "Vidéos (${modeleVue.videos.size})",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = KaloyTextPrimary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
+                                EmptyState(message = "Aucune photo ni vidéo pour cet événement")
                             }
-                            items(modeleVue.videos, key = { it.id }) { video ->
-                                SmartVideoPlayerComposable(
-                                    url = urlMedia(video.url) ?: "",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(220.dp)
-                                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                                )
-                                if (modeleVue.estConnecte) {
-                                    // Sous le lecteur et non par-dessus : une icone
-                                    // posee sur la video tomberait sur les commandes
-                                    // de lecture.
-                                    Row(
+                        } else {
+                            if (modeleVue.photos.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        text = "Photos (${modeleVue.photos.size})",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = KaloyTextPrimary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(modeleVue.photos, key = { it.id }) { photo ->
+                                            VignettePhoto(
+                                                media = photo,
+                                                peutSignaler = modeleVue.estConnecte,
+                                                onSignaler = { mediaASignaler = photo }
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+                            }
+
+                            if (modeleVue.videos.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        text = "Vidéos (${modeleVue.videos.size})",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = KaloyTextPrimary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                }
+                                items(modeleVue.videos, key = { it.id }) { video ->
+                                    SmartVideoPlayerComposable(
+                                        url = urlMedia(video.url) ?: "",
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 16.dp),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        TextButton(onClick = { mediaASignaler = video }) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Flag,
-                                                contentDescription = null,
-                                                tint = KaloyTextMuted,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "Signaler",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = KaloyTextMuted
-                                            )
+                                            .height(220.dp)
+                                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                                    )
+                                    if (modeleVue.estConnecte) {
+                                        // Sous le lecteur et non par-dessus : une icone
+                                        // posee sur la video tomberait sur les commandes
+                                        // de lecture.
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp),
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            TextButton(onClick = { mediaASignaler = video }) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Flag,
+                                                    contentDescription = null,
+                                                    tint = KaloyTextMuted,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Signaler",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = KaloyTextMuted
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+
                     }
 
                     // ---- Commentaires (Sprint 3) ----
                     item {
-                        SectionHeader(
-                            title = "Commentaires (${modeleVue.commentaires.size})",
-                            icon = Icons.Filled.Chat
+                        EnteteRepliable(
+                            titre = "Commentaires (${modeleVue.commentaires.size})",
+                            ouvert = commentairesOuverts,
+                            icone = Icons.Filled.Chat,
+                            onBasculer = { commentairesOuverts = !commentairesOuverts }
                         )
                     }
 
-                    item {
-                        ZoneSaisieCommentaire(
-                            estConnecte = modeleVue.estConnecte,
-                            disponible = modeleVue.interactionsDisponibles,
-                            saisie = modeleVue.saisie,
-                            envoiEnCours = modeleVue.envoiEnCours,
-                            onSaisie = { modeleVue.surSaisie(it) },
-                            onPublier = { modeleVue.publierCommentaire() }
-                        )
-                    }
+                    if (commentairesOuverts) {
 
-                    if (modeleVue.commentaires.isEmpty()) {
                         item {
-                            Text(
-                                text = "Aucun commentaire pour l'instant.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = KaloyTextSecondary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                            ZoneSaisieCommentaire(
+                                estConnecte = modeleVue.estConnecte,
+                                disponible = modeleVue.interactionsDisponibles,
+                                saisie = modeleVue.saisie,
+                                envoiEnCours = modeleVue.envoiEnCours,
+                                onSaisie = { modeleVue.surSaisie(it) },
+                                onPublier = { modeleVue.publierCommentaire() }
                             )
                         }
-                    } else {
-                        items(modeleVue.commentaires, key = { it.id }) { commentaire ->
-                            LigneCommentaire(
-                                commentaire = commentaire,
-                                estDeMoi = modeleVue.estDeMoi(commentaire),
-                                peutSignaler = modeleVue.estConnecte,
-                                onSupprimer = { commentaireASupprimer = commentaire },
-                                onSignaler = { commentaireASignaler = commentaire }
-                            )
+
+                        if (modeleVue.commentaires.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "Aucun commentaire pour l'instant.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = KaloyTextSecondary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+                        } else {
+                            items(modeleVue.commentaires, key = { it.id }) { commentaire ->
+                                LigneCommentaire(
+                                    commentaire = commentaire,
+                                    estDeMoi = modeleVue.estDeMoi(commentaire),
+                                    peutSignaler = modeleVue.estConnecte,
+                                    onSupprimer = { commentaireASupprimer = commentaire },
+                                    onSignaler = { commentaireASignaler = commentaire }
+                                )
+                            }
                         }
+
                     }
 
                     item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -1540,11 +1560,12 @@ private fun LigneEtape(texte: String) {
 
 /** Une ligne du programme : horaire et artiste. */
 @Composable
-private fun LigneProgramme(concert: Concert) {
+private fun LigneProgramme(concert: Concert, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 32.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+            .clickable(onClick = onClick)
+            .padding(start = 32.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -1621,4 +1642,53 @@ private fun heureLisible(iso: String?): String {
     if (iso.isNullOrBlank()) return "--:--"
     val heure = iso.substringAfter('T', "").take(5)
     return if (heure.length == 5) heure else "--:--"
+}
+
+// ============================================================
+// En-tete d'une section qu'on peut replier
+// ============================================================
+
+/**
+ * Le chevron n'est pas decoratif : sans lui, rien ne distingue un titre d'un
+ * titre sur lequel on peut appuyer, et la section repliee passe pour une
+ * section vide.
+ */
+@Composable
+private fun EnteteRepliable(
+    titre: String,
+    ouvert: Boolean,
+    onBasculer: () -> Unit,
+    icone: ImageVector? = null,
+    couleur: Color = KaloyTextPrimary
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onBasculer)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        icone?.let {
+            Icon(
+                imageVector = it,
+                contentDescription = null,
+                tint = KaloyPurple,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Text(
+            text = titre,
+            style = MaterialTheme.typography.titleSmall,
+            color = couleur,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = if (ouvert) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+            contentDescription = if (ouvert) "Replier" else "Dérouler",
+            tint = KaloyTextMuted,
+            modifier = Modifier.size(22.dp)
+        )
+    }
 }
