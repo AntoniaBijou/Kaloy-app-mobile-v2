@@ -626,22 +626,12 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                 dateSelectionnee = modeleVue.dateSelectionnee,
                                 onMoisPrecedent = { modeleVue.afficherMoisPrecedent() },
                                 onMoisSuivant = { modeleVue.afficherMoisSuivant() },
-                                onJourClique = { date ->
-                                    modeleVue.selectionnerDate(date)
-
-                                    // Un seul événement ce jour-là : on ouvre sa fiche
-                                    // directement, l'utilisateur n'a rien à choisir.
-                                    // S'il y en a plusieurs, le détail sous la grille
-                                    // lui laisse le choix.
-                                    val evenements = modeleVue.concertsDuJour(date)
-                                        .mapNotNull { it.event }
-                                        .distinctBy { it.id }
-                                    if (evenements.size == 1) {
-                                        navigateur.push(
-                                            EcranDetailEvenementVoyager(idEvenement = evenements.first().id)
-                                        )
-                                    }
-                                }
+                                // Pas de raccourci vers la fiche : un appui sur un
+                                // jour ouvre le detail sous la grille, et c'est de la
+                                // qu'on ouvre l'evenement. Le meme jour donnait sinon
+                                // deux affichages differents selon qu'on y arrivait
+                                // par un appui ou par un retour depuis la fiche.
+                                onJourClique = { date -> modeleVue.selectionnerDate(date) }
                             )
                         }
 
