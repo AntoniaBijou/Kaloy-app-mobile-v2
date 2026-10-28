@@ -14,24 +14,35 @@ import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 
 /**
- * iOS : lecture de la video dans une WKWebView.
+ * iOS : aiguillage entre le lecteur YouTube et la lecture d'un fichier direct.
  *
- * Cette implementation manquait — la cible iOS ne compilait pas depuis l'ajout
- * du lecteur audio/video.
+ * Ce routage manquait, et c'etait le defaut. Toute URL partait dans une
+ * WKWebView, y compris les liens youtu.be — qui tombaient alors sur l'erreur
+ * 152 de YouTube, faute d'origine declaree. Android faisait cette distinction
+ * depuis toujours ; iOS, non.
  *
- * Le choix de la WebView couvre les deux cas d'un seul tenant : les liens
- * YouTube (qui exigent de toute facon un rendu web) et les fichiers directs,
- * que WebKit sait lire nativement. Cote Android, ces deux cas sont separes
- * entre une WebView et ExoPlayer.
+ * Le meme test que cote Android, volontairement : deux conditions divergentes
+ * produiraient un comportement different d'une plateforme a l'autre pour la
+ * meme chanson.
+ */
+@Composable
+actual fun SmartVideoPlayerComposable(url: String, modifier: Modifier) {
+    if (url.contains("youtube.com") || url.contains("youtu.be")) {
+        InAppYouTubePlayer(videoUrl = url, modifier = modifier)
+    } else {
+        LecteurFichierDirect(url = url, modifier = modifier)
+    }
+}
+
+/**
+ * Fichiers heberges par le backend : WebKit les lit nativement.
  *
- * allowsInlineMediaPlayback evite que la video ne bascule en plein ecran des
- * le lancement, comportement par defaut sur iPhone.
- *
- * Non verifiable a l'execution depuis Windows : seule la compilation l'a ete.
+ * Cote Android ce cas passe par ExoPlayer. Ici la WebView suffit, et evite une
+ * dependance supplementaire pour un besoin que le systeme couvre deja.
  */
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-actual fun SmartVideoPlayerComposable(url: String, modifier: Modifier) {
+private fun LecteurFichierDirect(url: String, modifier: Modifier) {
     val configuration = remember {
         WKWebViewConfiguration().apply {
             allowsInlineMediaPlayback = true
