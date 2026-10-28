@@ -906,41 +906,19 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                     )
-                                }
-                                items(modeleVue.videos, key = { it.id }) { video ->
-                                    SmartVideoPlayerComposable(
-                                        url = urlMedia(video.url) ?: "",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(220.dp)
-                                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                                    )
-                                    if (modeleVue.estConnecte) {
-                                        // Sous le lecteur et non par-dessus : une icone
-                                        // posee sur la video tomberait sur les commandes
-                                        // de lecture.
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp),
-                                            horizontalArrangement = Arrangement.End
-                                        ) {
-                                            TextButton(onClick = { mediaASignaler = video }) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Flag,
-                                                    contentDescription = null,
-                                                    tint = KaloyTextMuted,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = "Signaler",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = KaloyTextMuted
-                                                )
-                                            }
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(modeleVue.videos, key = { it.id }) { video ->
+                                            VignetteVideo(
+                                                media = video,
+                                                peutSignaler = modeleVue.estConnecte,
+                                                onSignaler = { mediaASignaler = video }
+                                            )
                                         }
                                     }
+                                    Spacer(modifier = Modifier.height(12.dp))
                                 }
                             }
                         }
@@ -1351,6 +1329,59 @@ private fun LigneArtisteParticipant(
     }
 }
 
+/**
+ * Tuile video, au format exact de la tuile photo.
+ *
+ * Le lecteur occupait auparavant toute la largeur sur 220 dp, empile
+ * verticalement : deux presentations sans rapport dans une meme galerie.
+ *
+ * Le drapeau de signalement revient sur la tuile, comme pour une photo. Il
+ * etait sous le lecteur pour ne pas masquer ses commandes ; a cette taille
+ * il n'y a plus de commandes a masquer, et garder un bouton texte sous
+ * chaque tuile casserait l'alignement de la rangee.
+ */
+@Composable
+private fun VignetteVideo(
+    media: EventMedia,
+    peutSignaler: Boolean,
+    onSignaler: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(TAILLE_TUILE)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black)
+    ) {
+        SmartVideoPlayerComposable(
+            url = urlMedia(media.url) ?: "",
+            modifier = Modifier.fillMaxSize()
+        )
+
+        if (peutSignaler) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(onClick = onSignaler),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Flag,
+                    contentDescription = "Signaler cette vidéo",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+/** Cote d'une tuile de galerie. Photos et videos partagent la meme. */
+private val TAILLE_TUILE = 140.dp
+
 @Composable
 private fun VignettePhoto(
     media: EventMedia,
@@ -1361,7 +1392,7 @@ private fun VignettePhoto(
     // d'echec (photos de demonstration heberges hors ligne, par exemple).
     Box(
         modifier = Modifier
-            .size(140.dp)
+            .size(TAILLE_TUILE)
             .clip(RoundedCornerShape(12.dp))
             .background(
                 Brush.linearGradient(listOf(KaloyPurpleDark, KaloyCyan))
@@ -1378,6 +1409,10 @@ private fun VignettePhoto(
             model = urlMedia(media.url),
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            // Cale a gauche et non au centre : sur une photo large, le centrage
+            // rogne les deux bords, alors que le sujet d'une photo de concert
+            // prise de cote s'y trouve souvent.
+            alignment = Alignment.CenterStart,
             modifier = Modifier.fillMaxSize()
         )
 

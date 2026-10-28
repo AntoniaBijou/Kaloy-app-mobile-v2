@@ -219,12 +219,15 @@ data class HomeScreen(
                     .padding(espaceInterieur)
                     .background(MaterialTheme.colorScheme.background)
             ) {
-                // ---- Header avec gradient ----
+                // ---- Barre de recherche, posee sur le degrade ----
+                //
+                // Le titre est parti, le degrade reste : il porte l'identite de
+                // l'ecran. La hauteur passe de 200 a 120 dp, juste de quoi loger
+                // la barre et laisser la couleur se fondre dans le fond.
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp)
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(
@@ -234,43 +237,39 @@ data class HomeScreen(
                                     )
                                 )
                             )
-                            .padding(16.dp)
-                            .safeContentPadding(),
-                        contentAlignment = Alignment.BottomStart
+                            // safeContentPadding avant le padding : c'est lui qui
+                            // ecarte la barre d'etat, et sans lui le champ de
+                            // recherche passerait sous l'heure et la batterie.
+                            .safeContentPadding()
+                            // Aucune hauteur fixe. Avec .height(120.dp), les
+                            // encoches etaient retranchees DEDANS : il restait
+                            // ~38 dp au bouton, qui en demande 40, et son texte
+                            // etait rogne. La boite s'ajuste donc a son contenu,
+                            // et le bas de marge laisse le degrade se fondre.
+                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
+                        contentAlignment = Alignment.TopCenter
                     ) {
-                        Text(
-                            text = "Découvrez la musique Malagasy",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                // ---- Barre de recherche ----
-                item {
-                    OutlinedButton(
-                        onClick = { navigateur.push(EcranRechercheVoyager()) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = KaloyTextSecondary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = null,
-                            tint = KaloyTextMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Rechercher artistes, albums, chansons...",
-                            modifier = Modifier.weight(1f),
-                            color = KaloyTextMuted
-                        )
+                        OutlinedButton(
+                            onClick = { navigateur.push(EcranRechercheVoyager()) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = KaloyTextSecondary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = null,
+                                tint = KaloyTextMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Rechercher artistes, albums, chansons...",
+                                modifier = Modifier.weight(1f),
+                                color = KaloyTextMuted
+                            )
+                        }
                     }
                 }
 
