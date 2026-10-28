@@ -76,5 +76,29 @@ object Calendrier {
 
     fun nomDuMois(mois: Int): String = NOMS_MOIS.getOrElse(mois - 1) { "" }
 
+    /**
+     * Date obtenue en avancant de [jours] jours.
+     *
+     * Jour par jour plutot qu'en arithmetique sur un nombre de secondes :
+     * les primitives de ce fichier connaissent deja les mois courts et les
+     * annees bissextiles, et trente iterations ne coutent rien.
+     */
+    fun dansNJours(dateIso: String, jours: Int): String? {
+        val decoupe = decouper(dateIso) ?: return null
+        var annee = decoupe.first
+        var mois = decoupe.second
+        var jour = decoupe.third
+        repeat(jours) {
+            jour++
+            if (jour > joursDansMois(annee, mois)) {
+                jour = 1
+                val suivant = moisSuivant(annee, mois)
+                annee = suivant.first
+                mois = suivant.second
+            }
+        }
+        return formater(annee, mois, jour)
+    }
+
     private fun deuxChiffres(valeur: Int): String = if (valeur < 10) "0$valeur" else "$valeur"
 }
