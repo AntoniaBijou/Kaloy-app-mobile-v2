@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -359,14 +360,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
 
         when {
             modeleVue.enChargement -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LoadingIndicator()
-                }
+                SqueletteFicheArtiste(onRetour = { navigateur.pop() })
             }
             modeleVue.erreur != null -> {
                 Box(
@@ -857,4 +851,105 @@ private fun jourEtMois(iso: String?): Pair<String, String> {
     )
     val indexMois = morceaux[1].toIntOrNull()?.minus(1) ?: return morceaux[2] to "---"
     return morceaux[2] to (mois.getOrNull(indexMois) ?: "---")
+}
+
+// ============================================================
+// Squelette affiche pendant le chargement
+// ============================================================
+
+/**
+ * Silhouette de la fiche, le temps que les appels reseau reviennent.
+ *
+ * L'ecran affichait auparavant une page vide avec un indicateur au centre.
+ * Sur le theme clair, « vide » voulait dire blanc casse : on passait d'une
+ * page blanche a la fiche, sans transition.
+ *
+ * Le degrade et le bouton retour sont les memes que ceux de la vraie fiche, et
+ * ils ne dependent d'aucune donnee : on peut donc les dessiner tout de suite.
+ * Le reste est remplace par des blocs gris aux dimensions de ce qui va
+ * arriver, ce qui evite aussi que la page saute au moment du remplissage.
+ */
+@Composable
+private fun SqueletteFicheArtiste(onRetour: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(360.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            KaloyPurple,
+                            KaloyPink.copy(alpha = 0.6f),
+                            MaterialTheme.colorScheme.background
+                        )
+                    )
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .safeContentPadding(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Le retour reste utilisable : rester coince sur un ecran de
+                // chargement parce que le reseau tarde serait pire que l'attente.
+                IconButton(
+                    onClick = onRetour,
+                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Retour",
+                        tint = Color.White
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+                    BlocFantome(largeur = 100.dp, hauteur = 100.dp, arrondi = 50.dp)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        BlocFantome(largeur = 180.dp, hauteur = 28.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        BlocFantome(largeur = 110.dp, hauteur = 16.dp)
+                    }
+                }
+
+                BlocFantome(largeur = 150.dp, hauteur = 40.dp, arrondi = 20.dp)
+            }
+        }
+
+        Column(modifier = Modifier.padding(16.dp)) {
+            BlocFantome(largeur = 120.dp, hauteur = 20.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+            BlocFantome(largeur = 320.dp, hauteur = 14.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+            BlocFantome(largeur = 280.dp, hauteur = 14.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+            BlocFantome(largeur = 200.dp, hauteur = 14.dp)
+        }
+    }
+}
+
+/** Rectangle gris qui tient la place d'un contenu pas encore arrive. */
+@Composable
+private fun BlocFantome(
+    largeur: Dp,
+    hauteur: Dp,
+    arrondi: Dp = 6.dp
+) {
+    Box(
+        modifier = Modifier
+            .width(largeur)
+            .height(hauteur)
+            .clip(RoundedCornerShape(arrondi))
+            // Sur le blanc comme sur le sombre, un gris a 20 % se voit sans
+            // attirer l'oeil : ce n'est pas du contenu, c'est une attente.
+            .background(KaloyTextMuted.copy(alpha = 0.2f))
+    )
 }

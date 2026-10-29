@@ -16,7 +16,9 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
@@ -32,7 +34,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -670,6 +675,8 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
         // null si tous sont replies. Volontairement pas un Set — ouvrir un
         // jour referme le precedent, ce qui garde la liste lisible.
         var jourOuvert by remember { mutableStateOf<String?>(null) }
+        // Video ouverte en grand, null quand aucune ne l'est.
+        var videoPleinEcran by remember { mutableStateOf<EventMedia?>(null) }
 
         when {
             modeleVue.enChargement -> LoadingIndicator()
@@ -798,6 +805,7 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                     titre = dateLisible(journee.jour) ?: journee.jour,
                                     ouvert = ouvert,
                                     couleur = KaloyPurple,
+                                    retrait = 32.dp,
                                     onBasculer = {
                                         jourOuvert = if (ouvert) null else journee.jour
                                     }
@@ -914,7 +922,8 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                             VignetteVideo(
                                                 media = video,
                                                 peutSignaler = modeleVue.estConnecte,
-                                                onSignaler = { mediaASignaler = video }
+                                                onSignaler = { mediaASignaler = video },
+                                                onPleinEcran = { videoPleinEcran = video }
                                             )
                                         }
                                     }
@@ -977,6 +986,35 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
         }
 
         // ---- Dialogues ----
+
+        videoPleinEcran?.let { video ->
+            Dialog(
+                onDismissRequest = { videoPleinEcran = null },
+                // Sans usePlatformDefaultWidth a false, la fenetre garde la
+                // largeur reduite d'une boite de dialogue, ce qui n'a rien de
+                // plein ecran.
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Black)
+                ) {
+                    SmartVideoPlayerComposable(
+                        url = urlMedia(video.url) ?: "",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    IconButton(
+                        onClick = { videoPleinEcran = null },
+                        modifier = Modifier.align(Alignment.TopStart).safeContentPadding()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Fermer",
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+        }
 
         commentaireASupprimer?.let { commentaire ->
             AlertDialog(
@@ -1344,7 +1382,8 @@ private fun LigneArtisteParticipant(
 private fun VignetteVideo(
     media: EventMedia,
     peutSignaler: Boolean,
-    onSignaler: () -> Unit
+    onSignaler: () -> Unit,
+    onPleinEcran: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -1375,6 +1414,26 @@ private fun VignetteVideo(
                     modifier = Modifier.size(16.dp)
                 )
             }
+        }
+
+        // Toujours visible, et non revelee par un premier appui : une icone
+        // qu'il faut decouvrir n'est jamais decouverte.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(4.dp)
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.45f))
+                .clickable(onClick = onPleinEcran),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Fullscreen,
+                contentDescription = "Voir en plein écran",
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -1694,13 +1753,16 @@ private fun EnteteRepliable(
     ouvert: Boolean,
     onBasculer: () -> Unit,
     icone: ImageVector? = null,
-    couleur: Color = KaloyTextPrimary
+    couleur: Color = KaloyTextPrimary,
+    // Les jours vivent a l'interieur du Programme : les aligner sur les
+    // titres de section les faisait passer pour des sections eux-memes.
+    retrait: Dp = 16.dp
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onBasculer)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = retrait, end = 16.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         icone?.let {
