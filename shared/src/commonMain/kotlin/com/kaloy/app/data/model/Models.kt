@@ -439,5 +439,6 @@ data class SongPlayerResponse(
     val videoStreamUrl: String? = null,
     val karaokeStreamUrl: String? = null,
     val playbackStreamUrl: String? = null,
-    val solfaUrl: String? = null
+    val solfaUrl: String? = null,
+    val isOffline: Boolean = false
 )

@@ -3,6 +3,7 @@ package com.kaloy.app.data.repository
 import com.kaloy.app.data.dto.playlist.AddSongsRequest
 import com.kaloy.app.data.dto.playlist.AddSongsResult
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
+import com.kaloy.app.data.dto.playlist.OfflinePlaylistDownload
 import com.kaloy.app.data.dto.playlist.PlaylistGenerationProposal
 import com.kaloy.app.data.dto.playlist.PlaylistGenerationRequest
 import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
@@ -31,6 +32,10 @@ interface PlaylistRepository {
     suspend fun supprimerPlaylist(id: Long)
     suspend fun fusionnerPlaylists(request: MergePlaylistsRequest): Playlist
     suspend fun telechargerPlaylist(id: Long)
+    suspend fun requestOfflineDownload(id: Long): OfflinePlaylistDownload
+    suspend fun getOfflineDownloads(): List<OfflinePlaylistDownload>
+    suspend fun refreshOfflineDownload(id: Long): OfflinePlaylistDownload
+    suspend fun deleteOfflineDownload(id: Long)
     suspend fun getSongsInPlaylist(playlistId: Long): List<PlaylistSongUiItem>
     suspend fun addSongsToPlaylist(playlistId: Long, request: AddSongsRequest): AddSongsResult
     suspend fun removeSongFromPlaylist(playlistId: Long, songId: Long)

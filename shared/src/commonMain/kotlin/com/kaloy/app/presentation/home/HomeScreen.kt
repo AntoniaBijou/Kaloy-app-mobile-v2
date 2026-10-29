@@ -115,10 +115,10 @@ class AccueilViewModel : ViewModel() {
                     .distinctBy { it.song?.id }
 
                 if (artistes.isEmpty() && albums.isEmpty() && chansons.isEmpty()) {
-                    erreur = "Aucune donnée disponible. Vérifiez que le backend est démarré."
+                    erreur = "Aucune donnée disponible pour le moment. Connectez-vous à Internet pour charger le contenu."
                 }
             } catch (e: Exception) {
-                erreur = "Erreur de connexion: ${e.message}"
+                erreur = com.kaloy.app.core.error.UserErrorMessages.fromThrowable(e)
             } finally {
                 enChargement = false
             }

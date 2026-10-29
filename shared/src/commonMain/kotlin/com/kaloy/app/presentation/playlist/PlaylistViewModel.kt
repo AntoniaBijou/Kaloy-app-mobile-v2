@@ -1,6 +1,8 @@
 package com.kaloy.app.presentation.playlist
 
 import com.kaloy.app.core.error.UserErrorMessages
+import com.kaloy.app.core.offline.OfflineDownloadCoordinator
+import com.kaloy.app.core.offline.OfflineDownloadState
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
 import com.kaloy.app.data.dto.playlist.PlaylistGenerationProposal
@@ -97,7 +99,8 @@ sealed class ActiveDialogPlaylist {
 
 class PlaylistViewModel(
     private val repository: PlaylistRepository,
-    private val sessionManager: AuthSessionManager
+    private val sessionManager: AuthSessionManager,
+    private val offlineDownloadCoordinator: OfflineDownloadCoordinator
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -119,6 +122,7 @@ class PlaylistViewModel(
 
     private val _publicPlaylistState = MutableStateFlow<PublicPlaylistUiState>(PublicPlaylistUiState.Idle)
     val publicPlaylistState: StateFlow<PublicPlaylistUiState> = _publicPlaylistState.asStateFlow()
+    val offlineDownloadState: StateFlow<OfflineDownloadState> = offlineDownloadCoordinator.state
     val discoveryMode = MutableStateFlow(false)
     val publicSearchQuery = MutableStateFlow("")
 
@@ -126,6 +130,7 @@ class PlaylistViewModel(
     private var editoriales: List<EditorialPlaylist> = emptyList()
     private var mergePreviewJob: Job? = null
     private var publicSearchJob: Job? = null
+    private var offlineDownloadJob: Job? = null
 
     val requeteRecherche = MutableStateFlow("")
     val critereTri = MutableStateFlow(PlaylistSortCritere.DATE_DESC)
@@ -255,7 +260,11 @@ class PlaylistViewModel(
                 idsOrdonnes.forEach { playlistId ->
                     val songs = repository.getSongsInPlaylist(playlistId)
                     totalSongCount += songs.size
-                    songs.forEach { song -> songsById.putIfAbsent(song.songId, song) }
+                    songs.forEach { song ->
+                        if (!songsById.containsKey(song.songId)) {
+                            songsById[song.songId] = song
+                        }
+                    }
                 }
                 _mergePreview.value = MergePreviewState.Success(
                     sourceIds = idsOrdonnes,
@@ -449,22 +458,38 @@ class PlaylistViewModel(
     }
 
     fun telechargerPlaylist(id: Long) {
-        scope.launch {
+        offlineDownloadJob?.cancel()
+        offlineDownloadJob = scope.launch {
             _operationState.value = PlaylistOperationState.Loading
             try {
-                repository.telechargerPlaylist(id)
-                _operationState.value = PlaylistOperationState.Success("Playlist téléchargée.")
+                offlineDownloadCoordinator.download(id)
+                _operationState.value = PlaylistOperationState.Success("Playlist téléchargée et chiffrée.")
                 charger()
+            } catch (e: CancellationException) {
+                _operationState.value = PlaylistOperationState.Idle
+                throw e
             } catch (e: Exception) {
-                _operationState.value = PlaylistOperationState.Error(UserErrorMessages.fromThrowable(e))
+                if (e.message == "SESSION_EXPIRED") {
+                    sessionManager.clear()
+                    _operationState.value = PlaylistOperationState.NeedsRelogin
+                } else {
+                    _operationState.value = PlaylistOperationState.Error(UserErrorMessages.fromThrowable(e))
+                }
             }
         }
+    }
+
+    fun annulerTelechargement() {
+        offlineDownloadJob?.cancel()
+        offlineDownloadJob = null
+        _operationState.value = PlaylistOperationState.Idle
     }
 
     fun resetOperationState() { _operationState.value = PlaylistOperationState.Idle }
     fun dispose() {
         viderApercuFusion()
         publicSearchJob?.cancel()
+        offlineDownloadJob?.cancel()
         scope.cancel()
     }
 }

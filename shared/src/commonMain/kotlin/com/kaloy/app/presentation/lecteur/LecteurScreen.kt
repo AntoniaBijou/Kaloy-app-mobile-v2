@@ -35,7 +35,11 @@ import com.kaloy.app.presentation.queue.UpNextSheet
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
 
-data class LecteurScreen(val songId: Long, val startMode: ModeEcoute = ModeEcoute.AUDIO) : Screen {
+data class LecteurScreen(
+    val songId: Long,
+    val startMode: ModeEcoute = ModeEcoute.AUDIO,
+    val offlinePlaylistId: Long? = null
+) : Screen {
 
     @Composable
     override fun Content() {
@@ -55,8 +59,12 @@ data class LecteurScreen(val songId: Long, val startMode: ModeEcoute = ModeEcout
         val currentSong by queueManager.currentSong.collectAsState()
         var afficherFile by remember { mutableStateOf(false) }
 
-        LaunchedEffect(songId, startMode) {
-            viewModel.charger(songId, startMode = startMode)
+        LaunchedEffect(songId, startMode, offlinePlaylistId) {
+            viewModel.charger(
+                songId,
+                startMode = startMode,
+                offlinePlaylistId = offlinePlaylistId
+            )
         }
         DisposableEffect(viewModel) {
             onDispose { viewModel.onPlayerScreenClosed() }
@@ -103,7 +111,9 @@ data class LecteurScreen(val songId: Long, val startMode: ModeEcoute = ModeEcout
                         )
                         Spacer(Modifier.height(16.dp))
                         Button(
-                            onClick = { viewModel.charger(songId) },
+                            onClick = {
+                                viewModel.charger(songId, offlinePlaylistId = offlinePlaylistId)
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
                         ) {
                             Text("Réessayer")
@@ -258,6 +268,26 @@ private fun LecteurContenu(
             Spacer(Modifier.height(28.dp))
 
             TitreArtiste(song)
+
+            if (song.isOffline) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.DownloadDone,
+                        contentDescription = null,
+                        tint = KaloyGreen,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        "Mode hors-ligne",
+                        color = KaloyGreen,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
 
             Spacer(Modifier.height(20.dp))
 

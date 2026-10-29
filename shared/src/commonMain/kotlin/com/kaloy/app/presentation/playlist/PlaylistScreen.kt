@@ -18,6 +18,8 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.core.offline.OfflineDownloadCoordinator
+import com.kaloy.app.core.offline.OfflineDownloadState
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.repository.PlaylistRepository
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
@@ -25,6 +27,7 @@ import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.components.*
+import com.kaloy.app.presentation.playlist.PlaylistDownloadsScreen
 import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
@@ -39,14 +42,16 @@ class PlaylistScreen : Screen {
         val navigateur = LocalNavigator.currentOrThrow
         val repository = koinInject<PlaylistRepository>()
         val sessionManager = koinInject<AuthSessionManager>()
+        val offlineDownloadCoordinator = koinInject<OfflineDownloadCoordinator>()
         val fileAttente = koinInject<QueueManager>()
         val lecteur = koinInject<LecteurViewModel>()
 
-        val modeleVue = remember { PlaylistViewModel(repository, sessionManager) }
+        val modeleVue = remember { PlaylistViewModel(repository, sessionManager, offlineDownloadCoordinator) }
         DisposableEffect(Unit) { onDispose { modeleVue.dispose() } }
 
         val uiState by modeleVue.uiState.collectAsState()
         val operationState by modeleVue.operationState.collectAsState()
+        val offlineDownloadState by modeleVue.offlineDownloadState.collectAsState()
         val activeDialog by modeleVue.activeDialog.collectAsState()
         val mergePreview by modeleVue.mergePreview.collectAsState()
         val generationState by modeleVue.generationState.collectAsState()
@@ -100,10 +105,10 @@ class PlaylistScreen : Screen {
                                 Icon(Icons.Default.Refresh, "Actualiser", tint = KaloyTextPrimary)
                             }
                         } else {
-                            IconButton(onClick = { modeleVue.afficherDialog(ActiveDialogPlaylist.FilterSort) }) {
+                            IconButton(onClick = { navigateur.push(PlaylistDownloadsScreen()) }) {
                                 Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Filtres et tri",
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = "Téléchargements hors-ligne",
                                     tint = KaloyTextPrimary
                                 )
                             }
@@ -523,6 +528,37 @@ class PlaylistScreen : Screen {
 
                 item { Spacer(modifier = Modifier.height(24.dp)) }
             }
+        }
+
+        if (offlineDownloadState is OfflineDownloadState.Downloading) {
+            val progress = offlineDownloadState as OfflineDownloadState.Downloading
+            val fraction = progress.totalBytes?.takeIf { it > 0L }
+                ?.let { (progress.bytesTransferred.toFloat() / it).coerceIn(0f, 1f) }
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text("Téléchargement hors-ligne") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(progress.playlistName)
+                        Text("Titre ${progress.currentSong}/${progress.totalSongs} : ${progress.songTitle}")
+                        if (fraction == null) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        } else {
+                            LinearProgressIndicator(
+                                progress = { fraction },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("${(fraction * 100).toInt()} % du titre")
+                        }
+                        Text("Disponible hors-ligne pendant 30 jours.")
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { modeleVue.annulerTelechargement() }) {
+                        Text("Annuler")
+                    }
+                }
+            )
         }
 
         // ---- Dialogs ----

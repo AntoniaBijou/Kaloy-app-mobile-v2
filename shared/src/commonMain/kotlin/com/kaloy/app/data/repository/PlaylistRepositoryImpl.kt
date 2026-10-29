@@ -6,6 +6,7 @@ import com.kaloy.app.data.dto.RestResponse
 import com.kaloy.app.data.dto.playlist.AddSongsRequest
 import com.kaloy.app.data.dto.playlist.AddSongsResult
 import com.kaloy.app.data.dto.playlist.MergePlaylistsRequest
+import com.kaloy.app.data.dto.playlist.OfflinePlaylistDownload
 import com.kaloy.app.data.dto.playlist.PlaylistGenerationProposal
 import com.kaloy.app.data.dto.playlist.PlaylistGenerationRequest
 import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
@@ -52,10 +53,9 @@ class PlaylistRepositoryImpl(
         return json.decodeFromJsonElement(serializer<T>(), data)
     }
 
-    override suspend fun getMesPlaylists(): List<PlaylistUiItem> = try {
+    override suspend fun getMesPlaylists(): List<PlaylistUiItem> =
         client.get("$BASE_URL/playlists/me") { withSessionToken() }
             .decodeData<List<PlaylistUiItem>>()
-    } catch (_: Exception) { emptyList() }
 
     override suspend fun setPlaylistVisibility(id: Long, visibility: String): PlaylistUiItem =
         client.put("$BASE_URL/playlists/$id/visibility") {
@@ -141,6 +141,28 @@ class PlaylistRepositoryImpl(
 
     override suspend fun telechargerPlaylist(id: Long) {
         client.post("$BASE_URL/playlists/$id/download") { withSessionToken() }
+    }
+
+    override suspend fun requestOfflineDownload(id: Long): OfflinePlaylistDownload =
+        client.post("$BASE_URL/playlists/$id/download-request") { withSessionToken() }
+            .decodeData()
+
+    override suspend fun getOfflineDownloads(): List<OfflinePlaylistDownload> =
+        client.get("$BASE_URL/playlists/offline") { withSessionToken() }
+            .decodeData()
+
+    override suspend fun refreshOfflineDownload(id: Long): OfflinePlaylistDownload =
+        client.post("$BASE_URL/playlists/offline/$id/refresh") { withSessionToken() }
+            .decodeData()
+
+    override suspend fun deleteOfflineDownload(id: Long) {
+        client.delete("$BASE_URL/playlists/offline/$id") { withSessionToken() }
+            .also { response ->
+                if (response.status.value >= 400) {
+                    val rest = response.body<RestResponse>()
+                    throw Exception(rest.message.ifBlank { "Impossible de supprimer le téléchargement." })
+                }
+            }
     }
 
     override suspend fun getSongsInPlaylist(playlistId: Long): List<PlaylistSongUiItem> =
