@@ -21,3 +21,15 @@ kaloy-release.jks
 keystore.properties
 *.jks
 *.keystore
+
+# --- Firebase ---
+# google-services.json est embarque dans l APK, donc pas secret au sens strict,
+# mais il identifie le projet Firebase : chacun met le sien, comme local.properties.
+google-services.json
+GoogleService-Info.plist
+
+# --- Firebase ---
+# Cle de compte de service : elle autorise l envoi de notifications a TOUS les
+# appareils du projet. Au meme niveau de sensibilite que keystore.properties.
+firebase-service-account.json
+**/firebase-service-account.json

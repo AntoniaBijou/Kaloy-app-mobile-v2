@@ -80,6 +80,30 @@ kotlin {
             implementation(libs.media3.ui)
             implementation(libs.youtube.player)
             implementation(libs.koin.android)
+            // Le jeton d'appareil et la reception des messages vivent ici, dans
+            // l'actual Android de obtenirJetonPush. Le plugin google-services,
+            // lui, reste sur androidApp : c'est ce module qui porte le fichier
+            // de configuration et qui produit l'application.
+            implementation(libs.firebase.messaging)
+            // NotificationCompat vient d'androidx.core, deja present par
+            // activity-compose et media3. Le declarer explicitement via
+            // libs.androidx.core.ktx tirait la version 1.19.0 du catalogue,
+            // qui exige compileSdk 37 alors que le projet est en 36 — et le
+            // build echouait sur checkReleaseAarMetadata.
+        }
+        // Moteur HTTP de Ktor pour iOS.
+        //
+        // Ktor est en deux morceaux : le coeur, commun, et un moteur par
+        // plateforme. Le coeur cherche un moteur au premier HttpClient { } et
+        // echoue a l execution s il n en trouve aucun. Android avait le sien,
+        // iOS n en avait aucun : la premiere execution de l application iOS,
+        // le 26/10/2026, est morte sur
+        // « Failed to find HTTP client engine implementation ».
+        //
+        // La recherche se fait a l execution, pas a la compilation : c est
+        // pour ca que le defaut a survecu a des semaines de compilation verte.
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:3.1.3")

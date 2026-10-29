@@ -256,6 +256,111 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return reponse.body<RestResponse<Concert>>().exigerSucces("Reponse a l'invitation")
     }
 
+
+    // ============================================================
+    // Notifications du compte connecte
+    // ============================================================
+
+    /**
+     * Notifications du compte connecte, les plus recentes d'abord.
+     *
+     * Ne pas confondre avec GET /notifications, qui renvoie les notifications
+     * de tous les utilisateurs : c'est du CRUD d'administration, inutilisable
+     * ici.
+     *
+     * La taille par defaut est large parce que l'ecran n'a pas de defilement
+     * infini : une centaine de lignes couvre largement l'historique d'un
+     * artiste, et paginer compliquerait l'ecran sans benefice visible.
+     */
+    suspend fun getMesNotifications(page: Int = 0, size: Int = 100): RestResponse<PageResponse<NotificationItem>> {
+        return client.get("$apiBaseUrl/notifications/me") {
+            parameter("page", page)
+            parameter("size", size)
+        }.body()
+    }
+
+    /** Nombre de notifications non lues, pour la pastille de l'onglet « Moi ». */
+    suspend fun getNotificationsNonLues(): RestResponse<Long> {
+        return client.get("$apiBaseUrl/notifications/me/count").body()
+    }
+
+    /**
+     * Marque une notification lue.
+     *
+     * Renvoie 404 si elle appartient a un autre compte. L'appel est volontairement
+     * silencieux cote appelant : rater un marquage ne doit pas faire echouer
+     * l'action que l'utilisateur venait de reussir.
+     */
+    suspend fun marquerNotificationLue(idNotification: Long): RestResponse<Unit?> {
+        return client.patch("$apiBaseUrl/notifications/me/$idNotification/lu").body()
+    }
+
+    /** Marque lues toutes les notifications du compte connecte. */
+    suspend fun marquerToutesNotificationsLues(): RestResponse<Unit?> {
+        return client.patch("$apiBaseUrl/notifications/me/lues").body()
+    }
+
+    /**
+     * Mes preferences de notification, un etat par type.
+     *
+     * Le serveur renvoie tous les types et applique la regle du defaut — une
+     * preference jamais reglee vaut activee. L'ecran n'a donc pas a connaitre
+     * cette regle.
+     */
+    suspend fun getMesPreferencesNotification(): RestResponse<List<PreferenceNotification>> {
+        return client.get("$apiBaseUrl/notificationpreferences/me").body()
+    }
+
+    /**
+     * Active ou desactive un type pour le compte connecte.
+     *
+     * Un seul type par appel : envoyer tout l'etat ecraserait un reglage fait
+     * depuis un autre appareil entre le chargement de l'ecran et l'envoi.
+     */
+    suspend fun definirPreferenceNotification(type: String, actif: Boolean): RestResponse<Unit?> {
+        val reponse = client.put("$apiBaseUrl/notificationpreferences/me") {
+            contentType(ContentType.Application.Json)
+            setBody(PreferenceNotificationDto(type = type, isEnabled = actif))
+        }
+        // expectSuccess vaut false : un 404 sur un type inconnu se deserialise
+        // dans la meme enveloppe qu'un succes, et passerait pour un reglage
+        // enregistre.
+        return reponse.body<RestResponse<Unit?>>().exigerSucces("Preference de notification")
+    }
+
+    /**
+     * Enregistre cet appareil pour les notifications push.
+     *
+     * Appele a l'ouverture du centre de notifications, une fois la permission
+     * accordee. Idempotent cote serveur : le reappeler met a jour la date de
+     * derniere vue sans creer de doublon.
+     */
+    suspend fun enregistrerAppareil(jeton: String, plateforme: String): RestResponse<Unit?> {
+        val reponse = client.post("$apiBaseUrl/me/devices") {
+            contentType(ContentType.Application.Json)
+            setBody(AppareilDto(token = jeton, platform = plateforme))
+        }
+        return reponse.body()
+    }
+
+    /** Retire cet appareil, a la deconnexion. */
+    suspend fun retirerAppareil(jeton: String): RestResponse<Unit?> {
+        return client.delete("$apiBaseUrl/me/devices/$jeton").body()
+    }
+
+    /**
+     * Statistiques de l'artiste connecte.
+     *
+     * Renvoie 403 pour un compte qui n'est rattache a aucun profil artiste —
+     * l'ecran n'est de toute facon atteignable que depuis un compte artiste.
+     */
+    suspend fun getMesStatistiques(): RestResponse<StatistiquesArtiste> {
+        return client.get("$apiBaseUrl/me/statistiques").body()
+    }
+
+
+
+
     // ============================================================
     // Evenements que j'organise
     // ============================================================
@@ -370,6 +475,68 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return reponse.exigerSucces("Echec de l'envoi du fichier").data
             ?: throw IllegalStateException("Le serveur n'a pas renvoyé d'URL.")
     }
+
+    // ============================================================
+    // Envoi par morceaux, pour les fichiers volumineux
+    // ============================================================
+
+    /**
+     * Ouvre une session d envoi et renvoie son etat initial.
+     *
+     * La taille est annoncee d avance : un fichier trop gros ou d un format
+     * refuse est rejete ici, avant le premier octet, et non apres plusieurs
+     * minutes d envoi.
+     */
+    suspend fun ouvrirSessionEnvoi(
+        nomFichier: String,
+        typeMime: String,
+        tailleTotale: Long
+    ): EtatSessionEnvoi {
+        val reponse = client.post("$apiBaseUrl/uploads/sessions") {
+            contentType(ContentType.Application.Json)
+            setBody(OuvrirSessionDto(nomFichier, typeMime, tailleTotale))
+        }
+        return reponse.body<RestResponse<EtatSessionEnvoi>>()
+            .exigerSucces("Ouverture de la session d envoi").data
+            ?: throw IllegalStateException("Le serveur n a pas renvoye de session.")
+    }
+
+    /**
+     * Envoie un morceau. Idempotent : le reenvoyer ecrase le precedent, ce qui
+     * rend le reessai sans risque.
+     *
+     * Le corps est le binaire brut, pas du multipart : il n y a qu une donnee,
+     * et l enveloppe multipart n apporterait que des octets en plus.
+     */
+    suspend fun envoyerMorceau(idSession: String, indice: Int, contenu: ByteArray) {
+        val reponse = client.put("$apiBaseUrl/uploads/sessions/$idSession/morceaux/$indice") {
+            contentType(ContentType.Application.OctetStream)
+            setBody(contenu)
+        }
+        reponse.body<RestResponse<Unit?>>().exigerSucces("Envoi du morceau $indice")
+    }
+
+    /**
+     * Etat de la session : c est ce qui permet la reprise.
+     *
+     * Renvoie null si la session n existe plus — purgee, ou jamais ouverte. Le
+     * cas est normal apres plusieurs jours, et l appelant doit repartir de zero
+     * plutot que d afficher une erreur.
+     */
+    suspend fun etatSessionEnvoi(idSession: String): EtatSessionEnvoi? {
+        val reponse = client.get("$apiBaseUrl/uploads/sessions/$idSession")
+        val enveloppe = reponse.body<RestResponse<EtatSessionEnvoi>>()
+        return if (enveloppe.status in 200..299) enveloppe.data else null
+    }
+
+    /** Assemble les morceaux et renvoie l adresse publique du fichier. */
+    suspend fun finirSessionEnvoi(idSession: String): String {
+        val reponse = client.post("$apiBaseUrl/uploads/sessions/$idSession/finir")
+        return reponse.body<RestResponse<Map<String, String>>>()
+            .exigerSucces("Assemblage du fichier").data?.get("url")
+            ?: throw IllegalStateException("Le serveur n a pas renvoye d URL.")
+    }
+
 
     /** Rattache un media deja televerse a un evenement. */
     suspend fun creerMediaEvenement(
@@ -1099,3 +1266,26 @@ data class EventMediaCreate(
     val url: String,
     @kotlinx.serialization.SerialName("createdAt") val createdAt: String
 )
+
+// PUT /notificationpreferences/me
+@kotlinx.serialization.Serializable
+data class PreferenceNotificationDto(
+    val type: String,
+    val isEnabled: Boolean
+)
+
+// POST /me/devices
+@kotlinx.serialization.Serializable
+data class AppareilDto(
+    val token: String,
+    val platform: String
+)
+
+// POST /uploads/sessions
+@kotlinx.serialization.Serializable
+data class OuvrirSessionDto(
+    val nomFichier: String,
+    val typeMime: String,
+    val tailleTotale: Long
+)
+

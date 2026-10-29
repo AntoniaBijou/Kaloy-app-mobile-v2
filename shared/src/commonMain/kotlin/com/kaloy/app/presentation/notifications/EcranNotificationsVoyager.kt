@@ -1,19 +1,24 @@
 package com.kaloy.app.presentation.notifications
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,37 +29,62 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.core.push.obtenirJetonPush
+import com.kaloy.app.core.push.plateformePush
+import com.kaloy.app.core.push.rememberDemandePermissionNotification
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Concert
+import com.kaloy.app.data.model.NotificationItem
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.ui.theme.*
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 // ============================================================
 // Centre de notifications
 //
-// Pour l'instant, la seule chose qui notifie un artiste est une invitation a
-// participer a un evenement. L'ecran est structure pour en accueillir d'autres
-// (Sprint 7) sans etre repense.
+// L'ecran lit /notifications/me, qui porte tous les types — invitations,
+// reponses recues, et ce que le backend produira ensuite. Il lit en plus
+// /invitations, parce qu'une notification ne transporte qu'une ligne de texte
+// et une cible : le lieu, l'evenement et les boutons Accepter / Refuser
+// demandent l'objet Concert complet, retrouve par targetId.
+//
+// Deux appels plutot qu'un, donc, mais lances en parallele et deja existants.
+// L'alternative — enrichir la notification cote serveur — aurait fait entrer
+// la notion de concert dans une brique voulue generique.
 // ============================================================
 
 class NotificationsViewModel : ViewModel() {
     private val api = KaloyApi()
 
-    var invitations by mutableStateOf<List<Concert>>(emptyList())
+    var notifications by mutableStateOf<List<NotificationItem>>(emptyList())
         private set
+
+    /**
+     * Concerts des invitations encore ouvertes, par identifiant.
+     *
+     * /invitations n'expose que celles qui sont en attente et a venir. Une
+     * notification d'invitation absente de cette carte est donc une invitation
+     * deja repondue ou perimee : sa carte s'affiche sans boutons, ce qui est
+     * exactement le comportement voulu — on garde la trace, on n'y agit plus.
+     */
+    var invitationsOuvertes by mutableStateOf<Map<Long, Concert>>(emptyMap())
+        private set
+
     var enChargement by mutableStateOf(true)
         private set
     var erreur by mutableStateOf<String?>(null)
         private set
 
-    /** Invitation en cours de traitement : evite un double appui sur un bouton. */
+    /** Notification en cours de traitement : evite un double appui sur un bouton. */
     var reponseEnCours by mutableStateOf<Long?>(null)
         private set
 
     /** Message de confirmation affiche apres une reponse. */
     var message by mutableStateOf<String?>(null)
         private set
+
+    val nombreNonLues: Int get() = notifications.count { !it.isRead }
 
     init {
         charger()
@@ -65,9 +95,15 @@ class NotificationsViewModel : ViewModel() {
             enChargement = true
             erreur = null
             try {
-                invitations = api.getMesInvitations().data ?: emptyList()
+                // En parallele : l'un ne depend pas de l'autre, et l'ecran
+                // n'affiche rien avant d'avoir les deux.
+                val lesNotifications = async { api.getMesNotifications().data?.content ?: emptyList() }
+                val lesInvitations = async { api.getMesInvitations().data ?: emptyList() }
+
+                notifications = lesNotifications.await()
+                invitationsOuvertes = lesInvitations.await().associateBy { it.id }
             } catch (e: Exception) {
-                erreur = "Impossible de charger les invitations : ${e.message}"
+                erreur = "Impossible de charger les notifications : ${e.message}"
             } finally {
                 enChargement = false
             }
@@ -75,25 +111,32 @@ class NotificationsViewModel : ViewModel() {
     }
 
     /**
-     * Enregistre la reponse, puis retire l'invitation de la liste.
+     * Enregistre la reponse a une invitation, puis marque la notification lue.
      *
-     * Contrairement au bouton d'abonnement, la mise a jour n'est pas optimiste :
-     * une reponse est definitive et le serveur peut la refuser (invitation deja
-     * traitee, date passee). Retirer la ligne avant d'avoir la confirmation
-     * donnerait a croire que c'est fait alors que rien n'a change en base.
+     * La mise a jour n'est pas optimiste : une reponse est definitive et le
+     * serveur peut la refuser (deja traitee, date passee). Retirer les boutons
+     * avant d'avoir la confirmation donnerait a croire que c'est fait alors que
+     * rien n'a change en base.
+     *
+     * Le marquage en lu suit la reponse et non l'inverse : si le marquage
+     * echoue, la reponse est quand meme enregistree, et seule la pastille reste
+     * fausse jusqu'au prochain chargement.
      */
-    fun repondre(invitation: Concert, accepte: Boolean) {
+    fun repondre(notification: NotificationItem, idConcert: Long, accepte: Boolean) {
         if (reponseEnCours != null) return
 
         viewModelScope.launch {
-            reponseEnCours = invitation.id
+            reponseEnCours = notification.id
             message = null
             try {
                 api.repondreInvitation(
-                    idConcert = invitation.id,
+                    idConcert = idConcert,
                     statut = if (accepte) STATUT_ACCEPTE else STATUT_REFUSE
                 )
-                invitations = invitations.filterNot { it.id == invitation.id }
+                // L'invitation n'est plus ouverte : les boutons disparaissent,
+                // la notification reste dans la liste comme trace.
+                invitationsOuvertes = invitationsOuvertes - idConcert
+                marquerLueLocalement(notification.id)
                 message = if (accepte) {
                     "Invitation acceptée — le concert est dans votre calendrier."
                 } else {
@@ -103,6 +146,58 @@ class NotificationsViewModel : ViewModel() {
                 erreur = e.message ?: "La réponse n'a pas pu être enregistrée."
             } finally {
                 reponseEnCours = null
+            }
+        }
+    }
+
+    /** Marque une notification lue au moment ou l'utilisateur la consulte. */
+    fun marquerLue(notification: NotificationItem) {
+        if (notification.isRead) return
+        viewModelScope.launch {
+            marquerLueLocalement(notification.id)
+        }
+    }
+
+    fun toutMarquerLu() {
+        if (nombreNonLues == 0) return
+        viewModelScope.launch {
+            try {
+                api.marquerToutesNotificationsLues()
+                notifications = notifications.map { it.copy(isRead = true) }
+            } catch (_: Exception) {
+                // Sans consequence : la pastille se corrigera au prochain
+                // chargement. Afficher une erreur pour un marquage de lecture
+                // serait disproportionne.
+            }
+        }
+    }
+
+    private suspend fun marquerLueLocalement(idNotification: Long) {
+        try {
+            api.marquerNotificationLue(idNotification)
+            notifications = notifications.map {
+                if (it.id == idNotification) it.copy(isRead = true) else it
+            }
+        } catch (_: Exception) {
+            // Idem : un marquage rate ne doit pas interrompre l'utilisateur.
+        }
+    }
+
+    /**
+     * Enregistre cet appareil pour recevoir les notifications push.
+     *
+     * Appele une fois la permission accordee, donc a l'ouverture de cet ecran.
+     * Un echec est avale : le push est un supplement, et ne pas l'obtenir ne
+     * doit pas empecher de lire ses notifications. Un jeton null signifie que
+     * le push n'est pas disponible sur cet appareil — pas de Google Play
+     * Services, ou plateforme iOS non branchee.
+     */
+    fun enregistrerAppareil() {
+        viewModelScope.launch {
+            val jeton = obtenirJetonPush() ?: return@launch
+            try {
+                api.enregistrerAppareil(jeton, plateformePush())
+            } catch (_: Exception) {
             }
         }
     }
@@ -128,6 +223,20 @@ class EcranNotificationsVoyager : Screen {
             NotificationsViewModel()
         }
 
+        // La permission est demandee ICI et non au premier lancement de
+        // l'application : l'utilisateur vient d'appuyer sur « Notifications »,
+        // la demande arrive donc au moment ou elle se comprend. Un refus est
+        // quasi definitif — il faut ensuite passer par les reglages Android —
+        // d'ou l'importance du moment.
+        //
+        // Appeler a chaque ouverture ne reaffiche pas la boite : Android
+        // repond immediatement quand la permission est deja accordee, ou
+        // definitivement refusee.
+        val demanderPermission = rememberDemandePermissionNotification { accorde ->
+            if (accorde) modeleVue.enregistrerAppareil()
+        }
+        LaunchedEffect(Unit) { demanderPermission() }
+
         Scaffold(
             containerColor = KaloyDarkBg,
             topBar = {
@@ -139,6 +248,31 @@ class EcranNotificationsVoyager : Screen {
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Retour",
                                 tint = KaloyTextPrimary
+                            )
+                        }
+                    },
+                    actions = {
+                        // N'apparait que s'il y a quelque chose a marquer : une
+                        // action sans effet desoriente plus qu'elle ne sert.
+                        if (modeleVue.nombreNonLues > 0) {
+                            IconButton(onClick = { modeleVue.toutMarquerLu() }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Done,
+                                    contentDescription = "Tout marquer lu",
+                                    tint = KaloyTextSecondary
+                                )
+                            }
+                        }
+                        // Les reglages des notifications sont ici plutot que dans
+                        // une sixieme carte de l'onglet « Moi », qui en compte
+                        // deja cinq : on regle ce qu'on est en train de lire.
+                        IconButton(
+                            onClick = { navigateur.push(EcranPreferencesNotificationsVoyager()) }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "Préférences de notification",
+                                tint = KaloyTextSecondary
                             )
                         }
                     },
@@ -160,15 +294,12 @@ class EcranNotificationsVoyager : Screen {
                         )
                     }
 
-                    modeleVue.erreur != null && modeleVue.invitations.isEmpty() -> {
+                    modeleVue.erreur != null && modeleVue.notifications.isEmpty() -> {
                         Column(
                             modifier = Modifier.align(Alignment.Center).padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text(
-                                text = modeleVue.erreur!!,
-                                color = KaloyTextSecondary
-                            )
+                            Text(text = modeleVue.erreur!!, color = KaloyTextSecondary)
                             Spacer(modifier = Modifier.height(12.dp))
                             Button(
                                 onClick = { modeleVue.charger() },
@@ -179,7 +310,7 @@ class EcranNotificationsVoyager : Screen {
                         }
                     }
 
-                    modeleVue.invitations.isEmpty() -> {
+                    modeleVue.notifications.isEmpty() -> {
                         Column(
                             modifier = Modifier.align(Alignment.Center).padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -192,7 +323,7 @@ class EcranNotificationsVoyager : Screen {
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = modeleVue.message ?: "Aucune invitation en attente",
+                                text = modeleVue.message ?: "Aucune notification",
                                 color = KaloyTextSecondary
                             )
                         }
@@ -217,32 +348,40 @@ class EcranNotificationsVoyager : Screen {
                                 }
                             }
                             modeleVue.erreur?.let { texte ->
-                                item {
-                                    Text(text = texte, color = KaloyPink)
-                                }
+                                item { Text(text = texte, color = KaloyPink) }
                             }
 
-                            item {
-                                Text(
-                                    text = "Invitations (${modeleVue.invitations.size})",
-                                    color = KaloyTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                            }
+                            items(modeleVue.notifications, key = { it.id }) { notification ->
+                                val concert = notification.targetId
+                                    ?.takeIf { notification.estInvitation }
+                                    ?.let { modeleVue.invitationsOuvertes[it] }
 
-                            items(modeleVue.invitations, key = { it.id }) { invitation ->
-                                CarteInvitation(
-                                    invitation = invitation,
-                                    enCours = modeleVue.reponseEnCours == invitation.id,
-                                    onVoirEvenement = {
-                                        invitation.event?.let {
-                                            navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
+                                if (concert != null) {
+                                    CarteInvitation(
+                                        notification = notification,
+                                        invitation = concert,
+                                        enCours = modeleVue.reponseEnCours == notification.id,
+                                        onVoirEvenement = {
+                                            concert.event?.let {
+                                                modeleVue.marquerLue(notification)
+                                                navigateur.push(
+                                                    EcranDetailEvenementVoyager(idEvenement = it.id)
+                                                )
+                                            }
+                                        },
+                                        onAccepter = {
+                                            modeleVue.repondre(notification, concert.id, accepte = true)
+                                        },
+                                        onRefuser = {
+                                            modeleVue.repondre(notification, concert.id, accepte = false)
                                         }
-                                    },
-                                    onAccepter = { modeleVue.repondre(invitation, accepte = true) },
-                                    onRefuser = { modeleVue.repondre(invitation, accepte = false) }
-                                )
+                                    )
+                                } else {
+                                    CarteNotificationSimple(
+                                        notification = notification,
+                                        onClick = { modeleVue.marquerLue(notification) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -252,8 +391,16 @@ class EcranNotificationsVoyager : Screen {
     }
 }
 
+/**
+ * Carte d'une invitation encore ouverte : tous les details, et les deux boutons.
+ *
+ * Le contenu vient de l'objet Concert et non du texte de la notification : la
+ * notification ne porte qu'une phrase, sans le lieu ni le lien vers
+ * l'evenement.
+ */
 @Composable
 private fun CarteInvitation(
+    notification: NotificationItem,
     invitation: Concert,
     enCours: Boolean,
     onVoirEvenement: () -> Unit,
@@ -266,12 +413,18 @@ private fun CarteInvitation(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = invitation.event?.name ?: "Événement",
-                color = KaloyTextPrimary,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!notification.isRead) {
+                    PastilleNonLue()
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(
+                    text = invitation.event?.name ?: "Événement",
+                    color = KaloyTextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
 
             invitation.title?.let { titre ->
                 Text(
@@ -289,7 +442,8 @@ private fun CarteInvitation(
             )
 
             invitation.venue?.let { lieu ->
-                val adresse = if (lieu.location.isNullOrBlank()) lieu.name else "${lieu.name} — ${lieu.location}"
+                val adresse = if (lieu.location.isNullOrBlank()) lieu.name
+                else "${lieu.name} — ${lieu.location}"
                 LigneDetail(icone = Icons.Filled.Place, texte = adresse)
             }
 
@@ -334,6 +488,93 @@ private fun CarteInvitation(
             }
         }
     }
+}
+
+/**
+ * Carte d'une notification sur laquelle il n'y a rien a faire.
+ *
+ * Trois cas y aboutissent : un type autre qu'une invitation, une invitation
+ * deja repondue, et une invitation dont la date est passee. Dans les deux
+ * derniers, la trace reste visible mais sans boutons — le serveur refuserait
+ * de toute facon une seconde reponse.
+ */
+@Composable
+private fun CarteNotificationSimple(
+    notification: NotificationItem,
+    onClick: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = iconePourType(notification.type),
+                contentDescription = null,
+                tint = KaloyPurpleLight,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = libellePourType(notification.type),
+                    color = KaloyTextMuted,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = notification.content,
+                    color = KaloyTextPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (!notification.isRead) {
+                Spacer(modifier = Modifier.width(8.dp))
+                PastilleNonLue()
+            }
+        }
+    }
+}
+
+/** Point plein signalant une notification non lue. */
+@Composable
+private fun PastilleNonLue() {
+    Box(
+        modifier = Modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(KaloyCyan)
+    )
+}
+
+/**
+ * Libelle d'un type de notification.
+ *
+ * Les types inconnus tombent sur « Notification » plutot que d'afficher le nom
+ * technique : le backend peut en ajouter sans que l'application soit remise a
+ * jour, et « NEW_RELEASE » a l'ecran serait plus deroutant qu'un mot generique.
+ */
+internal fun libellePourType(type: String): String = when (type) {
+    NotificationItem.TYPE_INVITATION -> "Invitation"
+    NotificationItem.TYPE_REPONSE -> "Réponse à votre invitation"
+    "FOLLOW" -> "Nouvel abonné"
+    "NEW_RELEASE" -> "Nouveauté"
+    "EVENT_REMINDER" -> "Rappel d'événement"
+    "EVENT_INVITATION" -> "Invitation à un événement"
+    "COMMENT_REPLY" -> "Réponse à un commentaire"
+    "VERIFICATION" -> "Vérification de compte"
+    else -> "Notification"
+}
+
+private fun iconePourType(type: String): ImageVector = when (type) {
+    NotificationItem.TYPE_INVITATION,
+    NotificationItem.TYPE_REPONSE,
+    "EVENT_REMINDER",
+    "EVENT_INVITATION" -> Icons.Filled.CalendarMonth
+    else -> Icons.Filled.Notifications
 }
 
 /**

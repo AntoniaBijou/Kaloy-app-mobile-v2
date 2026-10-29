@@ -442,3 +442,104 @@ data class SongPlayerResponse(
     val solfaUrl: String? = null,
     val isOffline: Boolean = false
 )
+
+// ============================================================
+// Notifications
+// ============================================================
+
+/**
+ * Notification telle que le serveur la renvoie sur /notifications/me.
+ *
+ * Volontairement pauvre : le serveur n'envoie qu'une ligne de texte et une
+ * cible. Pour une invitation, [targetType] vaut CONCERT et [targetId] porte
+ * l'identifiant du concert, ce qui permet de retrouver l'objet Concert complet
+ * — avec son lieu et son evenement — dans la reponse de /invitations, et donc
+ * d'afficher la carte riche sans que le serveur ait a connaitre l'ecran.
+ */
+@Serializable
+data class NotificationItem(
+    val id: Long = 0,
+    val type: String = "",
+    val content: String = "",
+    val targetType: String? = null,
+    val targetId: Long? = null,
+    val isRead: Boolean = false,
+    val createdAt: String? = null
+) {
+    /** Les seules notifications sur lesquelles on peut agir depuis la liste. */
+    val estInvitation: Boolean get() = type == TYPE_INVITATION && targetId != null
+
+    companion object {
+        const val TYPE_INVITATION = "CONCERT_INVITATION"
+        const val TYPE_REPONSE = "INVITATION_RESPONSE"
+    }
+}
+
+
+/**
+ * Etat effectif d'une preference de notification.
+ *
+ * Le serveur renvoie les huit types connus de la base. L'application n'en
+ * affiche que ceux qui ont reellement un producteur — voir TYPES_REGLABLES —
+ * parce qu'un interrupteur qui ne commande rien est une promesse fausse.
+ */
+@Serializable
+data class PreferenceNotification(
+    val type: String = "",
+    val isEnabled: Boolean = true
+) {
+    companion object {
+        /**
+         * Types qu'un code produit aujourd'hui, dans l'ordre d'affichage.
+         *
+         * A completer quand un nouveau producteur apparait : le mecanisme cote
+         * serveur respecte deja la preference de n'importe quel type, il n'y a
+         * que cette liste a allonger.
+         */
+        val TYPES_REGLABLES = listOf(
+            NotificationItem.TYPE_INVITATION,
+            NotificationItem.TYPE_REPONSE
+        )
+    }
+}
+
+/**
+ * Statistiques d'un artiste sur sa propre musique.
+ *
+ * Renvoyees en un seul objet par GET /me/statistiques : l'ecran affiche un etat
+ * coherent, et non quatre tuiles qui se remplissent l'une apres l'autre.
+ */
+@Serializable
+data class StatistiquesArtiste(
+    val ecoutes30Jours: Long = 0,
+    val ecoutesTotal: Long = 0,
+    val auditeursDistincts: Long = 0,
+    val abonnes: Long = 0,
+    val chansonsPubliees: Long = 0,
+    val topChansons: List<ChansonEcoutee> = emptyList()
+)
+
+@Serializable
+data class ChansonEcoutee(
+    val id: Long = 0,
+    val titre: String = "",
+    val ecoutes: Long = 0
+)
+
+
+/**
+ * Etat d une session d envoi par morceaux, tel que le serveur le renvoie.
+ *
+ * [morceauxRecus] est la cle de la reprise : le client envoie les indices
+ * absents de cette liste, et saute les autres.
+ */
+@Serializable
+data class EtatSessionEnvoi(
+    val idSession: String = "",
+    val tailleTotale: Long = 0,
+    val tailleMorceau: Int = 0,
+    val morceauxAttendus: Int = 0,
+    val morceauxRecus: List<Int> = emptyList(),
+    val complet: Boolean = false
+)
+

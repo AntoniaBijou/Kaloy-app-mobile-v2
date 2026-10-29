@@ -14,10 +14,10 @@ import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,11 +39,16 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.api.ListeningHistorySearchDto
 import com.kaloy.app.data.api.UserIdDto
+import com.kaloy.app.core.util.Calendrier
+import com.kaloy.app.core.util.aujourdHuiLocal
 import com.kaloy.app.data.model.*
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
+import com.kaloy.app.presentation.common.BarreNavigationPrincipale
+import com.kaloy.app.presentation.common.OngletPrincipal
+import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.PlaylistScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
@@ -68,7 +73,7 @@ class AccueilViewModel : ViewModel() {
         private set
     var chansons by mutableStateOf<List<Song>>(emptyList())
         private set
-    var playlistsEditoriales by mutableStateOf<List<EditorialPlaylist>>(emptyList())
+    var evenementsAVenir by mutableStateOf<List<Event>>(emptyList())
         private set
     var ecoutesRecentes by mutableStateOf<List<ListeningHistory>>(emptyList())
         private set
@@ -83,6 +88,27 @@ class AccueilViewModel : ViewModel() {
         chargerDonnees()
     }
 
+    /**
+     * Evenements en cours ou a venir dans les trente prochains jours.
+     *
+     * Trente jours glissants et non le mois civil : un filtre sur le mois en
+     * cours viderait la section les derniers jours du mois, ce qui ne se voit
+     * pas en developpement et saute aux yeux en demonstration.
+     *
+     * Le tri et le filtre sont ici parce que /events ne fait ni l'un ni
+     * l'autre : il renvoie tout, dans l'ordre des identifiants.
+     */
+    private fun aVenirDansLeMois(evenements: List<Event>): List<Event> {
+        val aujourdHui = aujourdHuiLocal()
+        val limite = Calendrier.dansNJours(aujourdHui, JOURS_A_VENIR) ?: return emptyList()
+        return evenements
+            // Sur endDate : un evenement commence hier et fini demain est
+            // toujours en cours, il a sa place dans la liste.
+            .filter { (it.endDate ?: it.startDate).orEmpty() >= aujourdHui }
+            .filter { (it.startDate ?: "") <= limite }
+            .sortedBy { it.startDate ?: "" }
+    }
+
     fun chargerDonnees() {
         viewModelScope.launch {
             enChargement = true
@@ -95,7 +121,7 @@ class AccueilViewModel : ViewModel() {
                 val resultatChansons = try {
                     api.getClassement(jours = JOURS_CLASSEMENT, limite = TAILLE_CLASSEMENT)
                 } catch (e: Exception) { null }
-                val resultatPlaylists = try { api.getEditorialPlaylists(size = 10) } catch (e: Exception) { null }
+                val resultatEvenements = try { api.getEvents(size = 50) } catch (e: Exception) { null }
 
                 // Simuler utilisateur ID = 1
                 val resultatHistorique = try {
@@ -108,7 +134,7 @@ class AccueilViewModel : ViewModel() {
                 artistes = resultatArtistes?.data?.content ?: emptyList()
                 albums = resultatAlbums?.data?.content ?: emptyList()
                 chansons = resultatChansons?.data ?: emptyList()
-                playlistsEditoriales = resultatPlaylists?.data?.content ?: emptyList()
+                evenementsAVenir = aVenirDansLeMois(resultatEvenements?.data?.content.orEmpty())
 
                 // Garder les chansons uniques dans l'historique
                 ecoutesRecentes = (resultatHistorique?.data?.content ?: emptyList())
@@ -129,6 +155,9 @@ class AccueilViewModel : ViewModel() {
         /** Fenetre glissante du classement : « la semaine » = 7 derniers jours. */
         const val JOURS_CLASSEMENT = 7
         const val TAILLE_CLASSEMENT = 10
+
+        /** Fenetre glissante des evenements mis en avant sur l'accueil. */
+        const val JOURS_A_VENIR = 30
     }
 }
 
@@ -145,7 +174,6 @@ data class HomeScreen(
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val gestionSession = koinInject<AuthSessionManager>()
-        val nomAffiche = if (isVisitor) username else gestionSession.getDisplayName().ifBlank { username }
         val modeleVue: AccueilViewModel = viewModel { AccueilViewModel() }
         val fileAttente = koinInject<QueueManager>()
         val lecteur = koinInject<LecteurViewModel>()
@@ -154,9 +182,6 @@ data class HomeScreen(
         val historique by fileAttente.history.collectAsState()
         val lectureActive by lecteur.isPlaying.collectAsState()
         val positionCourante by lecteur.currentPositionMs.collectAsState()
-
-        // Onglet sélectionné dans la barre de navigation
-        var ongletSelectionne by remember { mutableStateOf(0) }
 
         LaunchedEffect(Unit) {
             if (!isVisitor && !gestionSession.isLoggedIn()) {
@@ -180,21 +205,11 @@ data class HomeScreen(
                                 canNext = chansonsSuivantes.isNotEmpty()
                             )
                         }
-                        NavigationBar(containerColor = KaloyDarkSurface) {
-                        NavigationBarItem(
-                            selected = ongletSelectionne == 0,
-                            onClick = { ongletSelectionne = 0 },
-                            icon = {
-                                Icon(Icons.Default.Home, contentDescription = "Accueil")
-                            },
-                            label = { Text("Accueil") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
+                        BarreNavigationPrincipale(
+                            ongletActif = OngletPrincipal.ACCUEIL,
+                            onAccueil = {},
+                            onRecherche = { navigateur.push(EcranRechercheVoyager()) },
+                            onMoi = { navigateur.push(MoiScreen()) }
                         )
                         NavigationBarItem(
                             selected = ongletSelectionne == 1,
@@ -240,12 +255,15 @@ data class HomeScreen(
                     .padding(espaceInterieur)
                     .background(MaterialTheme.colorScheme.background)
             ) {
-                // ---- Header avec gradient ----
+                // ---- Barre de recherche, posee sur le degrade ----
+                //
+                // Le titre est parti, le degrade reste : il porte l'identite de
+                // l'ecran. La hauteur passe de 200 a 120 dp, juste de quoi loger
+                // la barre et laisser la couleur se fondre dans le fond.
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(180.dp)
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(
@@ -255,51 +273,39 @@ data class HomeScreen(
                                     )
                                 )
                             )
-                            .padding(16.dp)
-                            .safeContentPadding(),
-                        contentAlignment = Alignment.BottomStart
+                            // safeContentPadding avant le padding : c'est lui qui
+                            // ecarte la barre d'etat, et sans lui le champ de
+                            // recherche passerait sous l'heure et la batterie.
+                            .safeContentPadding()
+                            // Aucune hauteur fixe. Avec .height(120.dp), les
+                            // encoches etaient retranchees DEDANS : il restait
+                            // ~38 dp au bouton, qui en demande 40, et son texte
+                            // etait rogne. La boite s'ajuste donc a son contenu,
+                            // et le bas de marge laisse le degrade se fondre.
+                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
+                        contentAlignment = Alignment.TopCenter
                     ) {
-                        Column {
-                            Text(
-                                text = "Bonsoir $nomAffiche",
-                                style = MaterialTheme.typography.headlineLarge,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
+                        OutlinedButton(
+                            onClick = { navigateur.push(EcranRechercheVoyager()) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = KaloyTextSecondary
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = null,
+                                tint = KaloyTextMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Découvrez la musique malgache",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = Color.White.copy(alpha = 0.8f)
+                                text = "Rechercher artistes, albums, chansons...",
+                                modifier = Modifier.weight(1f),
+                                color = KaloyTextMuted
                             )
                         }
-                    }
-                }
-
-                // ---- Barre de recherche ----
-                item {
-                    OutlinedButton(
-                        onClick = { navigateur.push(EcranRechercheVoyager()) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = KaloyTextSecondary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = null,
-                            tint = KaloyTextMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Rechercher artistes, albums, chansons...",
-                            modifier = Modifier.weight(1f),
-                            color = KaloyTextMuted
-                        )
                     }
                 }
 
@@ -381,20 +387,24 @@ data class HomeScreen(
                             item { Spacer(modifier = Modifier.height(16.dp)) }
                         }
 
-                        // Playlists à la une
-                        if (modeleVue.playlistsEditoriales.isNotEmpty()) {
+                        // Evenements des trente prochains jours, tous artistes
+                        if (modeleVue.evenementsAVenir.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "À la une", icon = Icons.Filled.Whatshot)
+                                SectionHeader(title = "Événements à venir", icon = Icons.Filled.Event)
                             }
                             item {
                                 LazyRow(
                                     contentPadding = PaddingValues(horizontal = 16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    items(modeleVue.playlistsEditoriales) { playlist ->
-                                        EditorialPlaylistCard(
-                                            playlist = playlist,
-                                            onClick = { /* TODO: navigation playlist */ }
+                                    items(modeleVue.evenementsAVenir, key = { it.id }) { evenement ->
+                                        CarteEvenement(
+                                            evenement = evenement,
+                                            onClick = {
+                                                navigateur.push(
+                                                    EcranDetailEvenementVoyager(idEvenement = evenement.id)
+                                                )
+                                            }
                                         )
                                     }
                                 }
@@ -505,4 +515,70 @@ data class HomeScreen(
             }
         }
     }
+}
+
+// ============================================================
+// Carte d'un evenement a venir, sur l'accueil
+// ============================================================
+
+/**
+ * Le modele Event ne porte pas de lieu : les salles sont rattachees aux
+ * creneaux, pas a l'evenement. On montre donc la date et l'organisateur, et le
+ * detail renseigne le reste.
+ */
+@Composable
+private fun CarteEvenement(evenement: Event, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.width(220.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = periodeLisible(evenement.startDate, evenement.endDate),
+                style = MaterialTheme.typography.labelLarge,
+                color = KaloyCyan,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = evenement.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = KaloyTextPrimary,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            evenement.createdByArtist?.stageName?.let { organisateur ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Par $organisateur",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = KaloyTextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Abreviations usuelles. Tronquer « Octobre » a quatre lettres donnait « octo »,
+ * qui n'est pas une abreviation mais un mot coupe.
+ */
+private val MOIS_COURTS = listOf(
+    "janv.", "févr.", "mars", "avr.", "mai", "juin",
+    "juil.", "août", "sept.", "oct.", "nov.", "déc."
+)
+
+/** « 7 nov. » seul, ou « 27 oct. — 31 oct. » quand l'evenement dure. */
+private fun periodeLisible(debut: String?, fin: String?): String {
+    val d = Calendrier.decouper(debut) ?: return ""
+    val jourDebut = "${d.third} ${MOIS_COURTS.getOrElse(d.second - 1) { "" }}"
+    val f = Calendrier.decouper(fin)
+    if (f == null || fin == debut) return jourDebut
+    val jourFin = "${f.third} ${MOIS_COURTS.getOrElse(f.second - 1) { "" }}"
+    return "$jourDebut — $jourFin"
 }

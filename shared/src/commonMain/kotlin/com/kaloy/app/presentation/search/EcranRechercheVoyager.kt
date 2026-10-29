@@ -56,6 +56,9 @@ import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.genre.EcranGenreVoyager
 import com.kaloy.app.ui.components.*
+import com.kaloy.app.presentation.common.BarreNavigationPrincipale
+import com.kaloy.app.presentation.common.OngletPrincipal
+import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -292,11 +295,25 @@ class EcranRechercheVoyager : Screen {
             navigateur.push(destination)
         }
 
+        Scaffold(
+            bottomBar = {
+                BarreNavigationPrincipale(
+                    ongletActif = OngletPrincipal.RECHERCHE,
+                    // pop et non push : la recherche est toujours posee
+                    // juste au-dessus de l'accueil. Empiler un second
+                    // accueil ferait grossir la pile a chaque aller-retour.
+                    onAccueil = { navigateur.pop() },
+                    onRecherche = {},
+                    onMoi = { navigateur.push(MoiScreen()) }
+                )
+            },
+            containerColor = KaloyDarkBg
+        ) { espaceInterieur ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(espaceInterieur)
                 .background(MaterialTheme.colorScheme.background)
-                .safeContentPadding()
         ) {
             // ---- Barre de recherche ----
             Row(
@@ -407,6 +424,7 @@ class EcranRechercheVoyager : Screen {
                     }
                 }
             }
+        }
         }
     }
 }

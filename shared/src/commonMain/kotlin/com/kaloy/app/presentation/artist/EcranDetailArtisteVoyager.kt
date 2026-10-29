@@ -1,5 +1,6 @@
 package com.kaloy.app.presentation.artist
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -105,6 +107,15 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
 
     /** Jour sur lequel l'utilisateur a appuye, null tant qu'il n'a rien touche. */
     var dateSelectionnee by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Onglet affiche. Ici et non dans le composable : Voyager detruit
+     * celui-ci quand on empile la fiche d'un evenement par-dessus, et un
+     * remember y serait perdu — on revenait sur Chansons apres chaque
+     * aller-retour. Le ViewModel, lui, survit.
+     */
+    internal var ongletActif by mutableStateOf(OngletArtiste.CHANSONS)
         private set
 
     /** Date du jour dans le fuseau du telephone : repere entre passe et a venir. */
@@ -224,6 +235,10 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
         dateSelectionnee = if (dateSelectionnee == date) null else date
     }
 
+    internal fun choisirOnglet(onglet: OngletArtiste) {
+        ongletActif = onglet
+    }
+
     fun concertsDuJour(date: String): List<Concert> = concertsParDate[date] ?: emptyList()
 
     /**
@@ -328,9 +343,15 @@ class DetailArtisteViewModel(private val idArtiste: Long) : ViewModel() {
 // Écran détail artiste Voyager (Sprint 2 — intégré depuis Ancien)
 // ============================================================
 
+/** Les deux onglets de la fiche. L'ordre est celui de la barre. */
+internal enum class OngletArtiste(val label: String) {
+    CHANSONS("Chansons"),
+    CALENDRIER("Calendrier")
+}
+
 data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
     @Composable
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
@@ -341,14 +362,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
 
         when {
             modeleVue.enChargement -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LoadingIndicator()
-                }
+                SqueletteFicheArtiste(onRetour = { navigateur.pop() })
             }
             modeleVue.erreur != null -> {
                 Box(
@@ -507,27 +521,30 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         }
                     }
 
-                    // ---- Albums ----
-                    if (modeleVue.albums.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "Albums (${modeleVue.albums.size})",
-                                icon = Icons.Filled.Album
-                            )
-                        }
-                        item {
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(modeleVue.albums) { album ->
-                                    AlbumCard(
-                                        album = album,
-                                        onClick = {
-                                            navigateur.push(EcranDetailAlbumVoyager(idAlbum = album.id))
-                                        }
-                                    )
-                                }
+                    // ---- Barre d'onglets ----
+                    // stickyHeader et non item : la barre reste visible
+                    // pendant qu'on fait defiler les chansons ou le mois.
+                    stickyHeader {
+                        SecondaryTabRow(
+                            selectedTabIndex = modeleVue.ongletActif.ordinal,
+                            containerColor = KaloyDarkSurface,
+                            contentColor = KaloyPurpleLight,
+                            divider = { HorizontalDivider(color = KaloyDarkElevated) }
+                        ) {
+                            OngletArtiste.entries.forEach { onglet ->
+                                Tab(
+                                    selected = onglet == modeleVue.ongletActif,
+                                    onClick = { modeleVue.choisirOnglet(onglet) },
+                                    text = {
+                                        Text(
+                                            text = onglet.label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (onglet == modeleVue.ongletActif) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    selectedContentColor = KaloyPurpleLight,
+                                    unselectedContentColor = KaloyTextMuted
+                                )
                             }
                         }
                     }
@@ -554,65 +571,111 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                 HorizontalDivider(
                                     modifier = Modifier.padding(horizontal = 16.dp),
                                     color = KaloyDarkElevated
+                    if (modeleVue.ongletActif == OngletArtiste.CHANSONS) {
+                        // ---- Albums ----
+                        if (modeleVue.albums.isNotEmpty()) {
+                            item {
+                                SectionHeader(
+                                    title = "Albums (${modeleVue.albums.size})",
+                                    icon = Icons.Filled.Album
                                 )
                             }
+                            item {
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(modeleVue.albums) { album ->
+                                        AlbumCard(
+                                            album = album,
+                                            onClick = {
+                                                navigateur.push(EcranDetailAlbumVoyager(idAlbum = album.id))
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
-                    }
 
-                    // ---- Calendrier mensuel des concerts confirmés (Sprint 4) ----
-                    item {
-                        SectionHeader(title = "Calendrier", icon = Icons.Filled.CalendarMonth)
-                    }
-                    item {
-                        GrilleCalendrier(
-                            annee = modeleVue.anneeAffichee,
-                            mois = modeleVue.moisAffiche,
-                            aujourdHui = modeleVue.aujourdHui,
-                            datesOccupees = modeleVue.concertsParDate.keys,
-                            dateSelectionnee = modeleVue.dateSelectionnee,
-                            onMoisPrecedent = { modeleVue.afficherMoisPrecedent() },
-                            onMoisSuivant = { modeleVue.afficherMoisSuivant() },
-                            onJourClique = { date ->
-                                modeleVue.selectionnerDate(date)
-
-                                // Un seul événement ce jour-là : on ouvre sa fiche
-                                // directement, l'utilisateur n'a rien à choisir.
-                                // S'il y en a plusieurs, le détail sous la grille
-                                // lui laisse le choix.
-                                val evenements = modeleVue.concertsDuJour(date)
-                                    .mapNotNull { it.event }
-                                    .distinctBy { it.id }
-                                if (evenements.size == 1) {
-                                    navigateur.push(
-                                        EcranDetailEvenementVoyager(idEvenement = evenements.first().id)
+                        // ---- Chansons ----
+                        if (modeleVue.chansons.isNotEmpty()) {
+                            item {
+                                SectionHeader(title = "Les plus écoutées", icon = Icons.Filled.MusicNote)
+                            }
+                            items(
+                                count = modeleVue.chansons.size,
+                                key = { modeleVue.chansons[it].id }
+                            ) { index ->
+                                val chanson = modeleVue.chansons[index]
+                                SongRow(
+                                    song = chanson,
+                                    index = index,
+                                    onClick = {
+                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                    }
+                                )
+                                if (index < modeleVue.chansons.size - 1) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                        color = KaloyDarkElevated
                                     )
                                 }
                             }
-                        )
+                        }
+
+                        // Sans ce message l'onglet s'ouvrirait vide et aurait
+                        // l'air casse.
+                        if (modeleVue.albums.isEmpty() && modeleVue.chansons.isEmpty()) {
+                            item { MessageAucuneChanson() }
+                        }
                     }
 
-                    // ---- Détail du jour sélectionné ----
-                    modeleVue.dateSelectionnee?.let { dateChoisie ->
-                        val concertsDuJour = modeleVue.concertsDuJour(dateChoisie)
-                        if (concertsDuJour.isEmpty()) {
-                            item { MessageAucunEvenement() }
-                        } else {
-                            items(
-                                items = concertsDuJour,
-                                // Prefixe obligatoire : les identifiants de concert
-                                // et de chanson se croisent dans la meme LazyColumn,
-                                // et deux clés identiques la feraient planter.
-                                key = { "concert_${it.id}" }
-                            ) { concert ->
-                                LigneConcert(
-                                    concert = concert,
-                                    estAVenir = dateChoisie >= modeleVue.aujourdHui,
-                                    onClick = {
-                                        concert.event?.let {
-                                            navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
+                    if (modeleVue.ongletActif == OngletArtiste.CALENDRIER) {
+                        // ---- Calendrier mensuel des concerts confirmés (Sprint 4) ----
+                        item {
+                            SectionHeader(title = "Calendrier", icon = Icons.Filled.CalendarMonth)
+                        }
+                        item {
+                            GrilleCalendrier(
+                                annee = modeleVue.anneeAffichee,
+                                mois = modeleVue.moisAffiche,
+                                aujourdHui = modeleVue.aujourdHui,
+                                datesOccupees = modeleVue.concertsParDate.keys,
+                                dateSelectionnee = modeleVue.dateSelectionnee,
+                                onMoisPrecedent = { modeleVue.afficherMoisPrecedent() },
+                                onMoisSuivant = { modeleVue.afficherMoisSuivant() },
+                                // Pas de raccourci vers la fiche : un appui sur un
+                                // jour ouvre le detail sous la grille, et c'est de la
+                                // qu'on ouvre l'evenement. Le meme jour donnait sinon
+                                // deux affichages differents selon qu'on y arrivait
+                                // par un appui ou par un retour depuis la fiche.
+                                onJourClique = { date -> modeleVue.selectionnerDate(date) }
+                            )
+                        }
+
+                        // ---- Détail du jour sélectionné ----
+                        modeleVue.dateSelectionnee?.let { dateChoisie ->
+                            val concertsDuJour = modeleVue.concertsDuJour(dateChoisie)
+                            if (concertsDuJour.isEmpty()) {
+                                item { MessageAucunEvenement() }
+                            } else {
+                                items(
+                                    items = concertsDuJour,
+                                    // Prefixe obligatoire : les identifiants de concert
+                                    // et de chanson se croisent dans la meme LazyColumn,
+                                    // et deux clés identiques la feraient planter.
+                                    key = { "concert_${it.id}" }
+                                ) { concert ->
+                                    LigneConcert(
+                                        concert = concert,
+                                        estAVenir = dateChoisie >= modeleVue.aujourdHui,
+                                        onClick = {
+                                            concert.event?.let {
+                                                navigateur.push(EcranDetailEvenementVoyager(idEvenement = it.id))
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -685,6 +748,19 @@ private fun BoutonAbonnement(
             }
         }
     }
+}
+
+@Composable
+private fun MessageAucuneChanson() {
+    Text(
+        text = "Aucune chanson pour le moment",
+        style = MaterialTheme.typography.bodyMedium,
+        color = KaloyTextSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 20.dp)
+    )
 }
 
 @Composable
@@ -799,4 +875,105 @@ private fun jourEtMois(iso: String?): Pair<String, String> {
     )
     val indexMois = morceaux[1].toIntOrNull()?.minus(1) ?: return morceaux[2] to "---"
     return morceaux[2] to (mois.getOrNull(indexMois) ?: "---")
+}
+
+// ============================================================
+// Squelette affiche pendant le chargement
+// ============================================================
+
+/**
+ * Silhouette de la fiche, le temps que les appels reseau reviennent.
+ *
+ * L'ecran affichait auparavant une page vide avec un indicateur au centre.
+ * Sur le theme clair, « vide » voulait dire blanc casse : on passait d'une
+ * page blanche a la fiche, sans transition.
+ *
+ * Le degrade et le bouton retour sont les memes que ceux de la vraie fiche, et
+ * ils ne dependent d'aucune donnee : on peut donc les dessiner tout de suite.
+ * Le reste est remplace par des blocs gris aux dimensions de ce qui va
+ * arriver, ce qui evite aussi que la page saute au moment du remplissage.
+ */
+@Composable
+private fun SqueletteFicheArtiste(onRetour: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(360.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            KaloyPurple,
+                            KaloyPink.copy(alpha = 0.6f),
+                            MaterialTheme.colorScheme.background
+                        )
+                    )
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .safeContentPadding(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Le retour reste utilisable : rester coince sur un ecran de
+                // chargement parce que le reseau tarde serait pire que l'attente.
+                IconButton(
+                    onClick = onRetour,
+                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Retour",
+                        tint = Color.White
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+                    BlocFantome(largeur = 100.dp, hauteur = 100.dp, arrondi = 50.dp)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        BlocFantome(largeur = 180.dp, hauteur = 28.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        BlocFantome(largeur = 110.dp, hauteur = 16.dp)
+                    }
+                }
+
+                BlocFantome(largeur = 150.dp, hauteur = 40.dp, arrondi = 20.dp)
+            }
+        }
+
+        Column(modifier = Modifier.padding(16.dp)) {
+            BlocFantome(largeur = 120.dp, hauteur = 20.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+            BlocFantome(largeur = 320.dp, hauteur = 14.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+            BlocFantome(largeur = 280.dp, hauteur = 14.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+            BlocFantome(largeur = 200.dp, hauteur = 14.dp)
+        }
+    }
+}
+
+/** Rectangle gris qui tient la place d'un contenu pas encore arrive. */
+@Composable
+private fun BlocFantome(
+    largeur: Dp,
+    hauteur: Dp,
+    arrondi: Dp = 6.dp
+) {
+    Box(
+        modifier = Modifier
+            .width(largeur)
+            .height(hauteur)
+            .clip(RoundedCornerShape(arrondi))
+            // Sur le blanc comme sur le sombre, un gris a 20 % se voit sans
+            // attirer l'oeil : ce n'est pas du contenu, c'est une attente.
+            .background(KaloyTextMuted.copy(alpha = 0.2f))
+    )
 }

@@ -27,6 +27,9 @@ import com.kaloy.app.presentation.calendrier.EcranMonCalendrierVoyager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
+import com.kaloy.app.presentation.moi.components.CarteStatistiques
+import com.kaloy.app.presentation.moi.components.DangerZone
+import com.kaloy.app.presentation.statistiques.EcranStatistiquesVoyager
 
 // ── Etats de dialog ───────────────────────────────────────────────────────────
 
@@ -76,12 +79,20 @@ class MoiScreen : Screen {
         var invitationsEnAttente by remember { mutableStateOf(0) }
         var evenementsOrganises by remember { mutableStateOf(0) }
         var concertsConfirmes by remember { mutableStateOf(0) }
+        // null tant que l appel n a pas abouti : la carte reste muette
+        // plutot que d afficher un zero qui serait pris pour un resultat.
+        var ecoutes30Jours by remember { mutableStateOf<Long?>(null) }
         val etatProfil = uiState
         LaunchedEffect(etatProfil) {
             if (etatProfil is MoiUiState.ArtistSuccess) {
                 val api = KaloyApi()
+                // Les notifications NON LUES, et non les invitations sans
+                // reponse : la pastille doit retomber quand l'artiste a pris
+                // connaissance, sinon elle resterait allumee pour une invitation
+                // deja traitee. Le compte est fait par le serveur, qui renvoie
+                // un nombre et non la liste.
                 invitationsEnAttente = try {
-                    api.getMesInvitations().data?.size ?: 0
+                    api.getNotificationsNonLues().data?.toInt() ?: 0
                 } catch (_: Exception) {
                     // Un echec ici ne doit pas empecher l'affichage du profil :
                     // la pastille disparait, l'ecran reste utilisable.
@@ -96,6 +107,11 @@ class MoiScreen : Screen {
                     api.getMonCalendrier().data?.size ?: 0
                 } catch (_: Exception) {
                     0
+                }
+                ecoutes30Jours = try {
+                    api.getMesStatistiques().data?.ecoutes30Jours
+                } catch (_: Exception) {
+                    null
                 }
             }
         }
@@ -335,7 +351,52 @@ class MoiScreen : Screen {
                                         onDeleteMember = { id ->
                                             profile.members.find { it.id == id }
                                                 ?.let { activeDialog = ActiveDialog.DeleteMember(it) }
-                                        },
+                                        }
+                                    )
+                                }
+                                // Les notifications sont propres au compte artiste : un
+                                // client ne recoit pas d'invitation a jouer.
+                                item {
+                                    CarteNotifications(
+                                        nombreEnAttente = invitationsEnAttente,
+                                        onClick = { navigator.push(EcranNotificationsVoyager()) }
+                                    )
+                                }
+                                // Organiser est l'autre moitie de la vie evenementielle
+                                // d'un artiste : il recoit des invitations, et il en
+                                // emet. Les deux cartes se suivent naturellement.
+                                item {
+                                    CarteMesEvenements(
+                                        nombreEvenements = evenementsOrganises,
+                                        onClick = { navigator.push(EcranMesEvenementsVoyager()) }
+                                    )
+                                }
+                                // Son agenda : ce qu'il a accepte, invitations comprises.
+                                item {
+                                    CarteMonCalendrier(
+                                        nombreConcerts = concertsConfirmes,
+                                        onClick = { navigator.push(EcranMonCalendrierVoyager()) }
+                                    )
+                                }
+                                // Les statistiques viennent apres les cartes
+                                // d'action : on les consulte, on n'y repond pas.
+                                item {
+                                    CarteStatistiques(
+                                        ecoutes30Jours = ecoutes30Jours,
+                                        onClick = { navigator.push(EcranStatistiquesVoyager()) }
+                                    )
+                                }
+                                // Espace avant la zone de danger : coller ces
+                                // deux boutons aux cartes ferait appuyer sur
+                                // « Supprimer le compte » en visant la derniere
+                                // carte.
+                                item { Spacer(modifier = Modifier.height(32.dp)) }
+                                // Se deconnecter et supprimer le compte ferment
+                                // l'ecran. Ils etaient appeles depuis
+                                // ArtistProfileContent, donc avant les cartes, ce qui
+                                // les placait au milieu.
+                                item {
+                                    DangerZone(
                                         onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
                                         onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
                                     )

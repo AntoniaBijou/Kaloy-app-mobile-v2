@@ -45,6 +45,25 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- Reception des notifications push. exported="false" : seul le
+             systeme doit pouvoir demarrer ce service. -->
+        <service
+            android:name="com.kaloy.app.core.push.ServiceMessagesKaloy"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Canal utilise par Android pour les messages recus pendant que
+             l'application est fermee, cas ou notre code ne tourne pas. La
+             valeur doit etre celle de ServiceMessagesKaloy.CANAL ; sans cette
+             declaration, Android range ces notifications dans un canal
+             « Divers » cree d'office. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="kaloy_notifications" />
     </application>
 
 </manifest>

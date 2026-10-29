@@ -14,6 +14,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
@@ -28,7 +33,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -54,7 +63,10 @@ import com.kaloy.app.data.model.Concert
 import com.kaloy.app.data.model.Event
 import com.kaloy.app.data.model.EventMedia
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
-import com.kaloy.app.presentation.common.MediaChoisi
+import com.kaloy.app.core.envoi.EnvoiEnAttente
+import com.kaloy.app.core.envoi.EnvoyeurParMorceaux
+import com.kaloy.app.core.envoi.MemoireEnvois
+import com.kaloy.app.presentation.common.MediaSelectionne
 import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
 import com.kaloy.app.presentation.common.SourceMedia
 import com.kaloy.app.presentation.common.rememberSelecteurMedia
@@ -74,6 +86,12 @@ import org.koin.mp.KoinPlatform
 class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
     private val api = KaloyApi()
     private val gestionSession: AuthSessionManager = KoinPlatform.getKoin().get()
+
+    // Settings vient de Koin, comme pour AuthSessionManager : la memoire des
+    // envois doit survivre a la fermeture de l'application.
+    private val envoyeur = EnvoyeurParMorceaux(
+        api, MemoireEnvois(KoinPlatform.getKoin().get())
+    )
 
     var evenement by mutableStateOf<Event?>(null)
         private set
@@ -111,6 +129,9 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
     val commentaires: List<Comment>
         get() = tousLesCommentaires.filter { it.id !in idsSignales }
 
+    // Memes regles pour les medias : signale par moi, masque a mes yeux.
+    private var idsMediasSignales by mutableStateOf<Set<Long>>(emptySet())
+
     var saisie by mutableStateOf("")
         private set
     var envoiEnCours by mutableStateOf(false)
@@ -123,15 +144,28 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
     // Ids lus dans les tables de reference au chargement.
     private var idCibleEvenement: Long? = null
     private var idCibleCommentaire: Long? = null
+    private var idCibleMedia: Long? = null
     private var idStatutEnAttente: Long? = null
     private var idTypePhoto: Long? = null
+    private var idTypeVideo: Long? = null
 
     // --- Sprint 5 : ajout d'une photo a la galerie ---
     var envoiPhotoEnCours by mutableStateOf(false)
         private set
 
     /** L'ajout n'est possible que connecte, et si le type PHOTO a ete resolu. */
-    val peutAjouterPhoto: Boolean get() = estConnecte && idTypePhoto != null
+    // Photo OU video : un seul des deux types suffit pour ouvrir le menu, et
+    // le bouton du type absent affichera un message plutot que rien.
+    val peutAjouterPhoto: Boolean
+        get() = estConnecte && (idTypePhoto != null || idTypeVideo != null)
+
+    /** Etape courante de l'envoi, pour la barre de progression. */
+    var etapeEnvoi by mutableStateOf<EnvoyeurParMorceaux.Etape?>(null)
+        private set
+
+    /** Envoi interrompu retrouve a l'ouverture de l'ecran, s'il y en a un. */
+    var envoiEnAttente by mutableStateOf<EnvoiEnAttente?>(null)
+        private set
 
     /**
      * Programme de l'evenement : les concerts confirmes, groupes par jour puis
@@ -176,11 +210,21 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
                 if (lieu.location.isNullOrBlank()) lieu.name else "${lieu.name} — ${lieu.location}"
             }
 
-    val photos: List<EventMedia> get() = medias.filter { it.mediaType?.name == TYPE_PHOTO }
-    val videos: List<EventMedia> get() = medias.filter { it.mediaType?.name == TYPE_VIDEO }
+    private val mediasVisibles: List<EventMedia>
+        get() = medias.filter { it.id !in idsMediasSignales }
+
+    val photos: List<EventMedia> get() = mediasVisibles.filter { it.mediaType?.name == TYPE_PHOTO }
+    val videos: List<EventMedia> get() = mediasVisibles.filter { it.mediaType?.name == TYPE_VIDEO }
+
+    /** Vrai quand la galerie n'a plus rien a montrer, signalements deduits. */
+    val galerieVide: Boolean get() = mediasVisibles.isEmpty()
 
     init {
         charger()
+        // Avant le chargement reseau : la reprise ne depend que de ce qui est
+        // retenu localement, et l'utilisateur doit la voir meme si le serveur
+        // est injoignable — c'est justement le cas ou l'envoi a ete coupe.
+        chercherEnvoiInterrompu()
     }
 
     fun charger() {
@@ -260,7 +304,8 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
             idMonLike = monLike?.id
             jAime = monLike != null
 
-            idsSignales = chargerMesSignalements()
+            idsSignales = mesSignalements(idCibleCommentaire)
+            idsMediasSignales = mesSignalements(idCibleMedia)
         }
 
         chargerCommentaires()
@@ -277,15 +322,18 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
             val cibles = api.getCiblesInteraction().data?.content.orEmpty()
             idCibleEvenement = cibles.firstOrNull { it.name == CIBLE_EVENEMENT }?.id
             idCibleCommentaire = cibles.firstOrNull { it.name == CIBLE_COMMENTAIRE }?.id
+            idCibleMedia = cibles.firstOrNull { it.name == CIBLE_MEDIA }?.id
 
             idStatutEnAttente = api.getStatutsSignalement().data?.content.orEmpty()
                 .firstOrNull { it.name == STATUT_EN_ATTENTE }?.id
 
-            idTypePhoto = try {
-                api.getTypesMedia().data?.content.orEmpty()
-                    .firstOrNull { it.name == TYPE_PHOTO }?.id
+            try {
+                val types = api.getTypesMedia().data?.content.orEmpty()
+                idTypePhoto = types.firstOrNull { it.name == TYPE_PHOTO }?.id
+                idTypeVideo = types.firstOrNull { it.name == TYPE_VIDEO }?.id
             } catch (_: Exception) {
-                null
+                idTypePhoto = null
+                idTypeVideo = null
             }
 
             idCibleEvenement != null
@@ -312,13 +360,19 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
         }
     }
 
-    private suspend fun chargerMesSignalements(): Set<Long> {
-        val cibleCommentaire = idCibleCommentaire ?: return emptySet()
+    /**
+     * Ce que j'ai deja signale pour un type de cible donne.
+     *
+     * Sans cette relecture, un media signale reapparaitrait a la prochaine
+     * ouverture de l'ecran : le masquage ne vit que dans l'etat de la page.
+     */
+    private suspend fun mesSignalements(cible: Long?): Set<Long> {
+        if (cible == null) return emptySet()
         return try {
             api.rechercherSignalements(
                 ReportSearch(
                     reporter = UserIdDto(gestionSession.getUserId()),
-                    targetType = ReferenceIdDto(cibleCommentaire)
+                    targetType = ReferenceIdDto(cible)
                 )
             ).data?.content.orEmpty().map { it.targetId }.toSet()
         } catch (_: Exception) {
@@ -419,33 +473,140 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
         }
     }
 
+    /** Signale une photo ou une video de la galerie. */
+    fun signalerMedia(media: EventMedia, motif: String) {
+        val cibleMedia = idCibleMedia
+        val statut = idStatutEnAttente
+        if (!estConnecte || cibleMedia == null || statut == null) {
+            messageAction = "Le signalement n'est pas disponible pour le moment."
+            return
+        }
+        viewModelScope.launch {
+            try {
+                api.signaler(gestionSession.getUserId(), cibleMedia, media.id, motif, statut)
+                idsMediasSignales = idsMediasSignales + media.id
+                messageAction = "Merci, le contenu a été signalé."
+            } catch (_: Exception) {
+                messageAction = "Le signalement n'a pas pu être envoyé."
+            }
+        }
+    }
+
     /**
-     * Ajoute une photo a la galerie (Sprint 5), en deux temps : le fichier est
-     * d'abord televerse, puis le media est cree avec l'URL renvoyee. Si la
-     * seconde etape echoue, le fichier reste sur le serveur sans etre
-     * reference — sans transaction cote backend, on ne peut pas faire mieux.
+     * Ajoute une photo ou une video a la galerie, par envoi en morceaux.
+     *
+     * Le type de media est deduit du typeMime reel et non du bouton presse : un
+     * selecteur mixte peut rendre une video alors qu'on visait une photo, et
+     * c'est le contenu qui doit decider.
+     *
+     * Deux temps, comme avant : le fichier est envoye, puis le media cree avec
+     * l'URL obtenue. Si la seconde etape echoue, le fichier reste sur le serveur
+     * sans etre reference — sans transaction cote backend, on ne peut pas faire
+     * mieux.
      */
-    fun ajouterPhoto(media: MediaChoisi) {
-        val typePhoto = idTypePhoto
-        if (!estConnecte || envoiPhotoEnCours || typePhoto == null) return
+    fun ajouterMedia(media: MediaSelectionne) {
+        if (!estConnecte || envoiPhotoEnCours) return
+
+        val estVideo = media.typeMime.startsWith("video/")
+        val idType = if (estVideo) idTypeVideo else idTypePhoto
+        if (idType == null) {
+            messageAction = if (estVideo) {
+                "Les vidéos ne sont pas acceptées pour le moment."
+            } else {
+                "Les photos ne sont pas acceptées pour le moment."
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            envoiPhotoEnCours = true
+            envoiEnAttente = null
+            try {
+                envoyeur.envoyer(media, idEvenement) { etape ->
+                    traiterEtape(etape, idType, estVideo)
+                }
+            } finally {
+                envoiPhotoEnCours = false
+            }
+        }
+    }
+
+    /**
+     * Cherche un envoi interrompu, a l'ouverture de l'ecran.
+     *
+     * On ne le reprend pas tout seul : un envoi de 400 Mo sur reseau mobile se
+     * decide, il ne se declenche pas a l'insu de l'utilisateur.
+     */
+    fun chercherEnvoiInterrompu() {
+        val attente = envoyeur.envoiRetenu() ?: return
+        if (attente.idEvenement == idEvenement) {
+            envoiEnAttente = attente
+        }
+    }
+
+    /** Reprend l'envoi interrompu. Le serveur dit ou il s'etait arrete. */
+    fun reprendreEnvoi() {
+        val attente = envoiEnAttente ?: return
+        if (envoiPhotoEnCours) return
+
+        val estVideo = attente.typeMime.startsWith("video/")
+        val idType = (if (estVideo) idTypeVideo else idTypePhoto) ?: return
 
         viewModelScope.launch {
             envoiPhotoEnCours = true
             try {
-                val url = api.televerserFichier(media.octets, media.nomFichier, media.typeMime)
-                api.creerMediaEvenement(
-                    idEvenement = idEvenement,
-                    idUtilisateur = gestionSession.getUserId(),
-                    idTypeMedia = typePhoto,
-                    url = url
-                )
-                rechargerMedias()
-                messageAction = "Photo ajoutée à la galerie."
-            } catch (e: Exception) {
-                messageAction = e.message ?: "La photo n'a pas pu être envoyée."
+                envoyeur.reprendre(attente) { etape ->
+                    traiterEtape(etape, idType, estVideo)
+                }
             } finally {
                 envoiPhotoEnCours = false
             }
+        }
+    }
+
+    /** Abandonne l'envoi en attente et supprime la copie locale. */
+    fun abandonnerEnvoi() {
+        envoyeur.abandonner()
+        envoiEnAttente = null
+        etapeEnvoi = null
+    }
+
+    private fun traiterEtape(
+        etape: EnvoyeurParMorceaux.Etape,
+        idType: Long,
+        estVideo: Boolean
+    ) {
+        etapeEnvoi = etape
+        when (etape) {
+            is EnvoyeurParMorceaux.Etape.Termine -> {
+                envoiEnAttente = null
+                viewModelScope.launch { rattacher(etape.url, idType, estVideo) }
+            }
+            // Un echec reprenable laisse la session en memoire, donc l'ecran
+            // peut proposer « Reprendre ». Un echec definitif l'efface.
+            is EnvoyeurParMorceaux.Etape.Echec ->
+                envoiEnAttente = if (etape.reprenable) envoyeur.envoiRetenu() else null
+            else -> Unit
+        }
+    }
+
+    private suspend fun rattacher(url: String, idType: Long, estVideo: Boolean) {
+        try {
+            api.creerMediaEvenement(
+                idEvenement = idEvenement,
+                idUtilisateur = gestionSession.getUserId(),
+                idTypeMedia = idType,
+                url = url
+            )
+            rechargerMedias()
+            messageAction = if (estVideo) {
+                "Vidéo ajoutée à la galerie."
+            } else {
+                "Photo ajoutée à la galerie."
+            }
+            etapeEnvoi = null
+        } catch (e: Exception) {
+            messageAction = e.message ?: "Le média n'a pas pu être rattaché à l'événement."
         }
     }
 
@@ -470,6 +631,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
         private const val TYPE_VIDEO = "VIDEO"
         private const val CIBLE_EVENEMENT = "EVENT"
         private const val CIBLE_COMMENTAIRE = "COMMENT"
+        private const val CIBLE_MEDIA = "MEDIA"
         private const val STATUT_EN_ATTENTE = "PENDING"
         const val LONGUEUR_MAX_COMMENTAIRE = 1000
     }
@@ -501,7 +663,20 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
 
         // Dialogues : commentaire en cours de signalement / de suppression.
         var commentaireASignaler by remember { mutableStateOf<Comment?>(null) }
+        var mediaASignaler by remember { mutableStateOf<EventMedia?>(null) }
         var commentaireASupprimer by remember { mutableStateOf<Comment?>(null) }
+
+        // Sections repliees a l'ouverture : la fiche tient alors sur un
+        // ecran, et on descend vers ce qu'on cherche au lieu de faire
+        // defiler toute la galerie pour atteindre les commentaires.
+        var galerieOuverte by remember { mutableStateOf(false) }
+        var commentairesOuverts by remember { mutableStateOf(false) }
+        // Un jour du programme a la fois : l'identifiant du jour ouvert,
+        // null si tous sont replies. Volontairement pas un Set — ouvrir un
+        // jour referme le precedent, ce qui garde la liste lisible.
+        var jourOuvert by remember { mutableStateOf<String?>(null) }
+        // Video ouverte en grand, null quand aucune ne l'est.
+        var videoPleinEcran by remember { mutableStateOf<EventMedia?>(null) }
 
         when {
             modeleVue.enChargement -> LoadingIndicator()
@@ -614,72 +789,63 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                         }
                     }
 
-                    // ---- Lieux ----
-                    if (modeleVue.lieux.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "Lieux (${modeleVue.lieux.size})",
-                                icon = Icons.Filled.Place
-                            )
-                        }
-                        items(modeleVue.lieux) { lieu ->
-                            Text(
-                                text = "• $lieu",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = KaloyTextSecondary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                            )
-                        }
-                        item { Spacer(modifier = Modifier.height(8.dp)) }
-                    }
-
-                    // ---- Artistes confirmes ----
-                    if (modeleVue.artistesConfirmes.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "Artistes confirmés (${modeleVue.artistesConfirmes.size})",
-                                icon = Icons.Filled.Mic
-                            )
-                        }
-                        items(modeleVue.artistesConfirmes, key = { it.id }) { concert ->
-                            LigneArtisteParticipant(
-                                concert = concert,
-                                onClick = {
-                                    concert.artist?.let {
-                                        navigateur.push(EcranDetailArtisteVoyager(idArtiste = it.id))
-                                    }
-                                }
-                            )
-                        }
-                        item { Spacer(modifier = Modifier.height(8.dp)) }
-                    }
-
                     // ---- Programme, par jour puis par scene (Sprint 5) ----
+                    //
+                    // Il a absorbe les sections « Lieux » et « Artistes confirmes »,
+                    // qui disaient a plat ce qu'on lit ici organise : la scene porte
+                    // le lieu, la ligne porte l'artiste et son horaire.
                     if (modeleVue.programme.isNotEmpty()) {
                         item {
                             SectionHeader(title = "Programme", icon = Icons.Filled.Event)
                         }
                         modeleVue.programme.forEach { journee ->
+                            val ouvert = jourOuvert == journee.jour
                             item(key = "jour_${journee.jour}") {
-                                Text(
-                                    text = dateLisible(journee.jour) ?: journee.jour,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = KaloyPurple,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                EnteteRepliable(
+                                    titre = dateLisible(journee.jour) ?: journee.jour,
+                                    ouvert = ouvert,
+                                    couleur = KaloyPurple,
+                                    retrait = 32.dp,
+                                    onBasculer = {
+                                        jourOuvert = if (ouvert) null else journee.jour
+                                    }
                                 )
                             }
-                            journee.scenes.forEach { scene ->
-                                item(key = "scene_${journee.jour}_${scene.scene}") {
-                                    Text(
-                                        text = scene.scene,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = KaloyTextMuted,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                                    )
-                                }
-                                items(scene.concerts, key = { "c_${it.id}" }) { concert ->
-                                    LigneProgramme(concert = concert)
+                            if (ouvert) {
+                                journee.scenes.forEach { scene ->
+                                    item(key = "scene_${journee.jour}_${scene.scene}") {
+                                        Row(
+                                            modifier = Modifier.padding(
+                                                start = 32.dp, end = 16.dp, top = 8.dp, bottom = 2.dp
+                                            ),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Place,
+                                                contentDescription = null,
+                                                tint = KaloyTextMuted,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = scene.scene,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = KaloyTextMuted
+                                            )
+                                        }
+                                    }
+                                    items(scene.concerts, key = { "c_${it.id}" }) { concert ->
+                                        LigneProgramme(
+                                            concert = concert,
+                                            onClick = {
+                                                concert.artist?.let {
+                                                    navigateur.push(
+                                                        EcranDetailArtisteVoyager(idArtiste = it.id)
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -688,100 +854,130 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
 
                     // ---- Galerie post-evenement ----
                     item {
-                        SectionHeader(title = "Galerie", icon = Icons.Filled.PhotoCamera)
-                        BoutonAjoutPhoto(
-                            visible = modeleVue.peutAjouterPhoto,
-                            enCours = modeleVue.envoiPhotoEnCours,
-                            onMediaChoisi = { media -> modeleVue.ajouterPhoto(media) }
+                        EnteteRepliable(
+                            titre = "Galerie (${modeleVue.photos.size + modeleVue.videos.size})",
+                            ouvert = galerieOuverte,
+                            icone = Icons.Filled.PhotoCamera,
+                            onBasculer = { galerieOuverte = !galerieOuverte }
                         )
                     }
 
-                    if (modeleVue.medias.isEmpty()) {
+                    if (galerieOuverte) {
                         item {
-                            EmptyState(message = "Aucune photo ni vidéo pour cet événement")
+                            BoutonAjoutMedia(
+                                visible = modeleVue.peutAjouterPhoto,
+                                enCours = modeleVue.envoiPhotoEnCours,
+                                etape = modeleVue.etapeEnvoi,
+                                envoiEnAttente = modeleVue.envoiEnAttente != null,
+                                onMediaSelectionne = { media -> modeleVue.ajouterMedia(media) },
+                                onReprendre = { modeleVue.reprendreEnvoi() },
+                                onAbandonner = { modeleVue.abandonnerEnvoi() }
+                            )
                         }
-                    } else {
-                        if (modeleVue.photos.isNotEmpty()) {
+
+                        if (modeleVue.galerieVide) {
                             item {
-                                Text(
-                                    text = "Photos (${modeleVue.photos.size})",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = KaloyTextPrimary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
-                                LazyRow(
-                                    contentPadding = PaddingValues(horizontal = 16.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    items(modeleVue.photos, key = { it.id }) { photo ->
-                                        VignettePhoto(media = photo)
+                                EmptyState(message = "Aucune photo ni vidéo pour cet événement")
+                            }
+                        } else {
+                            if (modeleVue.photos.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        text = "Photos (${modeleVue.photos.size})",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = KaloyTextPrimary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(modeleVue.photos, key = { it.id }) { photo ->
+                                            VignettePhoto(
+                                                media = photo,
+                                                peutSignaler = modeleVue.estConnecte,
+                                                onSignaler = { mediaASignaler = photo }
+                                            )
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(12.dp))
                                 }
-                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+
+                            if (modeleVue.videos.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        text = "Vidéos (${modeleVue.videos.size})",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = KaloyTextPrimary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(modeleVue.videos, key = { it.id }) { video ->
+                                            VignetteVideo(
+                                                media = video,
+                                                peutSignaler = modeleVue.estConnecte,
+                                                onSignaler = { mediaASignaler = video },
+                                                onPleinEcran = { videoPleinEcran = video }
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
                             }
                         }
 
-                        if (modeleVue.videos.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "Vidéos (${modeleVue.videos.size})",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = KaloyTextPrimary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
-                            }
-                            items(modeleVue.videos, key = { it.id }) { video ->
-                                SmartVideoPlayerComposable(
-                                    url = urlMedia(video.url) ?: "",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(220.dp)
-                                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
                     }
 
                     // ---- Commentaires (Sprint 3) ----
                     item {
-                        SectionHeader(
-                            title = "Commentaires (${modeleVue.commentaires.size})",
-                            icon = Icons.Filled.Chat
+                        EnteteRepliable(
+                            titre = "Commentaires (${modeleVue.commentaires.size})",
+                            ouvert = commentairesOuverts,
+                            icone = Icons.Filled.Chat,
+                            onBasculer = { commentairesOuverts = !commentairesOuverts }
                         )
                     }
 
-                    item {
-                        ZoneSaisieCommentaire(
-                            estConnecte = modeleVue.estConnecte,
-                            disponible = modeleVue.interactionsDisponibles,
-                            saisie = modeleVue.saisie,
-                            envoiEnCours = modeleVue.envoiEnCours,
-                            onSaisie = { modeleVue.surSaisie(it) },
-                            onPublier = { modeleVue.publierCommentaire() }
-                        )
-                    }
+                    if (commentairesOuverts) {
 
-                    if (modeleVue.commentaires.isEmpty()) {
                         item {
-                            Text(
-                                text = "Aucun commentaire pour l'instant.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = KaloyTextSecondary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                            ZoneSaisieCommentaire(
+                                estConnecte = modeleVue.estConnecte,
+                                disponible = modeleVue.interactionsDisponibles,
+                                saisie = modeleVue.saisie,
+                                envoiEnCours = modeleVue.envoiEnCours,
+                                onSaisie = { modeleVue.surSaisie(it) },
+                                onPublier = { modeleVue.publierCommentaire() }
                             )
                         }
-                    } else {
-                        items(modeleVue.commentaires, key = { it.id }) { commentaire ->
-                            LigneCommentaire(
-                                commentaire = commentaire,
-                                estDeMoi = modeleVue.estDeMoi(commentaire),
-                                peutSignaler = modeleVue.estConnecte,
-                                onSupprimer = { commentaireASupprimer = commentaire },
-                                onSignaler = { commentaireASignaler = commentaire }
-                            )
+
+                        if (modeleVue.commentaires.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "Aucun commentaire pour l'instant.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = KaloyTextSecondary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+                        } else {
+                            items(modeleVue.commentaires, key = { it.id }) { commentaire ->
+                                LigneCommentaire(
+                                    commentaire = commentaire,
+                                    estDeMoi = modeleVue.estDeMoi(commentaire),
+                                    peutSignaler = modeleVue.estConnecte,
+                                    onSupprimer = { commentaireASupprimer = commentaire },
+                                    onSignaler = { commentaireASignaler = commentaire }
+                                )
+                            }
                         }
+
                     }
 
                     item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -790,6 +986,35 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
         }
 
         // ---- Dialogues ----
+
+        videoPleinEcran?.let { video ->
+            Dialog(
+                onDismissRequest = { videoPleinEcran = null },
+                // Sans usePlatformDefaultWidth a false, la fenetre garde la
+                // largeur reduite d'une boite de dialogue, ce qui n'a rien de
+                // plein ecran.
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Black)
+                ) {
+                    SmartVideoPlayerComposable(
+                        url = urlMedia(video.url) ?: "",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    IconButton(
+                        onClick = { videoPleinEcran = null },
+                        modifier = Modifier.align(Alignment.TopStart).safeContentPadding()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Fermer",
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+        }
 
         commentaireASupprimer?.let { commentaire ->
             AlertDialog(
@@ -810,10 +1035,25 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
 
         commentaireASignaler?.let { commentaire ->
             DialogueSignalement(
+                titre = "Signaler ce commentaire",
+                motifs = MOTIFS_COMMENTAIRE,
                 onAnnuler = { commentaireASignaler = null },
                 onEnvoyer = { motif ->
                     modeleVue.signalerCommentaire(commentaire, motif)
                     commentaireASignaler = null
+                }
+            )
+        }
+
+        mediaASignaler?.let { media ->
+            val estVideo = media.mediaType?.name == "VIDEO"
+            DialogueSignalement(
+                titre = if (estVideo) "Signaler cette vidéo" else "Signaler cette photo",
+                motifs = MOTIFS_MEDIA,
+                onAnnuler = { mediaASignaler = null },
+                onEnvoyer = { motif ->
+                    modeleVue.signalerMedia(media, motif)
+                    mediaASignaler = null
                 }
             )
         }
@@ -981,12 +1221,26 @@ private fun LigneCommentaire(
     }
 }
 
+/** Motifs proposes selon ce qu'on signale. « Autre » exige une precision. */
+private val MOTIFS_COMMENTAIRE =
+    listOf("Spam", "Propos offensants", "Harcèlement", "Hors sujet", "Autre")
+
+private val MOTIFS_MEDIA = listOf(
+    "Contenu choquant",
+    "Nudité",
+    "Violence",
+    "Droits d'auteur",
+    "Hors sujet",
+    "Autre"
+)
+
 @Composable
 private fun DialogueSignalement(
+    titre: String,
+    motifs: List<String>,
     onAnnuler: () -> Unit,
     onEnvoyer: (String) -> Unit
 ) {
-    val motifs = listOf("Spam", "Propos offensants", "Harcèlement", "Hors sujet", "Autre")
     var motifChoisi by remember { mutableStateOf<String?>(null) }
     var precision by remember { mutableStateOf("") }
 
@@ -997,7 +1251,7 @@ private fun DialogueSignalement(
 
     AlertDialog(
         onDismissRequest = onAnnuler,
-        title = { Text("Signaler ce commentaire") },
+        title = { Text(titre) },
         text = {
             Column {
                 motifs.forEach { motif ->
@@ -1113,13 +1367,91 @@ private fun LigneArtisteParticipant(
     }
 }
 
+/**
+ * Tuile video, au format exact de la tuile photo.
+ *
+ * Le lecteur occupait auparavant toute la largeur sur 220 dp, empile
+ * verticalement : deux presentations sans rapport dans une meme galerie.
+ *
+ * Le drapeau de signalement revient sur la tuile, comme pour une photo. Il
+ * etait sous le lecteur pour ne pas masquer ses commandes ; a cette taille
+ * il n'y a plus de commandes a masquer, et garder un bouton texte sous
+ * chaque tuile casserait l'alignement de la rangee.
+ */
 @Composable
-private fun VignettePhoto(media: EventMedia) {
+private fun VignetteVideo(
+    media: EventMedia,
+    peutSignaler: Boolean,
+    onSignaler: () -> Unit,
+    onPleinEcran: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(TAILLE_TUILE)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black)
+    ) {
+        SmartVideoPlayerComposable(
+            url = urlMedia(media.url) ?: "",
+            modifier = Modifier.fillMaxSize()
+        )
+
+        if (peutSignaler) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(onClick = onSignaler),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Flag,
+                    contentDescription = "Signaler cette vidéo",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        // Toujours visible, et non revelee par un premier appui : une icone
+        // qu'il faut decouvrir n'est jamais decouverte.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(4.dp)
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.45f))
+                .clickable(onClick = onPleinEcran),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Fullscreen,
+                contentDescription = "Voir en plein écran",
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+/** Cote d'une tuile de galerie. Photos et videos partagent la meme. */
+private val TAILLE_TUILE = 140.dp
+
+@Composable
+private fun VignettePhoto(
+    media: EventMedia,
+    peutSignaler: Boolean,
+    onSignaler: () -> Unit
+) {
     // Le degrade reste visible tant que l'image n'est pas chargee, et en cas
     // d'echec (photos de demonstration heberges hors ligne, par exemple).
     Box(
         modifier = Modifier
-            .size(140.dp)
+            .size(TAILLE_TUILE)
             .clip(RoundedCornerShape(12.dp))
             .background(
                 Brush.linearGradient(listOf(KaloyPurpleDark, KaloyCyan))
@@ -1136,32 +1468,67 @@ private fun VignettePhoto(media: EventMedia) {
             model = urlMedia(media.url),
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            // Cale a gauche et non au centre : sur une photo large, le centrage
+            // rogne les deux bords, alors que le sujet d'une photo de concert
+            // prise de cote s'y trouve souvent.
+            alignment = Alignment.CenterStart,
             modifier = Modifier.fillMaxSize()
         )
+
+        if (peutSignaler) {
+            // Pastille sombre sous l'icone : un drapeau blanc pose sur une
+            // photo claire serait invisible.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(onClick = onSignaler),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Flag,
+                    contentDescription = "Signaler cette photo",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
     }
 }
 
 /**
- * Ajout d'une photo : prise de vue ou choix dans la galerie. Le selecteur est
- * multiplateforme (implementations Android et iOS distinctes).
+ * Ajout d'une photo ou d'une video a la galerie.
+ *
+ * Quatre entrees a plat plutot que deux suivies d'un second choix : un appui de
+ * moins. Et l'etape en cours est affichee en clair, parce qu'un envoi de 400 Mo
+ * dure plusieurs minutes — sans progression, l'utilisateur conclut a un blocage
+ * et ferme l'application.
  */
 @Composable
-private fun BoutonAjoutPhoto(
+private fun BoutonAjoutMedia(
     visible: Boolean,
     enCours: Boolean,
-    onMediaChoisi: (MediaChoisi) -> Unit
+    etape: EnvoyeurParMorceaux.Etape?,
+    envoiEnAttente: Boolean,
+    onMediaSelectionne: (MediaSelectionne) -> Unit,
+    onReprendre: () -> Unit,
+    onAbandonner: () -> Unit
 ) {
     if (!visible) return
 
     var choixOuvert by remember { mutableStateOf(false) }
     val ouvrirSelecteur = rememberSelecteurMedia { media ->
-        if (media != null) onMediaChoisi(media)
+        if (media != null) onMediaSelectionne(media)
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Button(
             onClick = { choixOuvert = true },
@@ -1169,16 +1536,35 @@ private fun BoutonAjoutPhoto(
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
         ) {
-            if (enCours) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Envoi…", color = Color.White)
-            } else {
-                Text("＋ Ajouter une photo", color = Color.White)
+            Text(
+                text = if (enCours) "Envoi en cours…" else "＋ Ajouter une photo ou une vidéo",
+                color = Color.White
+            )
+        }
+
+        EtapeEnvoi(etape)
+
+        // Proposee seulement hors envoi : pendant, le bouton n'aurait aucun sens.
+        if (envoiEnAttente && !enCours) {
+            Text(
+                text = "Un envoi a été interrompu.",
+                color = KaloyTextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onReprendre,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = KaloyCyan)
+                ) {
+                    Text("Reprendre", color = Color.White)
+                }
+                OutlinedButton(
+                    onClick = onAbandonner,
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Text("Abandonner", color = KaloyTextSecondary)
+                }
             }
         }
     }
@@ -1186,31 +1572,94 @@ private fun BoutonAjoutPhoto(
     if (choixOuvert) {
         AlertDialog(
             onDismissRequest = { choixOuvert = false },
-            title = { Text("Ajouter une photo") },
-            text = { Text("Prendre une photo maintenant, ou en choisir une existante ?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    choixOuvert = false
-                    ouvrirSelecteur(SourceMedia.CAMERA)
-                }) { Text("Appareil photo") }
+            title = { Text("Ajouter à la galerie") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(
+                        SourceMedia.PHOTO_CAMERA to "Prendre une photo",
+                        SourceMedia.VIDEO_CAMERA to "Filmer une vidéo",
+                        SourceMedia.PHOTO_GALERIE to "Choisir une photo",
+                        SourceMedia.VIDEO_GALERIE to "Choisir une vidéo"
+                    ).forEach { (source, libelle) ->
+                        TextButton(onClick = {
+                            choixOuvert = false
+                            ouvrirSelecteur(source)
+                        }) {
+                            Text(libelle, color = KaloyPurple)
+                        }
+                    }
+                }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    choixOuvert = false
-                    ouvrirSelecteur(SourceMedia.GALERIE)
-                }) { Text("Galerie") }
+            confirmButton = {
+                TextButton(onClick = { choixOuvert = false }) { Text("Annuler") }
             }
         )
     }
 }
 
+/**
+ * Etat de l'envoi, en clair.
+ *
+ * La preparation est distinguee de l'envoi : copier 400 Mo prend plusieurs
+ * secondes pendant lesquelles rien ne part sur le reseau, et une barre figee a
+ * 0 % ferait croire a une panne.
+ */
+@Composable
+private fun EtapeEnvoi(etape: EnvoyeurParMorceaux.Etape?) {
+    when (etape) {
+        null -> Unit
+
+        is EnvoyeurParMorceaux.Etape.Preparation -> LigneEtape("Préparation du fichier…")
+
+        is EnvoyeurParMorceaux.Etape.Envoi -> {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Envoi ${etape.pourcentage} %",
+                    color = KaloyTextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                LinearProgressIndicator(
+                    progress = { etape.pourcentage / 100f },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = KaloyPurple,
+                    trackColor = KaloyDarkElevated
+                )
+            }
+        }
+
+        is EnvoyeurParMorceaux.Etape.Assemblage -> LigneEtape("Finalisation…")
+
+        is EnvoyeurParMorceaux.Etape.Termine -> LigneEtape("Envoi terminé.")
+
+        is EnvoyeurParMorceaux.Etape.Echec -> Text(
+            text = etape.message,
+            color = KaloyPink,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+@Composable
+private fun LigneEtape(texte: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(14.dp),
+            strokeWidth = 2.dp,
+            color = KaloyPurple
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = texte, color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
 /** Une ligne du programme : horaire et artiste. */
 @Composable
-private fun LigneProgramme(concert: Concert) {
+private fun LigneProgramme(concert: Concert, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 32.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+            .clickable(onClick = onClick)
+            .padding(start = 32.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -1287,4 +1736,56 @@ private fun heureLisible(iso: String?): String {
     if (iso.isNullOrBlank()) return "--:--"
     val heure = iso.substringAfter('T', "").take(5)
     return if (heure.length == 5) heure else "--:--"
+}
+
+// ============================================================
+// En-tete d'une section qu'on peut replier
+// ============================================================
+
+/**
+ * Le chevron n'est pas decoratif : sans lui, rien ne distingue un titre d'un
+ * titre sur lequel on peut appuyer, et la section repliee passe pour une
+ * section vide.
+ */
+@Composable
+private fun EnteteRepliable(
+    titre: String,
+    ouvert: Boolean,
+    onBasculer: () -> Unit,
+    icone: ImageVector? = null,
+    couleur: Color = KaloyTextPrimary,
+    // Les jours vivent a l'interieur du Programme : les aligner sur les
+    // titres de section les faisait passer pour des sections eux-memes.
+    retrait: Dp = 16.dp
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onBasculer)
+            .padding(start = retrait, end = 16.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        icone?.let {
+            Icon(
+                imageVector = it,
+                contentDescription = null,
+                tint = KaloyPurple,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Text(
+            text = titre,
+            style = MaterialTheme.typography.titleSmall,
+            color = couleur,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = if (ouvert) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+            contentDescription = if (ouvert) "Replier" else "Dérouler",
+            tint = KaloyTextMuted,
+            modifier = Modifier.size(22.dp)
+        )
+    }
 }
