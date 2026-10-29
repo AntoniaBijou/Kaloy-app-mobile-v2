@@ -2,6 +2,7 @@ package com.kaloy.app.presentation.common
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitView
@@ -49,19 +50,19 @@ private fun LecteurFichierDirect(url: String, modifier: Modifier) {
         }
     }
 
-    UIKitView(
-        factory = {
-            val vue = WKWebView(frame = CGRectZero.readValue(), configuration = configuration)
-            NSURL.URLWithString(url)?.let { adresse ->
-                vue.loadRequest(NSURLRequest.requestWithURL(adresse))
-            }
-            vue
-        },
-        modifier = modifier.fillMaxSize(),
-        update = { vue ->
-            NSURL.URLWithString(url)?.let { adresse ->
-                vue.loadRequest(NSURLRequest.requestWithURL(adresse))
-            }
-        }
-    )
+    // key et non un bloc update : update rechargeait la page a CHAQUE
+    // recomposition. Avec plusieurs lecteurs cote a cote, lancer une video
+    // suffisait a recharger les autres, qui repartaient toutes seules.
+    key(url) {
+        UIKitView(
+            factory = {
+                val vue = WKWebView(frame = CGRectZero.readValue(), configuration = configuration)
+                NSURL.URLWithString(url)?.let { adresse ->
+                    vue.loadRequest(NSURLRequest.requestWithURL(adresse))
+                }
+                vue
+            },
+            modifier = modifier.fillMaxSize()
+        )
+    }
 }

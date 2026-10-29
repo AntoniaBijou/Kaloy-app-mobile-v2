@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
@@ -920,10 +921,9 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                     ) {
                                         items(modeleVue.videos, key = { it.id }) { video ->
                                             VignetteVideo(
-                                                media = video,
                                                 peutSignaler = modeleVue.estConnecte,
                                                 onSignaler = { mediaASignaler = video },
-                                                onPleinEcran = { videoPleinEcran = video }
+                                                onLire = { videoPleinEcran = video }
                                             )
                                         }
                                     }
@@ -1368,32 +1368,38 @@ private fun LigneArtisteParticipant(
 }
 
 /**
- * Tuile video, au format exact de la tuile photo.
+ * Tuile video : une affiche, pas un lecteur.
  *
- * Le lecteur occupait auparavant toute la largeur sur 220 dp, empile
- * verticalement : deux presentations sans rapport dans une meme galerie.
+ * Elle a d'abord embarque un lecteur, au format de la tuile photo. Trois
+ * videos dans la rangee voulaient donc dire trois lecteurs vivants en meme
+ * temps — et sur iOS, lancer l'un relancait les autres.
  *
- * Le drapeau de signalement revient sur la tuile, comme pour une photo. Il
- * etait sous le lecteur pour ne pas masquer ses commandes ; a cette taille
- * il n'y a plus de commandes a masquer, et garder un bouton texte sous
- * chaque tuile casserait l'alignement de la rangee.
+ * Un carre noir avec une fleche de lecture coute zero ressource, ne peut pas
+ * demarrer tout seul, et dit clairement ce qu'il attend. La lecture se fait
+ * en plein ecran, ou un seul lecteur existe a la fois.
+ *
+ * Il manque une vraie miniature : le serveur n'en produit pas. C'est ce qui
+ * distinguerait les trois tuiles les unes des autres.
  */
 @Composable
 private fun VignetteVideo(
-    media: EventMedia,
     peutSignaler: Boolean,
     onSignaler: () -> Unit,
-    onPleinEcran: () -> Unit
+    onLire: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .size(TAILLE_TUILE)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.Black)
+            .clickable(onClick = onLire),
+        contentAlignment = Alignment.Center
     ) {
-        SmartVideoPlayerComposable(
-            url = urlMedia(media.url) ?: "",
-            modifier = Modifier.fillMaxSize()
+        Icon(
+            imageVector = Icons.Filled.PlayArrow,
+            contentDescription = "Lire la vidéo",
+            tint = Color.White,
+            modifier = Modifier.size(44.dp)
         )
 
         if (peutSignaler) {
@@ -1414,26 +1420,6 @@ private fun VignetteVideo(
                     modifier = Modifier.size(16.dp)
                 )
             }
-        }
-
-        // Toujours visible, et non revelee par un premier appui : une icone
-        // qu'il faut decouvrir n'est jamais decouverte.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(4.dp)
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.45f))
-                .clickable(onClick = onPleinEcran),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Fullscreen,
-                contentDescription = "Voir en plein écran",
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
-            )
         }
     }
 }
