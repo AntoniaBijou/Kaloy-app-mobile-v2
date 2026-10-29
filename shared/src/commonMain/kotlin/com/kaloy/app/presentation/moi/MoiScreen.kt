@@ -401,6 +401,24 @@ class MoiScreen : Screen {
                                         onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
                                     )
                                 }
+                                item {
+                                    CarteNotifications(
+                                        nombreEnAttente = invitationsEnAttente,
+                                        onClick = { navigator.push(EcranNotificationsVoyager()) }
+                                    )
+                                }
+                                item {
+                                    CarteMesEvenements(
+                                        nombreEvenements = evenementsOrganises,
+                                        onClick = { navigator.push(EcranMesEvenementsVoyager()) }
+                                    )
+                                }
+                                item {
+                                    CarteMonCalendrier(
+                                        nombreConcerts = concertsConfirmes,
+                                        onClick = { navigator.push(EcranMonCalendrierVoyager()) }
+                                    )
+                                }
                             }
                             MoiTab.ACTIVITY -> ActivityOverview(
                                 modifier = Modifier.fillMaxSize().padding(innerPadding),

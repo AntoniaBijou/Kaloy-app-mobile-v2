@@ -4,6 +4,8 @@ import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.audio.IosAudioPlayerController
 import com.kaloy.app.core.audio.IosMediaPlayerController
 import com.kaloy.app.core.audio.MediaPlayerController
+import com.kaloy.app.core.offline.IosOfflineFileStore
+import com.kaloy.app.core.offline.OfflineFileStore
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 
@@ -11,12 +13,13 @@ import org.koin.dsl.module
  * Dependances propres a iOS.
  *
  * Pendant de androidModule. Les deux lecteurs y figurent avec les memes portees
- * que cote Android : le lecteur de l'ecran chanson est recree a chaque usage,
- * celui du mini-player est unique puisqu'il survit a la navigation.
+ * que cote Android : le lecteur audio reste unique afin de survivre a la
+ * navigation et de partager son etat entre le lecteur complet et le mini-player.
  */
 val iosModule = module {
-    factory<AudioPlayerController> { IosAudioPlayerController() }
+    single<AudioPlayerController> { IosAudioPlayerController() }
     single<MediaPlayerController> { IosMediaPlayerController() }
+    single<OfflineFileStore> { IosOfflineFileStore() }
 }
 
 /**

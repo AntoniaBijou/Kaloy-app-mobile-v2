@@ -14,10 +14,25 @@ class QueueManager {
     val history: StateFlow<List<Song>> = _history
 
     fun playNow(song: Song) {
+        if (_currentSong.value?.id == song.id) {
+            _currentSong.value = song
+            _upNext.value = _upNext.value.filterNot { it.id == song.id }
+            return
+        }
         _currentSong.value?.let { prev ->
             _history.value = listOf(prev) + _history.value.take(49)
         }
         _currentSong.value = song
+        _upNext.value = _upNext.value.filterNot { it.id == song.id }
+    }
+
+    fun syncCurrent(song: Song) {
+        if (_currentSong.value?.id == song.id) {
+            _currentSong.value = song
+            return
+        }
+        _upNext.value = emptyList()
+        playNow(song)
     }
 
     // Définit une liste entière comme contexte de lecture.
@@ -25,7 +40,7 @@ class QueueManager {
     fun setContext(songs: List<Song>, startSong: Song) {
         val startIndex = songs.indexOfFirst { it.id == startSong.id }
         if (startIndex < 0) {
-            playNow(startSong)
+            syncCurrent(startSong)
             return
         }
         _currentSong.value = startSong

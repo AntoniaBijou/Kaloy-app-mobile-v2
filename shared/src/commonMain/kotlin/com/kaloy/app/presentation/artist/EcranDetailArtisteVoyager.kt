@@ -36,6 +36,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.core.util.Calendrier
 import com.kaloy.app.core.util.aujourdHuiLocal
 import com.kaloy.app.data.api.ArtistIdDto
@@ -354,6 +355,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
     @Composable
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
+        val fileAttente: QueueManager = KoinPlatform.getKoin().get()
         val modeleVue: DetailArtisteViewModel = viewModel(key = "artiste_$idArtiste") {
             DetailArtisteViewModel(idArtiste)
         }
@@ -547,6 +549,28 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         }
                     }
 
+                    // ---- Chansons ----
+                    if (modeleVue.chansons.isNotEmpty()) {
+                        item {
+                            SectionHeader(title = "Les plus écoutées", icon = Icons.Filled.MusicNote)
+                        }
+                        items(
+                            count = modeleVue.chansons.size,
+                            key = { modeleVue.chansons[it].id }
+                        ) { index ->
+                            val chanson = modeleVue.chansons[index]
+                            SongRow(
+                                song = chanson,
+                                index = index,
+                                onClick = {
+                                    fileAttente.setContext(modeleVue.chansons, chanson)
+                                    navigateur.push(LecteurScreen(songId = chanson.id))
+                                }
+                            )
+                            if (index < modeleVue.chansons.size - 1) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    color = KaloyDarkElevated
                     if (modeleVue.ongletActif == OngletArtiste.CHANSONS) {
                         // ---- Albums ----
                         if (modeleVue.albums.isNotEmpty()) {

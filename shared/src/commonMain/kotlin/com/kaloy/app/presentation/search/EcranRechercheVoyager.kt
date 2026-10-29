@@ -40,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.api.AlbumSearch
 import com.kaloy.app.data.api.ArtistSearch
 import com.kaloy.app.data.api.GenreSearch
@@ -284,6 +285,7 @@ class EcranRechercheVoyager : Screen {
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val historiqueRepo = koinInject<HistoriqueRechercheRepository>()
+        val fileAttente = koinInject<QueueManager>()
         val modeleVue: RechercheViewModel = viewModel { RechercheViewModel(historiqueRepo) }
         val gestionnaireFocus = LocalFocusManager.current
 
@@ -412,7 +414,10 @@ class EcranRechercheVoyager : Screen {
                         else -> ListeResultats(
                             modeleVue = modeleVue,
                             onArtiste = { ouvrir(EcranDetailArtisteVoyager(idArtiste = it.id)) },
-                            onChanson = { ouvrir(LecteurScreen(songId = it.id)) },
+                            onChanson = {
+                                fileAttente.setContext(modeleVue.chansons, it)
+                                ouvrir(LecteurScreen(songId = it.id))
+                            },
                             onAlbum = { ouvrir(EcranDetailAlbumVoyager(idAlbum = it.id)) },
                             onGenre = { ouvrir(EcranGenreVoyager(idGenre = it.id, nomGenre = it.name)) }
                         )

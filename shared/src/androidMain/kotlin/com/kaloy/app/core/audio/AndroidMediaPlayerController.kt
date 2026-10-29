@@ -2,6 +2,7 @@ package com.kaloy.app.core.audio
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata as Media3Metadata
@@ -29,6 +30,9 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
     private var controller: MediaController? = null
     private var released = false
     private var pendingMedia: MediaItem? = null
+    private var mediaRequestStartedAtMs: Long? = null
+    private var mediaRequestApplied = false
+    private var completionHandled = false
     private val mainExecutor = Executor { command -> command.run() }
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main.immediate)
 
@@ -40,20 +44,41 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
                     Log.d("KaloyAudio", "MediaController connecté au service")
                     if (released) return@also
                     connectedController.addListener(object : Player.Listener {
-                        override fun onIsPlayingChanged(isPlaying: Boolean) = updateState()
+                        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                            if (mediaRequestStartedAtMs != null) mediaRequestApplied = true
+                        }
                         override fun onPlaybackStateChanged(playbackState: Int) {
-                            if (playbackState == Player.STATE_ENDED) {
-                                _state.value = MediaPlayerStatus.Completed
-                            } else {
-                                updateState()
+                            if (playbackState == Player.STATE_READY && mediaRequestApplied) {
+                                logMediaRequestDuration("Media3 ready")
+                            }
+                            when (playbackState) {
+                                Player.STATE_ENDED -> {
+                                    if (!completionHandled) {
+                                        completionHandled = true
+                                        _state.value = MediaPlayerStatus.Completed
+                                    }
+                                }
+                                Player.STATE_IDLE -> {
+                                    completionHandled = false
+                                    updateState()
+                                }
+                                else -> updateState()
                             }
                         }
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            if (isPlaying && mediaRequestApplied) {
+                                logMediaRequestDuration("Playback started")
+                            }
+                            updateState()
+                        }
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            Log.e("KaloyAudio", "Playback failed", error)
                             _state.value = MediaPlayerStatus.Error(error.message ?: "Erreur de lecture")
                         }
                     })
                     updateState()
                     pendingMedia?.let { mediaItem ->
+                        logMediaRequestDuration("MediaController connected")
                         connectedController.setMediaItem(mediaItem)
                         connectedController.prepare()
                         connectedController.play()
@@ -88,6 +113,9 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
     }
 
     override fun setMedia(url: String, metadata: MediaMetadata) {
+        mediaRequestStartedAtMs = SystemClock.elapsedRealtime()
+        mediaRequestApplied = false
+        _state.value = MediaPlayerStatus.Loading
         val mediaItem = MediaItem.Builder()
             .setUri(url)
             .setMediaMetadata(
@@ -100,15 +128,27 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
             .build()
         val connectedController = controller
         if (connectedController == null || released) {
-            Log.d("KaloyAudio", "Flux mis en attente avant connexion: ${url.take(80)}")
+            Log.i("KaloyAudio", "Media request queued; offline=${url.startsWith("kaloy-offline://")}")
             pendingMedia = mediaItem
             _state.value = MediaPlayerStatus.Loading
             return
         }
+        // Forcer l'état Loading immédiatement pour éviter que le polling
+        // revoie STATE_ENDED pendant la latence IPC et déclenche un double-saut.
+        _state.value = MediaPlayerStatus.Loading
         connectedController.setMediaItem(mediaItem)
-        Log.d("KaloyAudio", "Flux envoyé à Media3: ${url.take(80)}")
+        Log.i("KaloyAudio", "Media request sent; offline=${url.startsWith("kaloy-offline://")}")
         connectedController.prepare()
         connectedController.play()
+    }
+
+    private fun logMediaRequestDuration(event: String) {
+        val startedAtMs = mediaRequestStartedAtMs ?: return
+        Log.i("KaloyAudio", "$event ${SystemClock.elapsedRealtime() - startedAtMs}ms after media request")
+        if (event == "Playback started") {
+            mediaRequestStartedAtMs = null
+            mediaRequestApplied = false
+        }
     }
 
     override fun release() {
@@ -119,13 +159,16 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
     }
 
     private fun updateState() {
+        if (_state.value is MediaPlayerStatus.Error) return
         val connectedController = controller ?: return
+        // STATE_ENDED géré exclusivement par le Player.Listener (completionHandled).
+        // Ignorer ici évite l'émission Paused transitoire qui ferait flasher le bouton Play.
+        if (connectedController.playbackState == Player.STATE_ENDED) return
         val positionMs = connectedController.currentPosition.coerceAtLeast(0L)
         val durationMs = connectedController.duration.coerceAtLeast(0L)
         _state.value = when {
             connectedController.isPlaying -> MediaPlayerStatus.Playing(positionMs, durationMs)
             connectedController.playbackState == Player.STATE_BUFFERING -> MediaPlayerStatus.Loading
-            connectedController.playbackState == Player.STATE_ENDED -> MediaPlayerStatus.Completed
             connectedController.currentMediaItem != null -> MediaPlayerStatus.Paused(positionMs, durationMs)
             else -> MediaPlayerStatus.Idle
         }

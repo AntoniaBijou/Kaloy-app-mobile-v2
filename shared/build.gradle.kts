@@ -105,6 +105,11 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
+        iosMain.dependencies {
+            implementation("io.ktor:ktor-client-darwin:3.1.3")
+            implementation("dev.whyoleg.cryptography:cryptography-core:0.6.0")
+            implementation("dev.whyoleg.cryptography:cryptography-provider-optimal:0.6.0")
+        }
         commonMain {
             kotlin.srcDir(generateNetworkConfig.map { it.outputs.files })
         }

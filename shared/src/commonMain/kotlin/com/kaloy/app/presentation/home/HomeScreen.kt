@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -44,15 +45,15 @@ import com.kaloy.app.data.model.*
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
+import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.common.BarreNavigationPrincipale
 import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.presentation.moi.MoiScreen
+import com.kaloy.app.presentation.playlist.PlaylistScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import com.kaloy.app.presentation.queue.MiniPlayer
-import com.kaloy.app.presentation.queue.UpNextSheet
 import com.kaloy.app.core.queue.QueueManager
-import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -140,10 +141,10 @@ class AccueilViewModel : ViewModel() {
                     .distinctBy { it.song?.id }
 
                 if (artistes.isEmpty() && albums.isEmpty() && chansons.isEmpty()) {
-                    erreur = "Aucune donnée disponible. Vérifiez que le backend est démarré."
+                    erreur = "Aucune donnée disponible pour le moment. Connectez-vous à Internet pour charger le contenu."
                 }
             } catch (e: Exception) {
-                erreur = "Erreur de connexion: ${e.message}"
+                erreur = com.kaloy.app.core.error.UserErrorMessages.fromThrowable(e)
             } finally {
                 enChargement = false
             }
@@ -175,11 +176,12 @@ data class HomeScreen(
         val gestionSession = koinInject<AuthSessionManager>()
         val modeleVue: AccueilViewModel = viewModel { AccueilViewModel() }
         val fileAttente = koinInject<QueueManager>()
-        val lecteurAudio = koinInject<AudioPlayerController>()
+        val lecteur = koinInject<LecteurViewModel>()
         val chansonCourante by fileAttente.currentSong.collectAsState()
         val chansonsSuivantes by fileAttente.upNext.collectAsState()
-        val lectureActive by lecteurAudio.isPlaying.collectAsState()
-        var afficherFile by remember { mutableStateOf(false) }
+        val historique by fileAttente.history.collectAsState()
+        val lectureActive by lecteur.isPlaying.collectAsState()
+        val positionCourante by lecteur.currentPositionMs.collectAsState()
 
         LaunchedEffect(Unit) {
             if (!isVisitor && !gestionSession.isLoggedIn()) {
@@ -196,10 +198,11 @@ data class HomeScreen(
                                 song = chanson,
                                 isPlaying = lectureActive,
                                 onClick = { navigateur.push(LecteurScreen(chanson.id)) },
-                                onTogglePlay = {
-                                    if (lectureActive) lecteurAudio.pause() else lecteurAudio.resume()
-                                },
-                                onQueueClick = { afficherFile = true }
+                                onTogglePlay = { lecteur.togglePlayPause() },
+                                onPrevious = { lecteur.jouerPrecedent() },
+                                onNext = { lecteur.jouerSuivant() },
+                                canPrevious = historique.isNotEmpty() || positionCourante > 3_000L,
+                                canNext = chansonsSuivantes.isNotEmpty()
                             )
                         }
                         BarreNavigationPrincipale(
@@ -208,6 +211,39 @@ data class HomeScreen(
                             onRecherche = { navigateur.push(EcranRechercheVoyager()) },
                             onMoi = { navigateur.push(MoiScreen()) }
                         )
+                        NavigationBarItem(
+                            selected = ongletSelectionne == 1,
+                            onClick = {
+                                navigateur.push(PlaylistScreen())
+                            },
+                            icon = {
+                                Icon(Icons.Default.QueueMusic, contentDescription = "Playlist")
+                            },
+                            label = { Text("Playlist") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = KaloyPurple,
+                                selectedTextColor = KaloyPurple,
+                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
+                                unselectedIconColor = KaloyTextMuted,
+                                unselectedTextColor = KaloyTextMuted
+                            )
+                        )
+                        NavigationBarItem(
+                            selected = ongletSelectionne == 2,
+                            onClick = { navigateur.push(MoiScreen()) },
+                            icon = {
+                                Icon(Icons.Default.Person, contentDescription = "Mon profil")
+                            },
+                            label = { Text("Moi") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = KaloyPurple,
+                                selectedTextColor = KaloyPurple,
+                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
+                                unselectedIconColor = KaloyTextMuted,
+                                unselectedTextColor = KaloyTextMuted
+                            )
+                        )
+                        }
                     }
                 }
             },
@@ -302,7 +338,10 @@ data class HomeScreen(
                                             Column(
                                                 modifier = Modifier
                                                     .width(110.dp)
-                                                    .clickable { navigateur.push(LecteurScreen(songId = chanson.id)) },
+                                                    .clickable {
+                                                        fileAttente.syncCurrent(chanson)
+                                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                                    },
                                                 horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
                                                 Box(
@@ -474,20 +513,6 @@ data class HomeScreen(
                     }
                 }
             }
-        }
-        if (afficherFile) {
-            UpNextSheet(
-                currentSong = chansonCourante,
-                songs = chansonsSuivantes,
-                onDismiss = { afficherFile = false },
-                onPlay = { chanson ->
-                    fileAttente.playFromQueue(chanson)
-                    afficherFile = false
-                    navigateur.push(LecteurScreen(chanson.id))
-                },
-                onRemove = fileAttente::remove,
-                onClear = fileAttente::clear
-            )
         }
     }
 }
