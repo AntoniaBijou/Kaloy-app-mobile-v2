@@ -549,28 +549,6 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                         }
                     }
 
-                    // ---- Chansons ----
-                    if (modeleVue.chansons.isNotEmpty()) {
-                        item {
-                            SectionHeader(title = "Les plus écoutées", icon = Icons.Filled.MusicNote)
-                        }
-                        items(
-                            count = modeleVue.chansons.size,
-                            key = { modeleVue.chansons[it].id }
-                        ) { index ->
-                            val chanson = modeleVue.chansons[index]
-                            SongRow(
-                                song = chanson,
-                                index = index,
-                                onClick = {
-                                    fileAttente.setContext(modeleVue.chansons, chanson)
-                                    navigateur.push(LecteurScreen(songId = chanson.id))
-                                }
-                            )
-                            if (index < modeleVue.chansons.size - 1) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    color = KaloyDarkElevated
                     if (modeleVue.ongletActif == OngletArtiste.CHANSONS) {
                         // ---- Albums ----
                         if (modeleVue.albums.isNotEmpty()) {
