@@ -211,39 +211,6 @@ data class HomeScreen(
                             onRecherche = { navigateur.push(EcranRechercheVoyager()) },
                             onMoi = { navigateur.push(MoiScreen()) }
                         )
-                        NavigationBarItem(
-                            selected = ongletSelectionne == 1,
-                            onClick = {
-                                navigateur.push(PlaylistScreen())
-                            },
-                            icon = {
-                                Icon(Icons.Default.QueueMusic, contentDescription = "Playlist")
-                            },
-                            label = { Text("Playlist") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = ongletSelectionne == 2,
-                            onClick = { navigateur.push(MoiScreen()) },
-                            icon = {
-                                Icon(Icons.Default.Person, contentDescription = "Mon profil")
-                            },
-                            label = { Text("Moi") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
-                        )
-                        }
                     }
                 }
             },
