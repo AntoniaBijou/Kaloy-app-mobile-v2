@@ -23,7 +23,6 @@ import com.kaloy.app.core.envoi.MemoireEnvois
 import com.kaloy.app.data.api.CreerChansonDto
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.api.OptionsChansonDto
-import com.kaloy.app.presentation.common.MediaSelectionne
 import com.kaloy.app.presentation.common.SourceMedia
 import com.kaloy.app.presentation.common.rememberSelecteurMedia
 import com.russhwolf.settings.Settings
@@ -32,7 +31,7 @@ import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 /**
- * Declaration d'une chanson, les onze champs dans un seul formulaire.
+ * Declaration d'une chanson : tous ses champs dans un seul formulaire.
  *
  * Un seul envoi et non une creation puis une completion : la creation est
  * transactionnelle cote serveur, donc un echec en cours de route ne laisse
@@ -50,38 +49,48 @@ class CreerChansonViewModel : ViewModel() {
      *
      * Reutilise tel quel : un MP3 de quatre minutes pese 4 a 10 Mo, ce qui
      * echoue assez souvent sur un reseau mobile faible pour que la reprise
-     * serve. La cible « chanson » evite qu'une session de chanson soit prise
-     * pour une session d'evenement a la reprise.
+     * serve. Chaque fichier a sa propre cible, « chanson:audio » et les
+     * autres, ce qui lui donne sa propre case en memoire d'envoi : les trois
+     * montent et se reprennent sans se chasser l'un l'autre.
      */
     private val envoyeur = EnvoyeurParMorceaux(
         api = api,
         memoire = MemoireEnvois(KoinPlatform.getKoin().get<Settings>())
     )
 
-    // ---------------------------------------------------- les onze champs
+    /**
+     * Les trois fichiers demandes, chacun avec son etat.
+     *
+     * Le karaoke et le playback sont demandes ici et non dans un ecran de
+     * modification, qui n'existe pas encore : sans cela les deux champs
+     * seraient inatteignables.
+     */
+    val audio = EnvoiFichier(
+        envoyeur, viewModelScope, "chanson:audio",
+        libelle = "Choisir un fichier audio",
+        aide = "MP3 ou M4A, 200 Mo au maximum. Facultatif : une chanson " +
+            "peut être déclarée sur son seul texte."
+    )
+
+    val karaoke = EnvoiFichier(
+        envoyeur, viewModelScope, "chanson:karaoke",
+        libelle = "Choisir un fichier karaoké",
+        aide = "La version sans la voix principale, pour chanter dessus."
+    )
+
+    val playback = EnvoiFichier(
+        envoyeur, viewModelScope, "chanson:playback",
+        libelle = "Choisir un fichier playback",
+        aide = "L'accompagnement seul, pour une interprétation sur scène."
+    )
+
+    private val fichiers = listOf(audio, karaoke, playback)
+
+    // ---------------------------------------------------- les champs saisis
     var titre by mutableStateOf("")
     var paroles by mutableStateOf("")
     var solfa by mutableStateOf("")
     var langue by mutableStateOf("mg")
-    /**
-     * Le chemin rendu par l'envoi, de la forme /uploads/xxx.mp3.
-     *
-     * Jamais saisi a la main : l'artiste choisit un fichier, il est envoye, et
-     * c'est le serveur qui donne ce chemin. Un chemin et non une adresse
-     * absolue, parce que le nom d'hote dependrait du reseau du moment — c'est
-     * le defaut § 1.10, qui avait rendu injoignables tous les medias a chaque
-     * changement d'adresse Wi-Fi.
-     */
-    var urlAudio by mutableStateOf("")
-        private set
-
-    /** Le fichier choisi, pour afficher son nom et sa taille avant l'envoi. */
-    var fichierAudio by mutableStateOf<MediaSelectionne?>(null)
-        private set
-    var etapeEnvoi by mutableStateOf<EnvoyeurParMorceaux.Etape?>(null)
-        private set
-    var erreurAudio by mutableStateOf<String?>(null)
-        private set
 
     var urlVideo by mutableStateOf("")
     var auteurCompositeur by mutableStateOf("")
@@ -156,59 +165,8 @@ class CreerChansonViewModel : ViewModel() {
      * reference. C'est une limite connue, la meme que pour les medias
      * d'evenement.
      */
-    fun choisirFichierAudio(media: MediaSelectionne?) {
-        if (media == null) {
-            // Annulation, ou lecture des metadonnees impossible.
-            return
-        }
-        val refus = refusAudio(media)
-        if (refus != null) {
-            erreurAudio = refus
-            return
-        }
-        erreurAudio = null
-        fichierAudio = media
-        urlAudio = ""
-        viewModelScope.launch {
-            envoyeur.envoyer(media, CIBLE_ENVOI) { etape ->
-                etapeEnvoi = etape
-                if (etape is EnvoyeurParMorceaux.Etape.Termine) {
-                    urlAudio = etape.url
-                }
-            }
-        }
-    }
-
-    /** Abandonne le fichier : on nettoie, sinon la copie reste sur le telephone. */
-    fun retirerFichierAudio() {
-        envoyeur.abandonner()
-        fichierAudio = null
-        urlAudio = ""
-        etapeEnvoi = null
-        erreurAudio = null
-    }
-
-    /** Rejoue l'envoi apres une coupure. Le serveur dit ou il s'etait arrete. */
-    fun reprendreEnvoiAudio() {
-        val media = fichierAudio ?: return
-        viewModelScope.launch {
-            envoyeur.envoyer(media, CIBLE_ENVOI) { etape ->
-                etapeEnvoi = etape
-                if (etape is EnvoyeurParMorceaux.Etape.Termine) {
-                    urlAudio = etape.url
-                }
-            }
-        }
-    }
-
-    /** Vrai pendant l'envoi : on n'enregistre pas une chanson a mi-envoi. */
-    val envoiAudioEnCours: Boolean
-        get() = when (etapeEnvoi) {
-            is EnvoyeurParMorceaux.Etape.Preparation,
-            is EnvoyeurParMorceaux.Etape.Envoi,
-            is EnvoyeurParMorceaux.Etape.Assemblage -> true
-            else -> false
-        }
+    /** Vrai des qu'un des trois fichiers monte : on n'enregistre pas alors. */
+    val envoiFichierEnCours: Boolean get() = fichiers.any { it.enCours }
 
     // ---------------------------------------------------- validation
     val titreValide: Boolean get() = titre.isNotBlank() && titre.length <= 150
@@ -217,7 +175,7 @@ class CreerChansonViewModel : ViewModel() {
 
     val peutEnregistrer: Boolean
         get() = titreValide && contenuPresent && dureeValide &&
-            !envoiEnCours && !envoiAudioEnCours
+            !envoiEnCours && !envoiFichierEnCours
 
     fun enregistrer() {
         if (!peutEnregistrer) return
@@ -231,8 +189,10 @@ class CreerChansonViewModel : ViewModel() {
                         paroles = paroles.ifBlank { null },
                         solfa = solfa.ifBlank { null },
                         langue = langue,
-                        urlAudio = urlAudio.ifBlank { null },
+                        urlAudio = audio.url.ifBlank { null },
                         urlVideo = urlVideo.ifBlank { null },
+                        urlKaraoke = karaoke.url.ifBlank { null },
+                        urlPlayback = playback.url.ifBlank { null },
                         auteurCompositeur = auteurCompositeur.ifBlank { null },
                         arrangeur = arrangeur.ifBlank { null },
                         dureeSecondes = dureeEnSecondes(duree),
@@ -317,11 +277,6 @@ class CreerChansonViewModel : ViewModel() {
         apercu = null
         candidats = emptyList()
         messageRecherche = null
-    }
-
-    private companion object {
-        /** Distingue cet envoi de celui d'un media d'evenement, a la reprise. */
-        const val CIBLE_ENVOI = "chanson"
     }
 }
 
@@ -504,7 +459,7 @@ class EcranCreerChansonVoyager : Screen {
 
                 // ------------------------------------------------ medias
                 TitreSection("Médias")
-                BlocAudio(modeleVue = modeleVue)
+                BlocFichier(envoi = modeleVue.audio)
                 ChampTexte(
                     valeur = modeleVue.urlVideo,
                     onChange = { modeleVue.urlVideo = it },
@@ -512,6 +467,16 @@ class EcranCreerChansonVoyager : Screen {
                     aide = "255 caractères au plus",
                     erreur = if (modeleVue.urlVideo.length > 255) "Adresse trop longue" else null
                 )
+
+                // ------------------------------------- karaoke et playback
+                //
+                // Dans leur propre section : ce sont des fichiers de travail
+                // pour chanter ou jouer sur la chanson, pas la chanson
+                // elle-meme, et les melanger aux medias ferait croire a trois
+                // versions du meme enregistrement.
+                TitreSection("Karaoké et playback")
+                BlocFichier(envoi = modeleVue.karaoke)
+                BlocFichier(envoi = modeleVue.playback)
 
                 // ------------------------------------------------ envoi
                 modeleVue.erreur?.let {
@@ -557,12 +522,12 @@ class EcranCreerChansonVoyager : Screen {
  * vient le fichier puisqu'il l'a recu.
  */
 @Composable
-private fun BlocAudio(modeleVue: CreerChansonViewModel) {
+private fun BlocFichier(envoi: EnvoiFichier) {
     val ouvrirSelecteur = rememberSelecteurMedia { media ->
-        modeleVue.choisirFichierAudio(media)
+        envoi.choisir(media)
     }
-    val fichier = modeleVue.fichierAudio
-    val etape = modeleVue.etapeEnvoi
+    val fichier = envoi.fichier
+    val etape = envoi.etape
 
     Column(modifier = Modifier.fillMaxWidth()) {
         if (fichier == null) {
@@ -570,11 +535,10 @@ private fun BlocAudio(modeleVue: CreerChansonViewModel) {
                 onClick = { ouvrirSelecteur(SourceMedia.AUDIO_FICHIER) },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Choisir un fichier audio", color = KaloyPurpleLight)
+                Text(envoi.libelle, color = KaloyPurpleLight)
             }
             Text(
-                text = "MP3 ou M4A, 200 Mo au maximum. Facultatif : une chanson " +
-                    "peut être déclarée sur son seul texte.",
+                text = envoi.aide,
                 color = KaloyTextMuted,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(start = 12.dp, top = 4.dp)
@@ -599,7 +563,7 @@ private fun BlocAudio(modeleVue: CreerChansonViewModel) {
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        TextButton(onClick = { modeleVue.retirerFichierAudio() }) {
+                        TextButton(onClick = { envoi.retirer() }) {
                             Text("Retirer", color = KaloyTextMuted)
                         }
                     }
@@ -651,7 +615,7 @@ private fun BlocAudio(modeleVue: CreerChansonViewModel) {
                             // On ne propose la reprise que si elle a un sens :
                             // un format refuse le sera toujours.
                             if (etape.reprenable) {
-                                TextButton(onClick = { modeleVue.reprendreEnvoiAudio() }) {
+                                TextButton(onClick = { envoi.reprendre() }) {
                                     Text("Reprendre l'envoi", color = KaloyPurpleLight)
                                 }
                             }
@@ -663,7 +627,7 @@ private fun BlocAudio(modeleVue: CreerChansonViewModel) {
             }
         }
 
-        modeleVue.erreurAudio?.let {
+        envoi.erreur?.let {
             Text(
                 text = it,
                 color = KaloyRed,
