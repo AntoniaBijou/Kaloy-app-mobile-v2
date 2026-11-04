@@ -19,6 +19,8 @@ import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.subdataWithRange
 import platform.Foundation.writeToFile
 import platform.UIKit.UIApplication
+import platform.UIKit.UIDocumentPickerDelegateProtocol
+import platform.UIKit.UIDocumentPickerViewController
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIImagePickerController
@@ -82,10 +84,14 @@ actual fun rememberSelecteurMedia(
     // conservee il serait libere avant que l'utilisateur ait choisi, et le
     // rappel n'arriverait jamais.
     val delegue = remember { DelegueSelecteurMedia() }
+    // Un second delegue : le selecteur de documents a son propre protocole,
+    // il ne peut pas partager celui du selecteur de photos.
+    val delegueDocument = remember { DelegueDocumentAudio() }
 
-    return remember(delegue) {
+    return remember(delegue, delegueDocument) {
         { source ->
             delegue.onResultat = onMediaSelectionne
+            delegueDocument.onResultat = onMediaSelectionne
 
             val racine = UIApplication.sharedApplication.keyWindow?.rootViewController
             val appareil = source == SourceMedia.PHOTO_CAMERA || source == SourceMedia.VIDEO_CAMERA
@@ -97,6 +103,18 @@ actual fun rememberSelecteurMedia(
 
             when {
                 racine == null -> onMediaSelectionne(null)
+
+                // Les fichiers audio ne passent pas par la photothèque :
+                // UIImagePickerController ne connait que public.image et
+                // public.movie. On ouvre le selecteur de documents.
+                source == SourceMedia.AUDIO_FICHIER -> {
+                    val controleur = UIDocumentPickerViewController(
+                        documentTypes = listOf("public.mp3", "public.mpeg-4-audio"),
+                        inMode = platform.UIKit.UIDocumentPickerMode.UIDocumentPickerModeImport
+                    )
+                    controleur.delegate = delegueDocument
+                    racine.presentViewController(controleur, animated = true, completion = null)
+                }
 
                 // Le simulateur n'a pas d'appareil photo : sans ce test, la
                 // presentation echoue et l'ecran reste muet.
@@ -120,6 +138,64 @@ actual fun rememberSelecteurMedia(
                 }
             }
         }
+    }
+}
+
+/**
+ * Delegue du selecteur de documents, pour les fichiers audio.
+ *
+ * UIDocumentPickerModeImport fait deposer par iOS une copie dans le dossier
+ * temporaire de l'application. Cette copie peut etre purgee sans prevenir, on
+ * la deplace donc tout de suite dans notre dossier d'envois — meme raison que
+ * pour les videos : l'envoi par morceaux doit survivre a la purge et a la
+ * fermeture de l'application.
+ *
+ * NON VERIFIE A L'EXECUTION, comme le reste de ce fichier.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private class DelegueDocumentAudio : NSObject(), UIDocumentPickerDelegateProtocol {
+
+    var onResultat: ((MediaSelectionne?) -> Unit)? = null
+
+    override fun documentPicker(
+        controller: UIDocumentPickerViewController,
+        didPickDocumentAtURL: NSURL
+    ) {
+        val media = deplacerAudio(didPickDocumentAtURL)
+        controller.dismissViewControllerAnimated(true) {
+            onResultat?.invoke(media)
+        }
+    }
+
+    override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) {
+        controller.dismissViewControllerAnimated(true) {
+            onResultat?.invoke(null)
+        }
+    }
+
+    private fun deplacerAudio(source: NSURL): MediaSelectionne? {
+        val dossier = dossierEnvois() ?: return null
+        val cheminSource = source.path ?: return null
+        val nomOrigine = source.lastPathComponent ?: "audio"
+        // Le type se deduit de l'extension : le selecteur de documents ne
+        // renvoie pas de type MIME, contrairement au resolveur Android.
+        val enM4a = nomOrigine.lowercase().endsWith(".m4a")
+        val nom = "audio_${NSUUID().UUIDString()}" + if (enM4a) ".m4a" else ".mp3"
+        val destination = "$dossier/$nom"
+
+        val deplace = NSFileManager.defaultManager.moveItemAtPath(
+            srcPath = cheminSource,
+            toPath = destination,
+            error = null
+        )
+        if (!deplace) return null
+
+        return MediaSelectionne(
+            uri = destination,
+            nomFichier = nom,
+            typeMime = if (enM4a) "audio/x-m4a" else "audio/mpeg",
+            taille = tailleFichier(destination)
+        )
     }
 }
 

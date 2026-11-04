@@ -22,6 +22,7 @@ import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.components.*
 import com.kaloy.app.presentation.notifications.EcranNotificationsVoyager
+import com.kaloy.app.presentation.mesChansons.EcranMesChansonsVoyager
 import com.kaloy.app.presentation.organisation.EcranMesEvenementsVoyager
 import com.kaloy.app.presentation.calendrier.EcranMonCalendrierVoyager
 import com.kaloy.app.data.api.KaloyApi
@@ -77,6 +78,7 @@ class MoiScreen : Screen {
         // Nombre d'invitations en attente, pour la pastille. Recharge a chaque
         // retour sur l'onglet : l'artiste vient peut-etre d'en traiter une.
         var invitationsEnAttente by remember { mutableStateOf(0) }
+        var chansonsDeclarees by remember { mutableStateOf(0) }
         var evenementsOrganises by remember { mutableStateOf(0) }
         var concertsConfirmes by remember { mutableStateOf(0) }
         // null tant que l appel n a pas abouti : la carte reste muette
@@ -96,6 +98,13 @@ class MoiScreen : Screen {
                 } catch (_: Exception) {
                     // Un echec ici ne doit pas empecher l'affichage du profil :
                     // la pastille disparait, l'ecran reste utilisable.
+                    0
+                }
+                chansonsDeclarees = try {
+                    api.getMesChansons().data?.size ?: 0
+                } catch (_: Exception) {
+                    // Comme pour les autres compteurs : un echec laisse la
+                    // carte muette, il n'empeche pas l'affichage du profil.
                     0
                 }
                 evenementsOrganises = try {
@@ -360,6 +369,14 @@ class MoiScreen : Screen {
                                     CarteNotifications(
                                         nombreEnAttente = invitationsEnAttente,
                                         onClick = { navigator.push(EcranNotificationsVoyager()) }
+                                    )
+                                }
+                                // Son repertoire : declarer ses chansons est le
+                                // premier geste d'un artiste sur la plateforme.
+                                item {
+                                    CarteMesChansons(
+                                        nombreChansons = chansonsDeclarees,
+                                        onClick = { navigator.push(EcranMesChansonsVoyager()) }
                                     )
                                 }
                                 // Organiser est l'autre moitie de la vie evenementielle

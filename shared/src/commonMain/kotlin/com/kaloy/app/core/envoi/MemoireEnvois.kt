@@ -16,6 +16,13 @@ import kotlinx.serialization.json.Json
  * en choisit un autre, on ouvre une nouvelle session plutot que de melanger
  * deux fichiers dans la meme — le serveur detecterait l'incoherence a
  * l'assemblage, mais trop tard.
+ *
+ * [cible] dit a quoi l'envoi est destine : « evenement:12 » pour un media
+ * d'evenement, « chanson » pour l'audio d'une chanson en cours de
+ * declaration. C'etait auparavant un identifiant d'evenement, ce qui n'avait
+ * plus de sens des qu'un autre ecran s'est mis a envoyer des fichiers : une
+ * session de chanson aurait ete prise pour une session d'evenement a la
+ * reprise, et le fichier serait reparti au mauvais endroit.
  */
 @Serializable
 data class EnvoiEnAttente(
@@ -24,7 +31,7 @@ data class EnvoiEnAttente(
     val nomFichier: String,
     val typeMime: String,
     val taille: Long,
-    val idEvenement: Long
+    val cible: String
 )
 
 /**

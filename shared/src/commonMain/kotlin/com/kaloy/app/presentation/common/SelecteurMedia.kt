@@ -12,7 +12,19 @@ enum class SourceMedia {
     PHOTO_CAMERA,
     PHOTO_GALERIE,
     VIDEO_CAMERA,
-    VIDEO_GALERIE
+    VIDEO_GALERIE,
+
+    /**
+     * Un fichier audio pris dans les documents de l'appareil, pour une
+     * chanson declaree par un artiste.
+     *
+     * Pas une source visuelle, et c'est tout le probleme : les selecteurs
+     * utilises pour les photos et les videos — PickVisualMedia sur Android,
+     * UIImagePickerController sur iOS — sont visuels par conception et ne
+     * proposeront jamais un MP3. Chaque plateforme ouvre donc ici un
+     * selecteur de documents a la place.
+     */
+    AUDIO_FICHIER
 }
 
 /**

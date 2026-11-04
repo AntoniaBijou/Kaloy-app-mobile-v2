@@ -206,10 +206,14 @@ data class Song(
     @SerialName("releaseDate") val releaseDate: String? = null,
     val language: String = "fr",
     @SerialName("authorComposer") val authorComposer: String? = null,
+    @SerialName("musicalArranger") val musicalArranger: String? = null,
     @SerialName("storagetypeidAudioStorageTypes") val storageType: AudioStorageType? = null,
     @SerialName("audioUrl") val audioUrl: String? = null,
     @SerialName("videoUrl") val videoUrl: String? = null,
     val lyrics: String? = null,
+    // Le solfa est du texte, dans la colonne solfa. Il ne faut pas le
+    // confondre avec solfaUrl, reserve a un envoi de fichier a venir.
+    val solfa: String? = null,
     @SerialName("isDownloadable") val isDownloadable: Boolean = true,
     @SerialName("createdAt") val createdAt: String? = null
 )
