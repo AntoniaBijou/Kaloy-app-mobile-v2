@@ -210,6 +210,11 @@ data class Song(
     @SerialName("storagetypeidAudioStorageTypes") val storageType: AudioStorageType? = null,
     @SerialName("audioUrl") val audioUrl: String? = null,
     @SerialName("videoUrl") val videoUrl: String? = null,
+    // Karaoke et playback : des chemins, dans karaoke_audio_url et
+    // playback_url. Les colonnes karaoke_audio et playback, en BYTEA, sont le
+    // dessin d'origine -- le fichier dans la base -- et restent inutilisees.
+    @SerialName("karaokeAudioUrl") val karaokeAudioUrl: String? = null,
+    @SerialName("playbackUrl") val playbackUrl: String? = null,
     val lyrics: String? = null,
     // Le solfa est du texte, dans la colonne solfa. Il ne faut pas le
     // confondre avec solfaUrl, reserve a un envoi de fichier a venir.

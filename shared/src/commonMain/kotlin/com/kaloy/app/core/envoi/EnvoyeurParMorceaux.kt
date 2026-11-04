@@ -57,10 +57,10 @@ class EnvoyeurParMorceaux(
      * soucie pas : il rend un chemin, et c'est l'appelant qui en fait ce qu'il
      * veut.
      *
-     * Un seul envoi retenu a la fois, volontairement. Un envoi de chanson
-     * commence alors qu'un envoi d'evenement est en attente efface donc ce
-     * dernier. C'est une limite connue, acceptee tant que l'interface n'a de
-     * place que pour une barre de progression.
+     * Les envois sont retenus par cible : plusieurs peuvent attendre une
+     * reprise en meme temps sans se chasser l'un l'autre. C'etait une seule
+     * case avant, ce qui rendait impossible un ecran demandant plusieurs
+     * fichiers.
      */
     suspend fun envoyer(
         media: MediaSelectionne,
@@ -68,8 +68,9 @@ class EnvoyeurParMorceaux(
         progression: (Etape) -> Unit
     ) {
         // Reprise : une session en attente pour ce fichier et cette cible ?
-        val enAttente = memoire.lire()
-        if (enAttente != null && enAttente.cible == cible
+        // La cible est desormais la cle de lecture, plus un champ a verifier.
+        val enAttente = memoire.lire(cible)
+        if (enAttente != null
             && enAttente.taille == media.taille && enAttente.nomFichier == media.nomFichier) {
             reprendre(enAttente, progression)
             return
@@ -133,7 +134,7 @@ class EnvoyeurParMorceaux(
         }
 
         if (etat == null) {
-            memoire.effacer()
+            memoire.effacer(session.cible)
             supprimerCopie(session.chemin)
             progression(Etape.Echec(
                 "L'envoi précédent a expiré. Choisissez à nouveau le fichier.", false))
@@ -162,7 +163,7 @@ class EnvoyeurParMorceaux(
             if (morceau == null) {
                 // La copie a disparu — nettoyage du cache par le systeme. Inutile
                 // de proposer une reprise : il n'y a plus rien a envoyer.
-                memoire.effacer()
+                memoire.effacer(session.cible)
                 progression(Etape.Echec(
                     "Le fichier préparé n'est plus disponible. Recommencez l'envoi.", false))
                 return
@@ -197,22 +198,22 @@ class EnvoyeurParMorceaux(
         // La copie et la memoire ne servent plus : les garder remplirait le
         // telephone et proposerait de reprendre un envoi deja termine.
         supprimerCopie(session.chemin)
-        memoire.effacer()
+        memoire.effacer(session.cible)
 
         progression(Etape.Termine(url))
     }
 
     /**
-     * Envoi retenu entre deux lancements de l'application, s'il y en a un.
+     * Envoi retenu pour cette cible entre deux lancements, s'il y en a un.
      *
      * L'ecran s'en sert pour proposer « Reprendre » a l'ouverture. On ne reprend
      * jamais tout seul : un envoi de 400 Mo sur reseau mobile se decide.
      */
-    fun envoiRetenu(): EnvoiEnAttente? = memoire.lire()
+    fun envoiRetenu(cible: String): EnvoiEnAttente? = memoire.lire(cible)
 
     /** Abandon explicite : on nettoie, sinon la copie resterait sur le disque. */
-    fun abandonner() {
-        memoire.lire()?.let { supprimerCopie(it.chemin) }
-        memoire.effacer()
+    fun abandonner(cible: String) {
+        memoire.lire(cible)?.let { supprimerCopie(it.chemin) }
+        memoire.effacer(cible)
     }
 }

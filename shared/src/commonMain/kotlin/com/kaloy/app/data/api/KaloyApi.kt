@@ -1392,6 +1392,9 @@ data class CreerChansonDto(
     val langue: String = "mg",
     val urlAudio: String? = null,
     val urlVideo: String? = null,
+    // Chemins rendus par l'envoi de fichier, comme urlAudio.
+    val urlKaraoke: String? = null,
+    val urlPlayback: String? = null,
     val auteurCompositeur: String? = null,
     val arrangeur: String? = null,
     val dureeSecondes: Int? = null,

@@ -278,6 +278,8 @@ private fun contenuLisible(chanson: Song): String {
         if (!chanson.solfa.isNullOrBlank()) add("solfa")
         if (!chanson.audioUrl.isNullOrBlank()) add("audio")
         if (!chanson.videoUrl.isNullOrBlank()) add("vidéo")
+        if (!chanson.karaokeAudioUrl.isNullOrBlank()) add("karaoké")
+        if (!chanson.playbackUrl.isNullOrBlank()) add("playback")
     }
     return if (pieces.isEmpty()) "Aucun contenu" else pieces.joinToString(" · ")
 }
