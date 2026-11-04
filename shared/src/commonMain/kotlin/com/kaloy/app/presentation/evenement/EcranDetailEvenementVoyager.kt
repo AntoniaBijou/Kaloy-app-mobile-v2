@@ -523,7 +523,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
             envoiPhotoEnCours = true
             envoiEnAttente = null
             try {
-                envoyeur.envoyer(media, idEvenement) { etape ->
+                envoyeur.envoyer(media, "evenement:$idEvenement") { etape ->
                     traiterEtape(etape, idType, estVideo)
                 }
             } finally {
@@ -540,7 +540,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
      */
     fun chercherEnvoiInterrompu() {
         val attente = envoyeur.envoiRetenu() ?: return
-        if (attente.idEvenement == idEvenement) {
+        if (attente.cible == "evenement:$idEvenement") {
             envoiEnAttente = attente
         }
     }

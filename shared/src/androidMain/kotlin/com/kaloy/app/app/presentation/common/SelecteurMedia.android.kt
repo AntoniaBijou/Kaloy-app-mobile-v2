@@ -70,7 +70,16 @@ actual fun rememberSelecteurMedia(
         onResult = { uri -> onMediaSelectionne(uri?.let { decrire(contexte, it) }) }
     )
 
-    return remember(lanceurPhotoCamera, lanceurVideoCamera, lanceurGalerie, contexte) {
+    // OpenDocument et non PickVisualMedia : ce dernier ne liste que des
+    // images et des videos, un fichier audio n'y apparaitrait pas.
+    val lanceurFichierAudio = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri -> onMediaSelectionne(uri?.let { decrire(contexte, it) }) }
+    )
+
+    return remember(
+        lanceurPhotoCamera, lanceurVideoCamera, lanceurGalerie, lanceurFichierAudio, contexte
+    ) {
         { source ->
             when (source) {
                 // Un echec de preparation previent l'appelant par null, comme
@@ -94,6 +103,15 @@ actual fun rememberSelecteurMedia(
 
                 SourceMedia.VIDEO_GALERIE -> lanceurGalerie.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                )
+
+                // Les types sont enumeres et non laisses a "*/*" : le serveur
+                // n'accepte que MP3 et M4A, autant ne pas laisser l'artiste
+                // choisir un fichier qui sera refuse apres l'envoi. audio/* en
+                // plus des deux types precis, parce que certains fournisseurs
+                // de documents annoncent mal leurs fichiers.
+                SourceMedia.AUDIO_FICHIER -> lanceurFichierAudio.launch(
+                    arrayOf("audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/*")
                 )
             }
         }
@@ -156,7 +174,11 @@ private fun resultatCapture(reussi: Boolean, capture: Capture?): MediaSelectionn
  */
 private fun decrire(contexte: Context, uri: Uri): MediaSelectionne? = try {
     val type = contexte.contentResolver.getType(uri) ?: return null
-    var nom = if (type.startsWith("video/")) "video" else "photo"
+    var nom = when {
+        type.startsWith("video/") -> "video"
+        type.startsWith("audio/") -> "audio"
+        else -> "photo"
+    }
     var taille = 0L
 
     contexte.contentResolver.query(uri, null, null, null, null)?.use { curseur ->

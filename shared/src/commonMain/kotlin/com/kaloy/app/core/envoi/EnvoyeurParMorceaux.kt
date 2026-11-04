@@ -51,15 +51,25 @@ class EnvoyeurParMorceaux(
      *
      * [progression] est appele a chaque etape et a chaque morceau. L'appelant
      * doit s'attendre a de nombreux appels : 250 pour une video de 500 Mo.
+     *
+     * [cible] identifie la destination — « evenement:12 », « chanson » — et ne
+     * sert qu'a reconnaitre une session a reprendre. L'envoi lui-meme ne s'en
+     * soucie pas : il rend un chemin, et c'est l'appelant qui en fait ce qu'il
+     * veut.
+     *
+     * Un seul envoi retenu a la fois, volontairement. Un envoi de chanson
+     * commence alors qu'un envoi d'evenement est en attente efface donc ce
+     * dernier. C'est une limite connue, acceptee tant que l'interface n'a de
+     * place que pour une barre de progression.
      */
     suspend fun envoyer(
         media: MediaSelectionne,
-        idEvenement: Long,
+        cible: String,
         progression: (Etape) -> Unit
     ) {
-        // Reprise : une session en attente pour ce fichier et cet evenement ?
+        // Reprise : une session en attente pour ce fichier et cette cible ?
         val enAttente = memoire.lire()
-        if (enAttente != null && enAttente.idEvenement == idEvenement
+        if (enAttente != null && enAttente.cible == cible
             && enAttente.taille == media.taille && enAttente.nomFichier == media.nomFichier) {
             reprendre(enAttente, progression)
             return
@@ -98,7 +108,7 @@ class EnvoyeurParMorceaux(
             nomFichier = media.nomFichier,
             typeMime = media.typeMime,
             taille = media.taille,
-            idEvenement = idEvenement
+            cible = cible
         )
         // Memorise AVANT le premier morceau : si l'application est tuee au
         // deuxieme morceau, la reprise doit retrouver la session.
