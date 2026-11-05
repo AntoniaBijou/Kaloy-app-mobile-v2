@@ -107,9 +107,20 @@ actual fun rememberSelecteurMedia(
                 // Les fichiers audio ne passent pas par la photothèque :
                 // UIImagePickerController ne connait que public.image et
                 // public.movie. On ouvre le selecteur de documents.
-                source == SourceMedia.AUDIO_FICHIER -> {
+                //
+                // Les deux sources partagent ce selecteur et ne different que
+                // par la liste des types. Le karaoke accepte la video, parce
+                // qu'un karaoke affiche les paroles : sans public.mpeg-4 un
+                // .mp4 serait grise, ce qui etait le defaut sur Android.
+                source == SourceMedia.AUDIO_FICHIER ||
+                    source == SourceMedia.AUDIO_OU_VIDEO_FICHIER -> {
+                    val types = if (source == SourceMedia.AUDIO_OU_VIDEO_FICHIER) {
+                        listOf("public.mp3", "public.mpeg-4-audio", "public.mpeg-4")
+                    } else {
+                        listOf("public.mp3", "public.mpeg-4-audio")
+                    }
                     val controleur = UIDocumentPickerViewController(
-                        documentTypes = listOf("public.mp3", "public.mpeg-4-audio"),
+                        documentTypes = types,
                         inMode = platform.UIKit.UIDocumentPickerMode.UIDocumentPickerModeImport
                     )
                     controleur.delegate = delegueDocument
@@ -177,10 +188,27 @@ private class DelegueDocumentAudio : NSObject(), UIDocumentPickerDelegateProtoco
         val dossier = dossierEnvois() ?: return null
         val cheminSource = source.path ?: return null
         val nomOrigine = source.lastPathComponent ?: "audio"
+
         // Le type se deduit de l'extension : le selecteur de documents ne
         // renvoie pas de type MIME, contrairement au resolveur Android.
-        val enM4a = nomOrigine.lowercase().endsWith(".m4a")
-        val nom = "audio_${NSUUID().UUIDString()}" + if (enM4a) ".m4a" else ".mp3"
+        //
+        // Le .mp4 est traite depuis que le karaoke accepte la video. Sans
+        // cette branche un karaoke video aurait ete declare « audio/mpeg » et
+        // renomme « .mp3 » : le serveur l'aurait accepte, puisqu'il annonce un
+        // type qu'il connait, et le fichier aurait porte une extension
+        // mensongere en base jusqu'a ce qu'un lecteur s'en etonne.
+        val bas = nomOrigine.lowercase()
+        val extension = when {
+            bas.endsWith(".m4a") -> ".m4a"
+            bas.endsWith(".mp4") -> ".mp4"
+            else -> ".mp3"
+        }
+        val typeMime = when (extension) {
+            ".m4a" -> "audio/x-m4a"
+            ".mp4" -> "video/mp4"
+            else -> "audio/mpeg"
+        }
+        val nom = "media_${NSUUID().UUIDString()}$extension"
         val destination = "$dossier/$nom"
 
         val deplace = NSFileManager.defaultManager.moveItemAtPath(
@@ -193,7 +221,7 @@ private class DelegueDocumentAudio : NSObject(), UIDocumentPickerDelegateProtoco
         return MediaSelectionne(
             uri = destination,
             nomFichier = nom,
-            typeMime = if (enM4a) "audio/x-m4a" else "audio/mpeg",
+            typeMime = typeMime,
             taille = tailleFichier(destination)
         )
     }

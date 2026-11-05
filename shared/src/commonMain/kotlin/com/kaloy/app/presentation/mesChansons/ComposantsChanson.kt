@@ -436,8 +436,23 @@ fun couleursChampChanson(): TextFieldColors = OutlinedTextFieldDefaults.colors(
 // Fichier audio
 // ============================================================
 
+// Declare avant TAILLE_VIDEO_MAX, qui s'en sert : un const val ne peut pas
+// lire une constante declaree plus bas dans le fichier.
+private const val GIGA: Long = 1024L * 1024L * 1024L
+
 /** Taille acceptee par le serveur : 200 Mo, comme UploadController. */
 const val TAILLE_AUDIO_MAX: Long = 200L * 1024L * 1024L
+
+/**
+ * La limite pour une video, alignee sur celle du serveur.
+ *
+ * 2 Go, soit exactement `kaloy.uploads.morceaux.taille-max-totale`. La limite
+ * de 200 Mo de l'audio est un choix prudent de notre cote, pas une contrainte
+ * du serveur ; l'appliquer a une video de karaoke refuserait localement des
+ * fichiers que le serveur aurait pris. Une captation de concert depasse vite
+ * 200 Mo.
+ */
+const val TAILLE_VIDEO_MAX: Long = 2L * GIGA
 
 /**
  * Les types que le serveur accepte pour un audio.
@@ -449,8 +464,11 @@ const val TAILLE_AUDIO_MAX: Long = 200L * 1024L * 1024L
  */
 private val TYPES_AUDIO = setOf("audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a")
 
+/** Les types video que le serveur accepte, pour un karaoke. */
+private val TYPES_VIDEO = setOf("video/mp4")
+
 /**
- * Pourquoi ce fichier ne convient pas, ou null s'il convient.
+ * Pourquoi ce fichier ne convient pas pour un audio, ou null s'il convient.
  *
  * Verifie sur ce que le selecteur renvoie — taille et type sont connus des la
  * selection — donc avant toute copie et tout envoi.
@@ -468,8 +486,48 @@ fun refusAudio(media: MediaSelectionne): String? = when {
     else -> null
 }
 
+/**
+ * La meme regle pour un karaoke, qui accepte aussi la video.
+ *
+ * Un karaoke affiche les paroles, donc c'est une video dans la plupart des cas
+ * — celui du jeu de donnees du projet en est une, 13 Mo en H.264. La limite de
+ * taille suit le type : 200 Mo pour un audio, 2 Go pour une video, comme le
+ * serveur.
+ *
+ * Fonction a part et non parametre booleen sur [refusAudio] : l'appelant passe
+ * une regle, pas un drapeau, et l'ecran n'a rien a savoir des types acceptes.
+ */
+fun refusKaraoke(media: MediaSelectionne): String? {
+    val type = media.typeMime.lowercase()
+    val estVideo = type in TYPES_VIDEO
+    return when {
+        media.taille <= 0L ->
+            "Ce fichier est vide ou illisible."
+
+        !estVideo && type !in TYPES_AUDIO ->
+            "Format non accepté : ${media.typeMime}. " +
+                "Choisissez un MP3, un M4A ou une vidéo MP4."
+
+        estVideo && media.taille > TAILLE_VIDEO_MAX ->
+            "Fichier trop volumineux : ${tailleLisible(media.taille)} pour 2 Go au maximum."
+
+        !estVideo && media.taille > TAILLE_AUDIO_MAX ->
+            "Fichier trop volumineux : ${tailleLisible(media.taille)} pour 200 Mo au maximum."
+
+        else -> null
+    }
+}
+
 /** Une taille en octets, lisible. */
 fun tailleLisible(octets: Long): String = when {
+    // Le palier du gigaoctet est arrive avec la video de karaoke : sans lui,
+    // un fichier de 1,5 Go s'annoncait « 1536 Mo ».
+    octets >= 1024L * 1024L * 1024L ->
+        // La decimale se calcule en multipliant AVANT de diviser. Diviser
+        // par un dixieme de gigaoctet ne marche pas : GIGA / 10 est tronque,
+        // donc un reste proche du gigaoctet donnait 10 et la taille
+        // s'affichait « 1,10 Go ». Verifie sur 2 Go moins un octet.
+        "${octets / GIGA},${(octets % GIGA) * 10L / GIGA} Go"
     octets >= 1024L * 1024L -> "${octets / (1024L * 1024L)} Mo"
     octets >= 1024L -> "${octets / 1024L} Ko"
     else -> "$octets o"

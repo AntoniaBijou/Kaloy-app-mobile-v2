@@ -18,6 +18,19 @@ val adresseIp: String = localProps.getProperty("adresse_ip")
 val generateNetworkConfig by tasks.registering {
     val ip = adresseIp
     val outputDir = layout.buildDirectory.dir("generated/network-config/commonMain/kotlin")
+
+    // L'adresse est déclarée comme ENTRÉE de la tâche, et pas seulement
+    // capturée dans la fermeture. Sans cette ligne, la tâche n'a que des
+    // sorties : Gradle la considère à jour tant que le fichier généré existe,
+    // donc changer adresse_ip dans local.properties ne la relance pas et
+    // l'application garde l'ancienne adresse. Il fallait effacer
+    // shared/build/generated/network-config à la main pour s'en sortir, ce qui
+    // ressemble à une manie de développeur et n'était qu'un contournement.
+    //
+    // Le piège est d'autant plus vicieux qu'une adresse ABSENTE échoue
+    // bruyamment, au-dessus, alors qu'une adresse PÉRIMÉE passe en silence et
+    // ne se voit qu'à l'exécution, par un délai d'attente réseau.
+    inputs.property("adresseIp", ip)
     outputs.dir(outputDir)
     doLast {
         val file = outputDir.get()
