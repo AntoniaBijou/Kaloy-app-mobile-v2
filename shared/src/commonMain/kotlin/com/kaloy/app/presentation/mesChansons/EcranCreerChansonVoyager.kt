@@ -72,10 +72,22 @@ class CreerChansonViewModel : ViewModel() {
             "peut être déclarée sur son seul texte."
     )
 
+    /**
+     * Le karaoke accepte la video, les deux autres non.
+     *
+     * Un karaoke affiche les paroles : c'est une video dans la plupart des
+     * cas, et celui du jeu de donnees du projet en est une. L'audio de la
+     * chanson, lui, reste de l'audio — le formulaire a deja un champ separe
+     * pour l'adresse de la video, et accepter une video dans audio_url
+     * brouillerait les deux colonnes.
+     */
     val karaoke = EnvoiFichier(
         envoyeur, viewModelScope, "chanson:karaoke",
         libelle = "Choisir un fichier karaoké",
-        aide = "La version sans la voix principale, pour chanter dessus."
+        aide = "Audio ou vidéo. Une vidéo MP4 convient, c'est la forme " +
+            "habituelle d'un karaoké : les paroles s'affichent.",
+        source = SourceMedia.AUDIO_OU_VIDEO_FICHIER,
+        refus = ::refusKaraoke
     )
 
     val playback = EnvoiFichier(
@@ -532,7 +544,7 @@ private fun BlocFichier(envoi: EnvoiFichier) {
     Column(modifier = Modifier.fillMaxWidth()) {
         if (fichier == null) {
             OutlinedButton(
-                onClick = { ouvrirSelecteur(SourceMedia.AUDIO_FICHIER) },
+                onClick = { ouvrirSelecteur(envoi.source) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(envoi.libelle, color = KaloyPurpleLight)

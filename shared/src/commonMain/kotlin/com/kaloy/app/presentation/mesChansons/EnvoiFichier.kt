@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.kaloy.app.core.envoi.EnvoyeurParMorceaux
 import com.kaloy.app.presentation.common.MediaSelectionne
+import com.kaloy.app.presentation.common.SourceMedia
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -31,7 +32,23 @@ class EnvoiFichier(
     /** Ce que l'ecran affiche sur le bouton : « Choisir un fichier audio ». */
     val libelle: String,
     /** La ligne d'explication sous le bouton. */
-    val aide: String
+    val aide: String,
+    /**
+     * Quel selecteur ouvrir.
+     *
+     * Le karaoke ouvre AUDIO_OU_VIDEO_FICHIER, les deux autres
+     * AUDIO_FICHIER. L'ecran lit cette valeur au lieu de la coder en dur :
+     * c'est le defaut trouve a la recette du 04/11 sur un vrai telephone, ou
+     * le bloc du karaoke ouvrait le selecteur audio et grisait donc les .mp4.
+     */
+    val source: SourceMedia = SourceMedia.AUDIO_FICHIER,
+    /**
+     * Pourquoi ce fichier ne convient pas, ou null s'il convient.
+     *
+     * Une fonction et non un drapeau : l'emplacement porte sa regle, et cette
+     * classe n'a rien a savoir des types ni des tailles acceptees.
+     */
+    private val refus: (MediaSelectionne) -> String? = ::refusAudio
 ) {
 
     /**
@@ -85,9 +102,9 @@ class EnvoiFichier(
             // Annulation, ou lecture des metadonnees impossible.
             return
         }
-        val refus = refusAudio(media)
-        if (refus != null) {
-            erreur = refus
+        val motif = refus(media)
+        if (motif != null) {
+            erreur = motif
             return
         }
         erreur = null

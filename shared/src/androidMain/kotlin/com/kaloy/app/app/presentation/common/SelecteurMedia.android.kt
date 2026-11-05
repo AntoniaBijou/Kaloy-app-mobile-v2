@@ -106,12 +106,24 @@ actual fun rememberSelecteurMedia(
                 )
 
                 // Les types sont enumeres et non laisses a "*/*" : le serveur
-                // n'accepte que MP3 et M4A, autant ne pas laisser l'artiste
-                // choisir un fichier qui sera refuse apres l'envoi. audio/* en
-                // plus des deux types precis, parce que certains fournisseurs
-                // de documents annoncent mal leurs fichiers.
+                // n'accepte qu'une liste precise, autant ne pas laisser
+                // l'artiste choisir un fichier qui sera refuse apres l'envoi.
+                // audio/* en plus des types precis, parce que certains
+                // fournisseurs de documents annoncent mal leurs fichiers.
                 SourceMedia.AUDIO_FICHIER -> lanceurFichierAudio.launch(
                     arrayOf("audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/*")
+                )
+
+                // Le karaoke accepte la video : il affiche les paroles, donc
+                // c'est une video dans la plupart des cas. Sans video/mp4 ici,
+                // un .mp4 apparaissait GRISE dans le selecteur, sans aucun
+                // message -- c'est le defaut trouve a la recette du 04/11 sur
+                // un vrai telephone. video/* pour la meme raison que audio/*.
+                SourceMedia.AUDIO_OU_VIDEO_FICHIER -> lanceurFichierAudio.launch(
+                    arrayOf(
+                        "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/*",
+                        "video/mp4", "video/*"
+                    )
                 )
             }
         }
