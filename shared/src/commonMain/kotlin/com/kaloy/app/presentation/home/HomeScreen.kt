@@ -42,7 +42,9 @@ import com.kaloy.app.data.api.UserIdDto
 import com.kaloy.app.core.util.Calendrier
 import com.kaloy.app.core.util.aujourdHuiLocal
 import com.kaloy.app.data.model.*
+import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
+import com.kaloy.app.presentation.chanson.EcranToutesChansonsVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
@@ -208,7 +210,7 @@ data class HomeScreen(
                         BarreNavigationPrincipale(
                             ongletActif = OngletPrincipal.ACCUEIL,
                             onAccueil = {},
-                            onRecherche = { navigateur.push(EcranRechercheVoyager()) },
+                            onPlaylist = { navigateur.push(PlaylistScreen()) },
                             onMoi = { navigateur.push(MoiScreen()) }
                         )
                     }
@@ -413,7 +415,7 @@ data class HomeScreen(
                                     items(modeleVue.albums) { album ->
                                         AlbumCard(
                                             album = album,
-                                            onClick = { /* TODO: navigation album */ }
+                                            onClick = { navigateur.push(EcranDetailAlbumVoyager(idAlbum = album.id)) }
                                         )
                                     }
                                 }
@@ -423,7 +425,12 @@ data class HomeScreen(
                         // Chansons
                         if (modeleVue.chansons.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "Top de la semaine", icon = Icons.Filled.EmojiEvents)
+                                SectionHeader(
+                                    title = "Top de la semaine",
+                                    icon = Icons.Filled.EmojiEvents,
+                                    action = "Voir tout",
+                                    onAction = { navigateur.push(EcranToutesChansonsVoyager()) }
+                                )
                             }
                             items(
                                 count = modeleVue.chansons.size,

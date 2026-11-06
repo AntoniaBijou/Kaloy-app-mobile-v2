@@ -47,6 +47,8 @@ class AuthSessionManager(private val settings: Settings) {
     }
 
     companion object {
+        const val SESSION_RETAINED_MESSAGE =
+            "Le serveur a refusé la session enregistrée. Elle reste conservée sur cet appareil."
         private const val KEY_TOKEN = "auth_token"
         private const val KEY_USER_ID = "auth_user_id"
         private const val KEY_EMAIL = "auth_email"

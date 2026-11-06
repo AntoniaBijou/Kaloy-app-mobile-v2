@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -19,7 +19,7 @@ import com.kaloy.app.ui.theme.KaloyTextMuted
 /** Les trois destinations de la barre du bas. */
 enum class OngletPrincipal(val libelle: String) {
     ACCUEIL("Accueil"),
-    RECHERCHE("Recherche"),
+    PLAYLIST("Playlist"),
     MOI("Moi")
 }
 
@@ -42,12 +42,12 @@ enum class OngletPrincipal(val libelle: String) {
 fun BarreNavigationPrincipale(
     ongletActif: OngletPrincipal,
     onAccueil: () -> Unit,
-    onRecherche: () -> Unit,
+    onPlaylist: () -> Unit,
     onMoi: () -> Unit
 ) {
     NavigationBar(containerColor = KaloyDarkSurface) {
         Onglet(OngletPrincipal.ACCUEIL, ongletActif, Icons.Default.Home, "Accueil", onAccueil)
-        Onglet(OngletPrincipal.RECHERCHE, ongletActif, Icons.Default.Search, "Recherche", onRecherche)
+        Onglet(OngletPrincipal.PLAYLIST, ongletActif, Icons.Default.QueueMusic, "Playlist", onPlaylist)
         Onglet(OngletPrincipal.MOI, ongletActif, Icons.Default.Person, "Mon profil", onMoi)
     }
 }

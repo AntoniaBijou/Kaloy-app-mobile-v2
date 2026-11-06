@@ -31,6 +31,8 @@ import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
 import com.kaloy.app.presentation.common.rememberBrowserLauncher
+import com.kaloy.app.presentation.favoris.BoutonFavori
+import com.kaloy.app.presentation.favoris.FavorisViewModel
 import com.kaloy.app.presentation.queue.UpNextSheet
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
@@ -46,6 +48,8 @@ data class LecteurScreen(
         val navigateur = LocalNavigator.currentOrThrow
         val queueManager = koinInject<QueueManager>()
         val viewModel = koinInject<LecteurViewModel>()
+        val favorisViewModel = koinInject<FavorisViewModel>()
+        val favorisSongIds by favorisViewModel.favorisSongIds.collectAsState()
 
         val uiState by viewModel.uiState.collectAsState()
         val isPlaying by viewModel.isPlaying.collectAsState()
@@ -131,13 +135,15 @@ data class LecteurScreen(
                         modeEcoute = modeEcoute,
                         aSuivant = upNext.isNotEmpty(),
                         aPrecedent = history.isNotEmpty() || currentPositionMs > 3_000L,
+                        isFavori = favorisSongIds.contains(state.song.id),
                         onRetour = { navigateur.pop() },
                         onAfficherFile = { afficherFile = true },
                         onTogglePlay = { viewModel.togglePlayPause() },
                         onSeek = { viewModel.seekTo(it) },
                         onChangerMode = { viewModel.changerMode(it) },
                         onSuivant = { viewModel.jouerSuivant() },
-                        onPrecedent = { viewModel.jouerPrecedent() }
+                        onPrecedent = { viewModel.jouerPrecedent() },
+                        onToggleFavori = { favorisViewModel.toggleFavoriChansonId(state.song.id) }
                     )
                 }
             }
@@ -170,13 +176,15 @@ private fun LecteurContenu(
     modeEcoute: ModeEcoute,
     aSuivant: Boolean,
     aPrecedent: Boolean,
+    isFavori: Boolean,
     onRetour: () -> Unit,
     onAfficherFile: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
     onChangerMode: (ModeEcoute) -> Unit,
     onSuivant: () -> Unit,
-    onPrecedent: () -> Unit
+    onPrecedent: () -> Unit,
+    onToggleFavori: () -> Unit
 ) {
     val launchBrowser = rememberBrowserLauncher()
 
@@ -237,7 +245,11 @@ private fun LecteurContenu(
                     .clip(RoundedCornerShape(12.dp))
             )
             Spacer(Modifier.height(16.dp))
-            TitreArtiste(song)
+            TitreArtiste(
+                song = song,
+                isFavori = isFavori,
+                onToggleFavori = onToggleFavori
+            )
         } else {
             // ---- Pochette de l'album ----
             Box(
@@ -267,27 +279,11 @@ private fun LecteurContenu(
 
             Spacer(Modifier.height(28.dp))
 
-            TitreArtiste(song)
-
-            if (song.isOffline) {
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        Icons.Default.DownloadDone,
-                        contentDescription = null,
-                        tint = KaloyGreen,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        "Mode hors-ligne",
-                        color = KaloyGreen,
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
-            }
+            TitreArtiste(
+                song = song,
+                isFavori = isFavori,
+                onToggleFavori = onToggleFavori
+            )
 
             Spacer(Modifier.height(20.dp))
 
@@ -502,7 +498,11 @@ private fun LecteurContenu(
 }
 
 @Composable
-private fun TitreArtiste(song: SongPlayerResponse) {
+private fun TitreArtiste(
+    song: SongPlayerResponse,
+    isFavori: Boolean,
+    onToggleFavori: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -545,6 +545,7 @@ private fun TitreArtiste(song: SongPlayerResponse) {
                 )
             }
         }
+        BoutonFavori(isFavori = isFavori, onToggle = onToggleFavori)
     }
 }
 

@@ -1,12 +1,13 @@
 package com.kaloy.app.core.audio
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.graphics.Bitmap
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.net.Uri
+import android.os.Bundle
 import android.util.Log
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
@@ -17,12 +18,21 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.CommandButton
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import androidx.media3.ui.PlayerNotificationManager
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import com.kaloy.app.core.offline.OfflineAudioDataSourceFactory
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -32,13 +42,21 @@ import kotlinx.coroutines.launch
 class KaloyMediaSessionService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
-    private lateinit var playerNotificationManager: PlayerNotificationManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var artworkJob: Job? = null
+    private var artworkRequestId = 0L
+    private var currentArtworkBitmap: Bitmap? = null
+    private var currentArtworkUri: Uri? = null
+    private var currentArtworkMediaId: String? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setChannelId(CHANNEL_ID)
+                .build()
+        )
         val audioAttributes = Media3AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -67,7 +85,50 @@ class KaloyMediaSessionService : MediaSessionService() {
             addListener(object : Player.Listener {
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     Log.d("KaloyAudio", "Media item: ${mediaItem?.localConfiguration?.uri}")
-                    loadArtwork(mediaItem?.mediaMetadata?.artworkUri)
+                    val requestId = ++artworkRequestId
+                    artworkJob?.cancel()
+
+                    if (mediaItem == null) {
+                        Log.d("KaloyAudio", "No current media item; retaining last artwork")
+                        return
+                    }
+
+                    val metadata = mediaItem.mediaMetadata
+                    val artworkData = metadata.artworkData
+                    if (artworkData != null) {
+                        val bitmap = BitmapFactory.decodeByteArray(artworkData, 0, artworkData.size)
+                        if (bitmap != null) {
+                            currentArtworkBitmap = bitmap
+                            currentArtworkUri = metadata.artworkUri
+                            currentArtworkMediaId = mediaItem.mediaId
+                            return
+                        }
+                        Log.w("KaloyAudio", "Embedded artwork could not be decoded; retrying artwork URI")
+                    }
+
+                    val artworkUri = metadata.artworkUri
+                    if (artworkUri == null) {
+                        if (metadata.artworkData == null) {
+                            currentArtworkBitmap = null
+                            currentArtworkUri = null
+                            currentArtworkMediaId = null
+                        }
+                        Log.w("KaloyAudio", "Current media item has no artwork URI")
+                    } else {
+                        val cachedBitmap = currentArtworkBitmap
+                        if (
+                            artworkUri == currentArtworkUri &&
+                            mediaItem.mediaId == currentArtworkMediaId &&
+                            cachedBitmap != null
+                        ) {
+                            publishArtwork(mediaItem.mediaId, artworkUri, requestId, cachedBitmap)
+                        } else {
+                            currentArtworkBitmap = null
+                            currentArtworkUri = artworkUri
+                            currentArtworkMediaId = mediaItem.mediaId
+                            loadArtwork(mediaItem.mediaId, artworkUri, requestId)
+                        }
+                    }
                 }
 
                 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -111,49 +172,180 @@ class KaloyMediaSessionService : MediaSessionService() {
         // Ne pas créer de AudioFocusRequest manuel : les deux requêtes concurrentes
         // provoqueraient un AUDIOFOCUS_LOSS immédiat sur l'une d'elles, qui déclencherait
         // player.pause() juste après le démarrage d'une nouvelle piste.
-        mediaSession = MediaSession.Builder(this, notificationPlayer).build()
-        playerNotificationManager = PlayerNotificationManager.Builder(this, NOTIFICATION_ID, CHANNEL_ID)
-            .setNotificationListener(object : PlayerNotificationManager.NotificationListener {
-                override fun onNotificationPosted(
-                    notificationId: Int,
-                    notification: Notification,
-                    ongoing: Boolean
-                ) {
-                    if (ongoing) startForeground(notificationId, notification)
-                    else stopForeground(false)
-                }
-                override fun onNotificationCancelled(notificationId: Int, dismissedByUser: Boolean) {
-                    stopSelf()
+        mediaSession = MediaSession.Builder(this, notificationPlayer)
+            .setCallback(object : MediaSession.Callback {
+                override fun onConnect(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo
+                ): MediaSession.ConnectionResult =
+                    MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                        .setAvailableSessionCommands(
+                            MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+                                .buildUpon()
+                                .add(TOGGLE_FAVORITE_CMD)
+                                .build()
+                        )
+                        .build()
+
+                override fun onCustomCommand(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                    customCommand: SessionCommand,
+                    args: Bundle
+                ): ListenableFuture<SessionResult> {
+                    if (customCommand == TOGGLE_FAVORITE_CMD) {
+                        AndroidAudioPlayerController.toggleFavorite.tryEmit(Unit)
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                    return super.onCustomCommand(session, controller, customCommand, args)
                 }
             })
             .build()
-            .apply { setPlayer(notificationPlayer) }
+
+        // Observe l'état favori → met à jour le custom layout (bouton cœur)
+        serviceScope.launch {
+            AndroidAudioPlayerController.isFavorite.collect { isFav ->
+                updateHeartLayout(isFav)
+            }
+        }
+
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = mediaSession
 
-    private fun loadArtwork(uri: Uri?) {
-        artworkJob?.cancel()
-        if (uri == null) return
-        artworkJob = serviceScope.launch(Dispatchers.IO) {
-            runCatching { URL(uri.toString()).openStream().use(BitmapFactory::decodeStream) }
-                .getOrNull()
-                ?.let { bitmap ->
-                    launch(Dispatchers.Main) {
-                        val currentItem = player.currentMediaItem ?: return@launch
-                        val metadata = currentItem.mediaMetadata.buildUpon()
-                            .setArtworkData(
-                                bitmap.toByteArray(),
-                                MediaMetadata.PICTURE_TYPE_FRONT_COVER
-                            )
-                            .build()
-                        player.replaceMediaItem(
-                            player.currentMediaItemIndex,
-                            currentItem.buildUpon().setMediaMetadata(metadata).build()
-                        )
-                    }
-                }
+    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        if (player.currentMediaItem == null) {
+            Log.d("KaloyAudio", "Stopping idle media service after task removal")
+            stopForeground(true)
+            stopSelf()
+        } else {
+            Log.d(
+                "KaloyAudio",
+                "Keeping media service after task removal; playbackState=${player.playbackState}"
+            )
         }
+    }
+
+    private fun updateHeartLayout(isFav: Boolean) {
+        val btn = CommandButton.Builder()
+            .setSessionCommand(TOGGLE_FAVORITE_CMD)
+            .setIconResId(
+                if (isFav) com.kaloy.app.shared.R.drawable.ic_kaloy_heart_filled
+                else com.kaloy.app.shared.R.drawable.ic_kaloy_heart_border
+            )
+            .setDisplayName(if (isFav) "Retirer des favoris" else "Ajouter aux favoris")
+            .build()
+        mediaSession.setCustomLayout(listOf(btn))
+    }
+
+    private fun loadArtwork(mediaId: String, uri: Uri, requestId: Long) {
+        Log.d("KaloyAudio", "Loading artwork")
+        artworkJob = serviceScope.launch(Dispatchers.IO) {
+            val bitmap = try {
+                downloadArtwork(uri)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                Log.e("KaloyAudio", "loadArtwork failed", e)
+                return@launch
+            } catch (e: IllegalStateException) {
+                Log.e("KaloyAudio", "loadArtwork failed", e)
+                return@launch
+            } catch (e: IllegalArgumentException) {
+                Log.e("KaloyAudio", "loadArtwork failed", e)
+                return@launch
+            }
+            launch(Dispatchers.Main) {
+                publishArtwork(mediaId, uri, requestId, bitmap)
+            }
+        }
+    }
+
+    private fun publishArtwork(mediaId: String, uri: Uri, requestId: Long, bitmap: Bitmap) {
+        val currentItem = player.currentMediaItem ?: return
+        if (
+            requestId != artworkRequestId ||
+            currentItem.mediaId != mediaId ||
+            currentItem.mediaMetadata.artworkUri != uri
+        ) {
+            return
+        }
+
+        currentArtworkBitmap = bitmap
+        currentArtworkUri = uri
+        currentArtworkMediaId = mediaId
+        if (currentItem.mediaMetadata.artworkData != null) return
+
+        val updatedMetadata = currentItem.mediaMetadata.buildUpon()
+            .setArtworkData(bitmap.toByteArray(), MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+            .build()
+        val resumePlayback = player.playWhenReady
+        player.replaceMediaItem(
+            player.currentMediaItemIndex,
+            currentItem.buildUpon().setMediaMetadata(updatedMetadata).build()
+        )
+        if (resumePlayback) player.play()
+    }
+
+    private fun downloadArtwork(uri: Uri): Bitmap {
+        require(uri.scheme == "http" || uri.scheme == "https") {
+            "Unsupported artwork URI scheme: ${uri.scheme}"
+        }
+        val connection = (URL(uri.toString()).openConnection() as HttpURLConnection).apply {
+            connectTimeout = ARTWORK_CONNECT_TIMEOUT_MS
+            readTimeout = ARTWORK_READ_TIMEOUT_MS
+            instanceFollowRedirects = true
+        }
+        val imageBytes = try {
+            val status = connection.responseCode
+            check(status in 200..299) { "Artwork request failed with HTTP $status" }
+            connection.inputStream.use { input ->
+                ByteArrayOutputStream().use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var totalBytes = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        totalBytes += count
+                        check(totalBytes <= MAX_ARTWORK_BYTES) {
+                            "Artwork exceeds the ${MAX_ARTWORK_BYTES / 1024 / 1024} MB limit"
+                        }
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, bounds)
+        check(bounds.outWidth > 0 && bounds.outHeight > 0) { "Artwork is not a valid image" }
+
+        val sampleSize = generateSequence(1) { it * 2 }
+            .takeWhile { maxOf(bounds.outWidth, bounds.outHeight) / it > MAX_ARTWORK_DIMENSION }
+            .lastOrNull() ?: 1
+        val decoded = BitmapFactory.decodeByteArray(
+            imageBytes,
+            0,
+            imageBytes.size,
+            BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        ) ?: error("Unable to decode artwork image")
+
+        val largestDimension = maxOf(decoded.width, decoded.height)
+        val bitmap = if (largestDimension > MAX_ARTWORK_DIMENSION) {
+            val scale = MAX_ARTWORK_DIMENSION.toFloat() / largestDimension
+            Bitmap.createScaledBitmap(
+                decoded,
+                (decoded.width * scale).toInt().coerceAtLeast(1),
+                (decoded.height * scale).toInt().coerceAtLeast(1),
+                true
+            ).also { if (it !== decoded) decoded.recycle() }
+        } else {
+            decoded
+        }
+        return bitmap
     }
 
     private fun createNotificationChannel() {
@@ -164,7 +356,6 @@ class KaloyMediaSessionService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        playerNotificationManager.setPlayer(null)
         artworkJob?.cancel()
         serviceScope.cancel()
         mediaSession.release()
@@ -174,12 +365,16 @@ class KaloyMediaSessionService : MediaSessionService() {
 
     companion object {
         private const val CHANNEL_ID = "kaloy_media_playback"
-        private const val NOTIFICATION_ID = 1001
+        private const val ARTWORK_CONNECT_TIMEOUT_MS = 10_000
+        private const val ARTWORK_READ_TIMEOUT_MS = 15_000
+        private const val MAX_ARTWORK_BYTES = 10 * 1024 * 1024
+        private const val MAX_ARTWORK_DIMENSION = 512
+        val TOGGLE_FAVORITE_CMD = SessionCommand("kaloy.TOGGLE_FAVORITE", Bundle.EMPTY)
     }
 }
 
 private fun android.graphics.Bitmap.toByteArray(): ByteArray {
-    val output = java.io.ByteArrayOutputStream()
-    compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output)
+    val output = ByteArrayOutputStream()
+    compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, output)
     return output.toByteArray()
 }

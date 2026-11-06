@@ -34,7 +34,7 @@ val appModule = module {
     single<LecteurRepository> { LecteurRepositoryImpl(get(), get()) }
     single { HistoriqueRechercheRepository(get(), get()) }
     single { QueueManager() }
-    single { LecteurViewModel(get(), get(), get(), get(), get(), get()) }
+    single { LecteurViewModel(get(), get(), get(), get(), get(), get(), get()) }
     single<PlaylistRepository> { PlaylistRepositoryImpl(get(), get()) }
     single { FavorisCatalog(get()) }
     single<FavorisRepository> { FavorisRepositoryImpl(get(), get(), get()) }

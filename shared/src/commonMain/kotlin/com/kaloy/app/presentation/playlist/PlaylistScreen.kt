@@ -22,7 +22,6 @@ import com.kaloy.app.core.offline.OfflineDownloadCoordinator
 import com.kaloy.app.core.offline.OfflineDownloadState
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.repository.PlaylistRepository
-import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.moi.MoiScreen
@@ -70,7 +69,6 @@ class PlaylistScreen : Screen {
         // Réaction aux états d'opération
         LaunchedEffect(operationState) {
             when (operationState) {
-                is PlaylistOperationState.NeedsRelogin -> navigateur.replaceAll(WelcomeScreen())
                 is PlaylistOperationState.Success, is PlaylistOperationState.Error -> {
                     delay(2000)
                     modeleVue.resetOperationState()

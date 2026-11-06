@@ -45,7 +45,6 @@ sealed class PlaylistOperationState {
     data object Loading : PlaylistOperationState()
     data class Success(val message: String) : PlaylistOperationState()
     data class Error(val message: String) : PlaylistOperationState()
-    data object NeedsRelogin : PlaylistOperationState()
 }
 
 sealed class PublicPlaylistUiState {
@@ -146,8 +145,7 @@ class PlaylistViewModel(
                 actualiserListeAffichee()
             } catch (e: Exception) {
                 if (e.message == "SESSION_EXPIRED") {
-                    sessionManager.clear()
-                    _operationState.value = PlaylistOperationState.NeedsRelogin
+                    _uiState.value = PlaylistUiState.Error(AuthSessionManager.SESSION_RETAINED_MESSAGE)
                 } else {
                     _uiState.value = PlaylistUiState.Error(UserErrorMessages.fromThrowable(e))
                 }
@@ -216,8 +214,8 @@ class PlaylistViewModel(
                 throw e
             } catch (e: Exception) {
                 if (e.message == "SESSION_EXPIRED") {
-                    sessionManager.clear()
-                    _operationState.value = PlaylistOperationState.NeedsRelogin
+                    _publicPlaylistState.value =
+                        PublicPlaylistUiState.Error(AuthSessionManager.SESSION_RETAINED_MESSAGE)
                 } else {
                     _publicPlaylistState.value =
                         PublicPlaylistUiState.Error(UserErrorMessages.fromThrowable(e))
@@ -275,8 +273,8 @@ class PlaylistViewModel(
                 throw e
             } catch (e: Exception) {
                 if (e.message == "SESSION_EXPIRED") {
-                    sessionManager.clear()
-                    _operationState.value = PlaylistOperationState.NeedsRelogin
+                    _mergePreview.value =
+                        MergePreviewState.Error(AuthSessionManager.SESSION_RETAINED_MESSAGE)
                 } else {
                     _mergePreview.value = MergePreviewState.Error(UserErrorMessages.fromThrowable(e))
                 }
@@ -470,8 +468,8 @@ class PlaylistViewModel(
                 throw e
             } catch (e: Exception) {
                 if (e.message == "SESSION_EXPIRED") {
-                    sessionManager.clear()
-                    _operationState.value = PlaylistOperationState.NeedsRelogin
+                    _operationState.value =
+                        PlaylistOperationState.Error(AuthSessionManager.SESSION_RETAINED_MESSAGE)
                 } else {
                     _operationState.value = PlaylistOperationState.Error(UserErrorMessages.fromThrowable(e))
                 }

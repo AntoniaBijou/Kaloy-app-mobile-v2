@@ -52,8 +52,7 @@ private sealed class ActiveDialog {
 private enum class MoiTab(val label: String, val emptyMessage: String) {
     PROFILE("Profil", ""),
     ACTIVITY("Activité", "Votre activité apparaîtra ici."),
-    FAVORITES("Favoris", "Vos favoris apparaîtront ici."),
-    OFFLINE("Offline", "Vos contenus disponibles hors ligne apparaîtront ici.")
+    FAVORITES("Favoris", "Vos favoris apparaîtront ici.")
 }
 
 // ── Ecran ─────────────────────────────────────────────────────────────────────
@@ -131,10 +130,6 @@ class MoiScreen : Screen {
                         else -> {}
                     }
                     viewModel.resetOperationState()
-                }
-                is MoiOperationState.NeedsRelogin -> {
-                    sessionManager.clear()
-                    navigator.replaceAll(WelcomeScreen())
                 }
                 is MoiOperationState.AccountDeleted -> {
                     navigator.replaceAll(WelcomeScreen())

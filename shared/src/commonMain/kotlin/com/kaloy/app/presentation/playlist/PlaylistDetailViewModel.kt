@@ -31,7 +31,6 @@ sealed class PlaylistDetailOperationState {
     data object Loading : PlaylistDetailOperationState()
     data class Success(val message: String) : PlaylistDetailOperationState()
     data class Error(val message: String) : PlaylistDetailOperationState()
-    data object NeedsRelogin : PlaylistDetailOperationState()
 }
 
 sealed class ActiveDialogDetail {
@@ -81,8 +80,8 @@ class PlaylistDetailViewModel(
                 _uiState.value = PlaylistDetailUiState.Success(id, name, songs)
             } catch (e: Exception) {
                 if (e.message == "SESSION_EXPIRED") {
-                    sessionManager.clear()
-                    _operationState.value = PlaylistDetailOperationState.NeedsRelogin
+                    _uiState.value =
+                        PlaylistDetailUiState.Error(AuthSessionManager.SESSION_RETAINED_MESSAGE)
                 } else {
                     _uiState.value = PlaylistDetailUiState.Error(UserErrorMessages.fromThrowable(e))
                 }

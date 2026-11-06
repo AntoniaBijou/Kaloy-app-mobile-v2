@@ -9,6 +9,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class AndroidAudioPlayerController(private val context: Context) : AudioPlayerController {
@@ -16,6 +17,15 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
     companion object {
         val skipToNext = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         val skipToPrevious = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+        /** État favori de la chanson courante — lu par KaloyMediaSessionService pour le custom layout. */
+        private val _isFavorite = MutableStateFlow(false)
+        val isFavorite = _isFavorite.asStateFlow()
+
+        /** Émis par KaloyMediaSessionService quand l'utilisateur tape le bouton cœur. */
+        val toggleFavorite = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+        fun setFavoriteState(isFav: Boolean) { _isFavorite.value = isFav }
     }
 
     private val _isPlaying = MutableStateFlow(false)
@@ -34,6 +44,7 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
     private val controller = AndroidMediaPlayerController(context)
     private var onTrackCompletedCallback: () -> Unit = {}
     private var onSkipToPreviousCallback: () -> Unit = {}
+    private var onToggleFavoriteCallback: () -> Unit = {}
 
     override fun setOnTrackCompleted(callback: () -> Unit) {
         onTrackCompletedCallback = callback
@@ -43,12 +54,23 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
         onSkipToPreviousCallback = callback
     }
 
+    override fun updateFavoriteState(isFavorite: Boolean) {
+        setFavoriteState(isFavorite)
+    }
+
+    override fun setOnToggleFavorite(callback: () -> Unit) {
+        onToggleFavoriteCallback = callback
+    }
+
     init {
         scope.launch {
             skipToNext.collect { onTrackCompletedCallback() }
         }
         scope.launch {
             skipToPrevious.collect { onSkipToPreviousCallback() }
+        }
+        scope.launch {
+            toggleFavorite.collect { onToggleFavoriteCallback() }
         }
         scope.launch {
             controller.state.collect { state ->
