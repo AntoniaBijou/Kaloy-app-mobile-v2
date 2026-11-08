@@ -18,21 +18,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -50,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.data.model.FollowArtisteInfo
 import com.kaloy.app.data.repository.HistoriqueEcouteRepository
 import com.kaloy.app.ui.theme.KaloyCyan
 import com.kaloy.app.ui.theme.KaloyDarkBg
@@ -76,8 +72,6 @@ enum class ActivitySection(
     val icon: ImageVector
 ) {
     RECENTLY_PLAYED("Récemment écouté", "Retrouvez les titres écoutés récemment.", Icons.Default.History),
-    QUEUE("File d'attente", "Les prochains titres de votre file Up Next.", Icons.Default.QueueMusic),
-    RADIO("Mode radio", "Votre dernière session radio.", Icons.Default.Radio),
     INTERACTIONS("Mes interactions", "Votre activité au sein de la communauté.", Icons.Default.Favorite),
     FOLLOWED_ARTISTS("Artistes suivis", "Les artistes que vous suivez.", Icons.Default.People),
     SHARES("Mes partages", "Les contenus musicaux que vous avez partagés.", Icons.Default.Share)
@@ -88,12 +82,6 @@ private data class ActivitySong(
     val artist: String,
     val detail: String,
     val songId: Long = 0
-)
-
-private val queuedSongs = listOf(
-    ActivitySong("Misia", "Reko Band", "5:01"),
-    ActivitySong("Eh sambatra sy tretrika", "Artiste Test Kaloy", "3:35"),
-    ActivitySong("Premier Pas", "Artiste Test Kaloy", "3:45")
 )
 
 private fun formatTrackDuration(seconds: Int): String =
@@ -114,15 +102,14 @@ fun ActivityOverview(
     var ecouteTotale by remember { mutableStateOf("—") }
     var artistesSuivis by remember { mutableStateOf("—") }
     var recentSongs by remember { mutableStateOf<List<ActivitySong>>(emptyList()) }
+    var previewArtistes by remember { mutableStateOf<List<FollowArtisteInfo>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         val repo = HistoriqueEcouteRepository(sessionManager)
         runCatching {
-            val (count, totalSecs) = repo.getMonthStats()
-            songsCeMois = count.toString()
-            val h = totalSecs / 3600
-            val m = (totalSecs % 3600) / 60
-            ecouteTotale = if (h > 0) "$h h $m" else "$m min"
+            val (monthCount, allTimeCount) = repo.getStats()
+            songsCeMois  = monthCount.toString()
+            ecouteTotale = allTimeCount.toString()
         }
         runCatching {
             artistesSuivis = repo.getFollowsCount().toString()
@@ -137,6 +124,9 @@ fun ActivityOverview(
                     songId = item.songId
                 )
             }
+        }
+        runCatching {
+            previewArtistes = repo.getArtistesEnSuivi().take(2)
         }
     }
 
@@ -208,29 +198,10 @@ fun ActivityOverview(
         }
         item {
             ActivityBlock(
-                section = ActivitySection.QUEUE,
-                onOpenSection = onOpenSection
-            ) {
-                Text("3 chansons en attente", color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
-                queuedSongs.take(2).forEach { song ->
-                    ActivitySongRow(song = song, showMore = true)
-                }
-            }
-        }
-        item {
-            ActivityBlock(
-                section = ActivitySection.RADIO,
-                onOpenSection = onOpenSection
-            ) {
-                RadioSessionCard()
-            }
-        }
-        item {
-            ActivityBlock(
                 section = ActivitySection.INTERACTIONS,
                 onOpenSection = onOpenSection
             ) {
-                InteractionSummary()
+                InteractionSummary(sessionManager)
             }
         }
         item {
@@ -238,9 +209,17 @@ fun ActivityOverview(
                 section = ActivitySection.FOLLOWED_ARTISTS,
                 onOpenSection = onOpenSection
             ) {
-                Text("8 artistes", color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
-                ArtistActivityRow("Reko Band", "Nouvelle sortie il y a 2 j")
-                ArtistActivityRow("Mamitiana", "Concert demain à 20 h")
+                if (previewArtistes.isEmpty()) {
+                    Text(
+                        "Aucun artiste suivi",
+                        color = KaloyTextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    previewArtistes.forEach { a ->
+                        ArtistActivityRow(name = a.stageName, activity = "Artiste suivi")
+                    }
+                }
             }
         }
         item {
@@ -248,7 +227,7 @@ fun ActivityOverview(
                 section = ActivitySection.SHARES,
                 onOpenSection = onOpenSection
             ) {
-                ShareSummary()
+                ShareSummary(sessionManager)
             }
         }
     }
@@ -388,51 +367,50 @@ private fun ActivitySongRow(song: ActivitySong, showMore: Boolean = false, onPla
 }
 
 @Composable
-private fun RadioSessionCard() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(48.dp).background(KaloyDarkElevated, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Radio, contentDescription = null, tint = KaloyCyan)
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Dernière session : Gospel", color = KaloyTextPrimary, fontWeight = FontWeight.SemiBold)
-                Text("Il y a 3 jours • 1 h 45", color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
-            }
+private fun InteractionSummary(sessionManager: AuthSessionManager) {
+    var favorisTotaux by remember { mutableStateOf("—") }
+    LaunchedEffect(Unit) {
+        runCatching {
+            favorisTotaux = HistoriqueEcouteRepository(sessionManager).getFavorisCount().toString()
         }
-        Button(
-            onClick = {},
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple.copy(alpha = 0.18f))
-        ) {
-            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = KaloyPurpleLight)
-            Spacer(Modifier.width(8.dp))
-            Text("Reprendre la session", color = KaloyPurpleLight)
+    }
+    SummaryLine(Icons.Default.Favorite, "$favorisTotaux favoris", KaloyPurpleLight)
+}
+
+@Composable
+private fun InteractionDetail(sessionManager: AuthSessionManager) {
+    var chansons by remember { mutableStateOf("—") }
+    var albums   by remember { mutableStateOf("—") }
+    var artistes by remember { mutableStateOf("—") }
+    LaunchedEffect(Unit) {
+        runCatching {
+            val stats = HistoriqueEcouteRepository(sessionManager).getFavorisStats()
+            chansons = stats.chansons.toString()
+            albums   = stats.albums.toString()
+            artistes = stats.artistes.toString()
         }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SummaryLine(Icons.Default.MusicNote, "$chansons chansons",  KaloyCyan)
+        SummaryLine(Icons.Default.Album,     "$albums albums",       KaloyGreen)
+        SummaryLine(Icons.Default.Mic,       "$artistes artistes",   KaloyPurpleLight)
     }
 }
 
 @Composable
-private fun InteractionSummary() {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SummaryLine(Icons.Default.ThumbUp, "12 likes", KaloyPurpleLight)
-        SummaryLine(Icons.Default.ChatBubbleOutline, "5 commentaires", KaloyCyan)
-        SummaryLine(Icons.Default.PhotoLibrary, "2 photos uploadées", KaloyGreen)
+private fun ShareSummary(sessionManager: AuthSessionManager) {
+    var nbPlaylists by remember { mutableStateOf("—") }
+    var nbChansons by remember { mutableStateOf("—") }
+    LaunchedEffect(Unit) {
+        runCatching {
+            val (playlists, chansons) = HistoriqueEcouteRepository(sessionManager).getPartagesStats()
+            nbPlaylists = playlists.toString()
+            nbChansons = chansons.toString()
+        }
     }
-}
-
-@Composable
-private fun ShareSummary() {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SummaryLine(Icons.Default.Share, "3 playlists partagées", KaloyPurpleLight)
-        SummaryLine(Icons.Default.MusicNote, "12 chansons partagées", KaloyCyan)
+        SummaryLine(Icons.Default.Share, "$nbPlaylists playlists partagées", KaloyPurpleLight)
+        SummaryLine(Icons.Default.MusicNote, "$nbChansons chansons partagées", KaloyCyan)
     }
 }
 
@@ -445,9 +423,9 @@ private fun SummaryLine(icon: ImageVector, text: String, tint: Color) {
 }
 
 @Composable
-private fun ArtistActivityRow(name: String, activity: String) {
+private fun ArtistActivityRow(name: String, activity: String, onClick: (() -> Unit)? = null) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(onClick = onClick) else it },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -470,7 +448,8 @@ fun ActivityDetailScreen(
     sessionManager: AuthSessionManager,
     modifier: Modifier = Modifier,
     onPlay: ((songId: Long) -> Unit)? = null,
-    onNavigateToSong: ((songId: Long) -> Unit)? = null
+    onNavigateToSong: ((songId: Long) -> Unit)? = null,
+    onNavigateToArtist: ((artistId: Long) -> Unit)? = null
 ) {
     if (section == ActivitySection.RECENTLY_PLAYED) {
         RecentListeningHistory(
@@ -511,19 +490,31 @@ fun ActivityDetailScreen(
             ActivitySection.RECENTLY_PLAYED -> {
                 // handled above by early return to RecentListeningHistory
             }
-            ActivitySection.QUEUE -> {
-                Text("3 chansons en attente", color = KaloyTextSecondary, style = MaterialTheme.typography.bodyMedium)
-                queuedSongs.forEach { ActivitySongRow(it, showMore = true) }
-            }
-            ActivitySection.RADIO -> RadioSessionCard()
-            ActivitySection.INTERACTIONS -> InteractionSummary()
+            ActivitySection.INTERACTIONS -> InteractionDetail(sessionManager)
             ActivitySection.FOLLOWED_ARTISTS -> {
-                Text("8 artistes suivis", color = KaloyTextSecondary, style = MaterialTheme.typography.bodyMedium)
-                ArtistActivityRow("Reko Band", "Nouvelle sortie il y a 2 j")
-                ArtistActivityRow("Mamitiana", "Concert demain à 20 h")
-                ArtistActivityRow("Artiste Test Kaloy", "Vous suit également")
+                var artistes by remember { mutableStateOf<List<FollowArtisteInfo>>(emptyList()) }
+                var chargement by remember { mutableStateOf(true) }
+                LaunchedEffect(Unit) {
+                    runCatching {
+                        artistes = HistoriqueEcouteRepository(sessionManager).getArtistesEnSuivi()
+                    }
+                    chargement = false
+                }
+                if (chargement) {
+                    Text("Chargement…", color = KaloyTextMuted, style = MaterialTheme.typography.bodySmall)
+                } else if (artistes.isEmpty()) {
+                    Text("Vous ne suivez aucun artiste.", color = KaloyTextSecondary, style = MaterialTheme.typography.bodySmall)
+                } else {
+                    artistes.forEach { a ->
+                        ArtistActivityRow(
+                            name = a.stageName,
+                            activity = "Artiste suivi",
+                            onClick = { onNavigateToArtist?.invoke(a.artisteId) }
+                        )
+                    }
+                }
             }
-            ActivitySection.SHARES -> ShareSummary()
+            ActivitySection.SHARES -> ShareSummary(sessionManager)
         }
     }
 }

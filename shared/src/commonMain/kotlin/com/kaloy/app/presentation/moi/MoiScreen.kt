@@ -18,6 +18,7 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.me.GroupMemberDto
 import com.kaloy.app.data.repository.MeRepository
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
+import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.components.*
@@ -256,7 +257,8 @@ class MoiScreen : Screen {
                             sessionManager = sessionManager,
                             modifier = Modifier.fillMaxSize().padding(innerPadding),
                             onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
-                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
+                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) },
+                            onNavigateToArtist = { artistId -> navigator.push(EcranDetailArtisteVoyager(idArtiste = artistId)) }
                         )
                     } else {
                         when (selectedTab) {
@@ -328,7 +330,8 @@ class MoiScreen : Screen {
                             sessionManager = sessionManager,
                             modifier = Modifier.fillMaxSize().padding(innerPadding),
                             onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
-                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
+                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) },
+                            onNavigateToArtist = { artistId -> navigator.push(EcranDetailArtisteVoyager(idArtiste = artistId)) }
                         )
                     } else {
                         when (selectedTab) {

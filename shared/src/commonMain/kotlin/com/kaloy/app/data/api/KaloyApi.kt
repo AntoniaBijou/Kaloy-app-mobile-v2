@@ -1025,6 +1025,30 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
             header(HttpHeaders.Authorization, "Bearer $token")
         }.body()
     }
+
+    suspend fun getMesFavorisCount(token: String): RestResponse<Long> {
+        return client.get("$apiBaseUrl/favoris/me/count") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body()
+    }
+
+    suspend fun getMesStatsFavoris(token: String): RestResponse<StatsFavoris> {
+        return client.get("$apiBaseUrl/favoris/me/stats") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body()
+    }
+
+    suspend fun getMesArtistesEnSuivi(token: String): RestResponse<List<FollowArtisteInfo>> {
+        return client.get("$apiBaseUrl/follows/me") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body()
+    }
+
+    suspend fun getMesPlaylists(token: String): RestResponse<List<PlaylistResume>> {
+        return client.get("$apiBaseUrl/playlists/me") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body()
+    }
 }
 
 // DTO de recherche pour POST /artists/search
