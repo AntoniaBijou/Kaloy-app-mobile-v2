@@ -60,6 +60,7 @@ import com.kaloy.app.presentation.common.BarreNavigationPrincipale
 import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.PlaylistScreen
+import com.kaloy.app.presentation.radio.RadioScreen
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -302,6 +303,7 @@ class EcranRechercheVoyager : Screen {
                     ongletActif = OngletPrincipal.ACCUEIL,
                     onAccueil = { navigateur.pop() },
                     onPlaylist = { navigateur.push(PlaylistScreen()) },
+                    onRadio = { navigateur.push(RadioScreen()) },
                     onMoi = { navigateur.push(MoiScreen()) }
                 )
             },

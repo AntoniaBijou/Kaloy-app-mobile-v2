@@ -18,6 +18,8 @@ import com.kaloy.app.data.repository.FavorisRepository
 import com.kaloy.app.data.repository.FavorisRepositoryImpl
 import com.kaloy.app.data.repository.PlaylistRepository
 import com.kaloy.app.data.repository.PlaylistRepositoryImpl
+import com.kaloy.app.data.repository.RadioRepository
+import com.kaloy.app.data.repository.RadioRepositoryImpl
 import com.kaloy.app.presentation.favoris.FavorisViewModel
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.russhwolf.settings.Settings
@@ -36,6 +38,7 @@ val appModule = module {
     single { QueueManager() }
     single { LecteurViewModel(get(), get(), get(), get(), get(), get(), get()) }
     single<PlaylistRepository> { PlaylistRepositoryImpl(get(), get()) }
+    single<RadioRepository> { RadioRepositoryImpl(get(), get()) }
     single { FavorisCatalog(get()) }
     single<FavorisRepository> { FavorisRepositoryImpl(get(), get(), get()) }
     single { FavorisViewModel(get(), get(), get(), get()) }

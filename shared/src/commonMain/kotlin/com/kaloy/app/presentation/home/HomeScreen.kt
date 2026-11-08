@@ -53,6 +53,7 @@ import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.PlaylistScreen
+import com.kaloy.app.presentation.radio.RadioScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.core.queue.QueueManager
@@ -211,6 +212,7 @@ data class HomeScreen(
                             ongletActif = OngletPrincipal.ACCUEIL,
                             onAccueil = {},
                             onPlaylist = { navigateur.push(PlaylistScreen()) },
+                            onRadio = { navigateur.push(RadioScreen()) },
                             onMoi = { navigateur.push(MoiScreen()) }
                         )
                     }
