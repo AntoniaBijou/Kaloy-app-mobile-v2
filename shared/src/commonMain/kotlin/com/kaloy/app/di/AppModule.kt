@@ -25,7 +25,7 @@ import org.koin.dsl.module
 
 val appModule = module {
     single { Settings() }
-    single { AuthSessionManager(get()) }
+    single { AuthSessionManager(get(), get()) }
     single { OfflinePlaylistCatalog(get()) }
     single { OfflineDownloadCoordinator(get(), get<OfflineFileStore>(), get(), get()) }
     single { createHttpClient(get()) }

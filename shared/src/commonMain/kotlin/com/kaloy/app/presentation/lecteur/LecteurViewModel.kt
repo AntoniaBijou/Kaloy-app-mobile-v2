@@ -142,16 +142,9 @@ class LecteurViewModel(
                         offlineCatalog.findPlayableSong(userId, songId, offlineFileStore, null, fallback)
                     } else null
 
-                    cached?.let {
-                        SongPlayerResponse(
-                            id = it.song.songId,
-                            title = it.song.title,
-                            durationSeconds = it.song.durationSeconds,
-                            artistStageName = it.song.artistName,
-                            audioStreamUrl = it.playableUrl,
-                            isOffline = true
-                        )
-                    } ?: repository.getSongPlayerDetails(songId)
+                    resolveSongPlayerDetails(cached) {
+                        repository.getSongPlayerDetails(songId)
+                    }
                 }
                 queueManager.syncCurrent(song.asQueueSong())
                 _uiState.value = LecteurUiState.Success(song)

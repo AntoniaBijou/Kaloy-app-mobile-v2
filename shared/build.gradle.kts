@@ -78,7 +78,6 @@ kotlin {
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.session)
             implementation(libs.media3.ui)
-            implementation(libs.youtube.player)
             implementation(libs.koin.android)
             // Le jeton d'appareil et la reception des messages vivent ici, dans
             // l'actual Android de obtenirJetonPush. Le plugin google-services,

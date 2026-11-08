@@ -3,9 +3,7 @@ package com.kaloy.app.presentation.common
 /**
  * Identifiant d'une URL YouTube, et page d'integration pour le lecteur iOS.
  *
- * Android n'utilise rien d'ici a part extractVideoId : il passe par la
- * bibliotheque androidyoutubeplayer, qui fabrique sa propre page. C'est iOS qui
- * a besoin de ce HTML, faute d'equivalent natif.
+ * La page d'integration est partagee entre les WebView Android et iOS.
  *
  * Une version de cette page a vecu ici jusqu'au 20/10/2026 sans jamais etre
  * affichee par personne, et un correctif de l'erreur 152 y a ete applique par
@@ -43,7 +41,7 @@ object YouTubeEmbedUtils {
      * dans une WebView, invisible dans les journaux — exactement ce qui a rendu
      * l'erreur 152 si longue a cerner cote Android.
      */
-    fun getIframeHtml(videoId: String): String = """<!DOCTYPE html>
+    fun getIframeHtml(videoId: String, origin: String = ORIGINE): String = """<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
@@ -57,7 +55,10 @@ html, body { width:100%; height:100%; background:#000; overflow:hidden; }
 <div id="yt"></div>
 <script>
 function journal(texte) {
-  try { window.webkit.messageHandlers.$CANAL_JOURNAL.postMessage(texte); } catch (e) {}
+  try {
+    if (window.KaloyVideo) window.KaloyVideo.postMessage(texte);
+    else window.webkit.messageHandlers.$CANAL_JOURNAL.postMessage(texte);
+  } catch (e) {}
 }
 var s = document.createElement('script');
 s.src = 'https://www.youtube.com/iframe_api';
@@ -67,7 +68,7 @@ function onYouTubeIframeAPIReady() {
   new YT.Player('yt', {
     videoId: '$videoId',
     width: '100%', height: '100%',
-    playerVars: { playsinline: 1, rel: 0, autoplay: 1, origin: '$ORIGINE' },
+    playerVars: { playsinline: 1, rel: 0, autoplay: 1, enablejsapi: 1, origin: '$origin' },
     events: {
       onReady: function(e) { journal('pret'); e.target.playVideo(); },
       onError: function(e) { journal('erreur ' + e.data); }

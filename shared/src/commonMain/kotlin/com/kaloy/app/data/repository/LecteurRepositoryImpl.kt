@@ -8,12 +8,15 @@ import com.kaloy.app.data.dto.RestResponse
 import com.kaloy.app.data.model.SongPlayerResponse
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
+
+private const val DETAILS_REQUEST_TIMEOUT_MS = 10_000L
 
 @Serializable
 private data class CreateMyListeningHistoryDto(
@@ -45,6 +48,7 @@ class LecteurRepositoryImpl(
 
     override suspend fun getSongPlayerDetails(songId: Long): SongPlayerResponse {
         val response = client.get("$BASE_URL/media/songs/$songId/player") {
+            timeout { requestTimeoutMillis = DETAILS_REQUEST_TIMEOUT_MS }
             withSessionToken()
         }
         if (response.status == HttpStatusCode.Unauthorized) throw Exception("SESSION_EXPIRED")

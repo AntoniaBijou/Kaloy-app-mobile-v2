@@ -6,6 +6,8 @@ import com.kaloy.app.core.audio.IosMediaPlayerController
 import com.kaloy.app.core.audio.MediaPlayerController
 import com.kaloy.app.core.offline.IosOfflineFileStore
 import com.kaloy.app.core.offline.OfflineFileStore
+import com.kaloy.app.core.session.IosSecureCredentialStore
+import com.kaloy.app.core.session.SecureCredentialStore
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 
@@ -17,6 +19,7 @@ import org.koin.dsl.module
  * navigation et de partager son etat entre le lecteur complet et le mini-player.
  */
 val iosModule = module {
+    single<SecureCredentialStore> { IosSecureCredentialStore() }
     single<AudioPlayerController> { IosAudioPlayerController() }
     single<MediaPlayerController> { IosMediaPlayerController() }
     single<OfflineFileStore> { IosOfflineFileStore() }
