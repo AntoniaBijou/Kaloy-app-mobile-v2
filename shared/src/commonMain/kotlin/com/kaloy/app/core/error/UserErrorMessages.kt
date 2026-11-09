@@ -55,6 +55,17 @@ object UserErrorMessages {
                 normalized.contains("connection closed") ->
                 "La connexion au serveur a été interrompue. Vérifiez votre réseau et réessayez."
 
+            normalized.contains("network is unreachable") ||
+                normalized.contains("no network") ->
+                "Vous êtes hors ligne. Vérifiez votre connexion Internet."
+
+            normalized.contains("connect to /") ||
+                normalized.contains("connection refused") ||
+                normalized.contains("failed to connect") ||
+                normalized.contains("no route to host") ||
+                normalized.contains("software caused connection abort") ->
+                "Aucune connexion Internet. Connectez-vous à Internet pour accéder à ce contenu."
+
             normalized.contains("unauthorized") || normalized.contains("forbidden") ->
                 "Vous n'êtes pas autorisé à effectuer cette action."
 

@@ -56,6 +56,17 @@ class IosAudioPlayerController : AudioPlayerController {
 
     /** Jeton de l'observateur de progression, a retirer avant de liberer le lecteur. */
     private var observateur: Any? = null
+    private var onTrackCompletedCallback: () -> Unit = {}
+    private var onSkipToPreviousCallback: () -> Unit = {}
+    private var trackCompletionSent = false
+
+    override fun setOnTrackCompleted(callback: () -> Unit) {
+        onTrackCompletedCallback = callback
+    }
+
+    override fun setOnSkipToPrevious(callback: () -> Unit) {
+        onSkipToPreviousCallback = callback
+    }
 
     override fun play(url: String) {
         val adresse = NSURL.URLWithString(url)
@@ -66,6 +77,7 @@ class IosAudioPlayerController : AudioPlayerController {
 
         libererLecteur()
         configurerSessionAudio()
+        trackCompletionSent = false
 
         val nouveau = AVPlayer(uRL = adresse)
         lecteur = nouveau
@@ -126,6 +138,13 @@ class IosAudioPlayerController : AudioPlayerController {
                     _currentPositionMs.value = (secondes * 1000).toLong()
                 }
                 lireDuree(lecteurCourant)
+                val duration = _durationMs.value
+                if (!trackCompletionSent && duration > 0L && _currentPositionMs.value >= duration) {
+                    trackCompletionSent = true
+                    _isPlaying.value = false
+                    _statusMessage.value = "Lecture terminée"
+                    onTrackCompletedCallback()
+                }
             }
         )
     }

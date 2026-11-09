@@ -14,8 +14,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,7 +39,10 @@ fun MiniPlayer(
     isPlaying: Boolean,
     onClick: () -> Unit,
     onTogglePlay: () -> Unit,
-    onQueueClick: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    canPrevious: Boolean,
+    canNext: Boolean,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -58,12 +62,17 @@ fun MiniPlayer(
                     style = MaterialTheme.typography.bodySmall, maxLines = 1,
                     overflow = TextOverflow.Ellipsis)
             }
+            IconButton(onClick = onPrevious, enabled = canPrevious) {
+                Icon(Icons.Default.SkipPrevious, contentDescription = "Précédent",
+                    tint = Color.White.copy(alpha = if (canPrevious) 1f else 0.35f))
+            }
             IconButton(onClick = onTogglePlay) {
                 Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Lecture", tint = Color.White)
             }
-            IconButton(onClick = onQueueClick) {
-                Icon(Icons.Default.QueueMusic, contentDescription = "Up Next", tint = KaloyPurple)
+            IconButton(onClick = onNext, enabled = canNext) {
+                Icon(Icons.Default.SkipNext, contentDescription = "Suivant",
+                    tint = Color.White.copy(alpha = if (canNext) 1f else 0.35f))
             }
         }
     }
