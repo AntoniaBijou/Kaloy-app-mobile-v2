@@ -51,6 +51,19 @@ val KaloyDarkSurface = Color(0xFF191A3E)
 val KaloyDarkCard = Color(0xFF1E1E4A)
 val KaloyDarkElevated = Color(0xFF25255D)
 
+// Les cartes posees SUR LA PHOTO de fond. Mesure sur les vrais pixels :
+// a 60 pour cent, la photo se devine sans que le texte y perde -- a
+// condition que les teintes faibles qu'elles portent soient remplacees
+// par KaloyTextSecondary et KaloySable. KaloyTextMuted y tombe a 2,85,
+// sous le seuil de 4,5, alors qu'il tient 4,59 sur une carte opaque.
+//
+// A n'employer que sur les ecrans qui portent la photo. Ailleurs le fond
+// est un aplat : une carte voilee n'y laisserait rien voir.
+//
+// Les dialogues gardent la carte opaque : on verrait la page au travers.
+val KaloyCarteVoilee = KaloyDarkCard.copy(alpha = 0.60f)
+val KaloyCarteVoileeHaute = KaloyDarkElevated.copy(alpha = 0.60f)
+
 // --- La couleur principale ----------------------------------------------
 val KaloyPurple = KaloyIndigo
 /**

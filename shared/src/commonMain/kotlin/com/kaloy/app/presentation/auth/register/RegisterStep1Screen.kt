@@ -19,6 +19,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.ui.theme.KaloyDarkCard
+import com.kaloy.app.ui.theme.KaloyCarteVoilee
 import com.kaloy.app.ui.theme.KaloyDarkElevated
 import com.kaloy.app.ui.theme.KaloyPurple
 import com.kaloy.app.ui.theme.KaloyPurpleLight
@@ -71,7 +72,7 @@ class RegisterStep1Screen : Screen, SansBarreDuBas {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = KaloyDarkCard.copy(alpha = 0.92f))
+                    colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee)
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -89,7 +90,7 @@ class RegisterStep1Screen : Screen, SansBarreDuBas {
                                 focusedTextColor = KaloyTextPrimary,
                                 unfocusedTextColor = KaloyTextPrimary,
                                 focusedBorderColor = KaloyPurpleLight,
-                                unfocusedBorderColor = KaloyTextMuted,
+                                unfocusedBorderColor = KaloyTextSecondary,
                                 focusedContainerColor = KaloyDarkElevated,
                                 unfocusedContainerColor = KaloyDarkElevated,
                                 cursorColor = KaloyPurpleLight,
@@ -109,7 +110,7 @@ class RegisterStep1Screen : Screen, SansBarreDuBas {
                                 focusedTextColor = KaloyTextPrimary,
                                 unfocusedTextColor = KaloyTextPrimary,
                                 focusedBorderColor = KaloyPurpleLight,
-                                unfocusedBorderColor = KaloyTextMuted,
+                                unfocusedBorderColor = KaloyTextSecondary,
                                 focusedContainerColor = KaloyDarkElevated,
                                 unfocusedContainerColor = KaloyDarkElevated,
                                 cursorColor = KaloyPurpleLight,
@@ -131,7 +132,7 @@ class RegisterStep1Screen : Screen, SansBarreDuBas {
                                 focusedTextColor = KaloyTextPrimary,
                                 unfocusedTextColor = KaloyTextPrimary,
                                 focusedBorderColor = KaloyPurpleLight,
-                                unfocusedBorderColor = KaloyTextMuted,
+                                unfocusedBorderColor = KaloyTextSecondary,
                                 focusedContainerColor = KaloyDarkElevated,
                                 unfocusedContainerColor = KaloyDarkElevated,
                                 cursorColor = KaloyPurpleLight,
@@ -146,7 +147,7 @@ class RegisterStep1Screen : Screen, SansBarreDuBas {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = KaloyDarkCard.copy(alpha = 0.92f))
+                    colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee)
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -165,7 +166,7 @@ class RegisterStep1Screen : Screen, SansBarreDuBas {
                                 onClick = { accountType = "CLIENT" },
                                 colors = RadioButtonDefaults.colors(
                                     selectedColor = KaloyPurpleLight,
-                                    unselectedColor = KaloyTextMuted
+                                    unselectedColor = KaloyTextSecondary
                                 )
                             )
                             Text("Client", color = KaloyTextPrimary, modifier = Modifier.padding(end = 16.dp))
@@ -174,7 +175,7 @@ class RegisterStep1Screen : Screen, SansBarreDuBas {
                                 onClick = { accountType = "ARTISTE" },
                                 colors = RadioButtonDefaults.colors(
                                     selectedColor = KaloyPurpleLight,
-                                    unselectedColor = KaloyTextMuted
+                                    unselectedColor = KaloyTextSecondary
                                 )
                             )
                             Text("Artiste", color = KaloyTextPrimary)

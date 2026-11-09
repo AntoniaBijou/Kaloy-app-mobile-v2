@@ -26,7 +26,7 @@ fun CarteMonCalendrier(
     onClick: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
+        colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -67,7 +67,7 @@ fun CarteMonCalendrier(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = KaloyTextMuted
+                tint = KaloyTextSecondary
             )
         }
     }

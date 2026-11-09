@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
@@ -27,6 +28,7 @@ import com.kaloy.app.presentation.organisation.EcranMesEvenementsVoyager
 import com.kaloy.app.presentation.calendrier.EcranMonCalendrierVoyager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.ui.theme.*
+import com.kaloy.app.ui.theme.fondKaloy
 import org.koin.compose.koinInject
 import com.kaloy.app.presentation.moi.components.CarteStatistiques
 import com.kaloy.app.presentation.moi.components.DangerZone
@@ -226,7 +228,15 @@ class MoiScreen : Screen {
                     }
                 }
             },
-            containerColor = KaloyDarkBg
+            // La photo de fond, comme sur l'accueil et la recherche. Le
+            // containerColor passe en transparent, sinon le Scaffold
+            // peindrait son aplat par-dessus.
+            //
+            // La barre du haut garde son aplat KaloyDarkSurface : dans la
+            // maquette de reference, la barre est une bande opaque et la
+            // photo court derriere le contenu en dessous d'elle.
+            modifier = Modifier.fondKaloy(),
+            containerColor = Color.Transparent
         ) { innerPadding ->
             when (val state = uiState) {
                 is MoiUiState.Loading -> {
@@ -275,7 +285,7 @@ class MoiScreen : Screen {
                     } else {
                         when (selectedTab) {
                             MoiTab.PROFILE -> LazyColumn(
-                                modifier = Modifier.fillMaxSize().padding(innerPadding).background(KaloyDarkBg),
+                                modifier = Modifier.fillMaxSize().padding(innerPadding),
                                 contentPadding = PaddingValues(bottom = 16.dp)
                             ) {
                                 item {
@@ -347,7 +357,7 @@ class MoiScreen : Screen {
                     } else {
                         when (selectedTab) {
                             MoiTab.PROFILE -> LazyColumn(
-                                modifier = Modifier.fillMaxSize().padding(innerPadding).background(KaloyDarkBg),
+                                modifier = Modifier.fillMaxSize().padding(innerPadding),
                                 contentPadding = PaddingValues(bottom = 16.dp)
                             ) {
                                 item {
@@ -607,7 +617,7 @@ class MoiScreen : Screen {
     @Composable
     private fun MoiTabPlaceholder(tab: MoiTab, modifier: Modifier = Modifier) {
         Box(
-            modifier = modifier.background(KaloyDarkBg).padding(24.dp),
+            modifier = modifier.padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(

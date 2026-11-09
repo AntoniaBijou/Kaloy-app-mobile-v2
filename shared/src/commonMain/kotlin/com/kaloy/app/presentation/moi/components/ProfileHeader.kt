@@ -34,9 +34,11 @@ fun ProfileHeader(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(listOf(KaloyPurpleDark, KaloyDarkSurface))
-            )
+            // Aucun fond : la photo passe entierement au travers, comme
+            // demande. Le nom est en titleLarge gras, un GRAND texte dont
+            // le seuil est 3,0 et non 4,5 ; mesure sur la zone la plus
+            // claire de la photo, il tient 4,10. C'est la seule carte de
+            // l'onglet qui puisse se passer de tout voile.
             .padding(vertical = 28.dp),
         contentAlignment = Alignment.Center
     ) {

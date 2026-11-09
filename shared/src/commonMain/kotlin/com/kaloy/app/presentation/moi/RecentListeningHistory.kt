@@ -55,7 +55,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,9 +62,12 @@ import androidx.compose.ui.unit.sp
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.model.ListeningHistoryItem
 import com.kaloy.app.data.repository.HistoriqueEcouteRepository
+import com.kaloy.app.ui.theme.KaloyCarteVoilee
 import com.kaloy.app.ui.theme.KaloyCyan
+import com.kaloy.app.ui.theme.KaloySable
 import com.kaloy.app.ui.theme.KaloyDarkBg
 import com.kaloy.app.ui.theme.KaloyDarkCard
+import com.kaloy.app.ui.theme.KaloyOrange
 import com.kaloy.app.ui.theme.KaloyDarkElevated
 import com.kaloy.app.ui.theme.KaloyPurple
 import com.kaloy.app.ui.theme.KaloyPurpleLight
@@ -193,7 +195,7 @@ fun RecentListeningHistory(
     val distinctArtists = entries.map { it.artist }.distinct().size
 
     LazyColumn(
-        modifier = modifier.background(KaloyDarkBg),
+        modifier = modifier,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
@@ -284,7 +286,7 @@ fun RecentListeningHistory(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
-                    color = KaloyDarkCard
+                    color = KaloyCarteVoilee
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
@@ -342,7 +344,7 @@ fun RecentListeningHistory(
                     onClick = { page++ },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Charger la suite", color = KaloyPurpleLight)
+                    Text("Charger la suite", color = KaloySable)
                 }
             }
         }
@@ -428,12 +430,19 @@ private fun HistoryPeriodChip(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = if (selected) KaloyPurple else KaloyDarkCard
+        // Orange et non l'indigo. Mesure : l'indigo sur le fond de
+        // l'ecran donne 1,58, soit une pastille qu'on ne voit pas, et la
+        // photo de fond l'efface tout a fait. L'orange monte a 4,94, et
+        // c'est l'usage que la maquette reserve a la pastille active.
+        color = if (selected) KaloyOrange else KaloyDarkCard
     ) {
         Text(
             text = period.label,
             modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
-            color = if (selected) Color.White else KaloyTextSecondary,
+            // Bleu nuit sur l'orange : 4,94. Le blanc n'y tiendrait que
+            // 3,56, sous le seuil de 4,5 : il convenait a l'indigo, a
+            // 11,16, mais pas a un remplissage clair.
+            color = if (selected) KaloyDarkBg else KaloyTextSecondary,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
         )
@@ -450,7 +459,7 @@ private fun HistoryStatCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard)
+        colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 13.dp),
@@ -545,7 +554,7 @@ private fun ListeningHistoryRow(
             )
             Text(
                 "${entry.time} • ${entry.duration}",
-                color = KaloyTextMuted,
+                color = KaloyTextSecondary,
                 style = MaterialTheme.typography.labelSmall
             )
         }
