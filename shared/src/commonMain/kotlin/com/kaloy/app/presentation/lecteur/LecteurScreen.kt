@@ -1,6 +1,5 @@
 package com.kaloy.app.presentation.lecteur
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,7 +33,6 @@ import com.kaloy.app.data.repository.LecteurRepository
 import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
-import com.kaloy.app.presentation.common.rememberBrowserLauncher
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
 
@@ -167,8 +166,6 @@ private fun LecteurContenu(
     onSuivant: () -> Unit,
     onPrecedent: () -> Unit
 ) {
-    val launchBrowser = rememberBrowserLauncher()
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -405,51 +402,9 @@ private fun LecteurContenu(
             Spacer(Modifier.height(16.dp))
         }
 
-        // ---- Bouton Solfa (partition PDF) ----
-        if (!song.solfaUrl.isNullOrBlank()) {
-            OutlinedButton(
-                onClick = { launchBrowser(song.solfaUrl) },
-                modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, KaloyPurple),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = KaloyPurple),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(
-                    Icons.Default.MusicNote,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Partition Solfa", fontSize = 14.sp)
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-
-        // ---- Paroles ----
-        if (!song.lyrics.isNullOrBlank()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(KaloyDarkSurface)
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "Paroles",
-                    color = KaloyTextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Text(
-                    text = cleanLyrics(song.lyrics),
-                    color = KaloyTextPrimary,
-                    fontSize = 14.sp,
-                    lineHeight = 22.sp
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-        }
+        // ---- Paroles ou solfa ----
+        SectionTexteLecteur(song)
+        Spacer(Modifier.height(16.dp))
 
         // ---- Crédits ----
         if (!song.authorComposer.isNullOrBlank() || !song.musicalArranger.isNullOrBlank()) {
@@ -544,6 +499,87 @@ private fun InfoLigne(label: String, valeur: String) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 8.dp)
         )
+    }
+}
+
+/**
+ * Le texte de la chanson sur le lecteur : les paroles, ou le solfa.
+ *
+ * Meme comportement que sur la fiche de chanson : les deux boutons restent
+ * la, le texte s'affiche en permanence dessous, et un message prend la place
+ * du contenu quand il manque. Sans cela la fonction resterait invisible, car
+ * aucune des chansons du catalogue ne porte encore de solfa.
+ *
+ * Le rendu reste celui du lecteur -- police 14, interligne 22, texte clair
+ * sur KaloyDarkSurface -- et non celui de la fiche. Les deux ecrans n'ont
+ * jamais eu la meme mise en forme des paroles, et les aligner aurait change
+ * l'aspect de l'ecran le plus vu de l'application.
+ *
+ * Remplace un bouton « Partition Solfa » conditionne a solfaUrl, qui ouvrait
+ * un navigateur. Cette colonne est reservee a un envoi de fichier qui
+ * n'existe pas encore, donc vide partout : le bouton ne s'affichait jamais.
+ * Le solfa saisi au formulaire est du TEXTE, dans la colonne solfa.
+ */
+@Composable
+private fun SectionTexteLecteur(song: SongPlayerResponse) {
+    // Remis sur « Paroles » quand la file passe a une autre chanson : le
+    // lecteur garde le meme composant d'un morceau au suivant.
+    var choix by remember(song.id) { mutableStateOf("Paroles") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(KaloyDarkSurface)
+            .padding(16.dp)
+    ) {
+        Row(modifier = Modifier.padding(bottom = 8.dp)) {
+            listOf("Paroles", "Solfa").forEach { nom ->
+                val actif = choix == nom
+                TextButton(
+                    onClick = { choix = nom },
+                    colors = ButtonDefaults.textButtonColors(
+                        // L'orange VIF remplit la pastille, l'orange CLAIR
+                        // ecrit dessus. Mesure : le voile d'orange a 20 pour
+                        // cent eclaircit la surface vers l'orange, et un
+                        // libelle en orange vif n'y tient que 3,76 -- sous le
+                        // seuil de 4,5. L'orange clair monte a 5,71.
+                        containerColor = if (actif) KaloyOrange.copy(alpha = 0.2f) else Color.Transparent,
+                        contentColor = if (actif) KaloyPink else KaloyTextMuted
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = nom,
+                        fontSize = 12.sp,
+                        fontWeight = if (actif) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+
+        val contenu = if (choix == "Paroles") song.lyrics else song.solfa
+        if (!contenu.isNullOrBlank()) {
+            Text(
+                text = cleanLyrics(contenu),
+                color = KaloyTextPrimary,
+                fontSize = 14.sp,
+                lineHeight = 22.sp
+            )
+        } else {
+            Text(
+                text = if (choix == "Paroles")
+                    "Les paroles ne sont pas disponibles pour cette chanson."
+                else
+                    "Le solfa n'est pas disponible pour cette chanson.",
+                color = KaloyTextMuted,
+                fontSize = 13.sp,
+                fontStyle = FontStyle.Italic,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 

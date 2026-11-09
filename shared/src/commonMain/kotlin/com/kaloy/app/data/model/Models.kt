@@ -434,6 +434,10 @@ data class SongPlayerResponse(
     val isDownloadable: Boolean = true,
     val lyrics: String? = null,
     val lyricsSyncData: String? = null,
+    // Le solfa en TEXTE, a ne pas confondre avec solfaUrl plus bas, reservee
+    // a un envoi de fichier qui n'existe pas encore. Le champ manquait, donc
+    // le solfa n'atteignait jamais cet ecran.
+    val solfa: String? = null,
     val authorComposer: String? = null,
     val musicalArranger: String? = null,
     val artistId: Long = 0,
