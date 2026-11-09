@@ -4,6 +4,8 @@ import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.audio.IosAudioPlayerController
 import com.kaloy.app.core.audio.IosMediaPlayerController
 import com.kaloy.app.core.audio.MediaPlayerController
+import com.kaloy.app.core.offline.IosOfflineFileStore
+import com.kaloy.app.core.offline.OfflineFileStore
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 
@@ -37,6 +39,7 @@ val iosModule = module {
     // se branchant sur le meme service Media3 : seul l'etat local divergeait.
     single<AudioPlayerController> { IosAudioPlayerController() }
     single<MediaPlayerController> { IosMediaPlayerController() }
+    single<OfflineFileStore> { IosOfflineFileStore() }
 }
 
 /**

@@ -33,6 +33,8 @@ import org.koin.compose.koinInject
 import com.kaloy.app.presentation.moi.components.CarteStatistiques
 import com.kaloy.app.presentation.moi.components.DangerZone
 import com.kaloy.app.presentation.statistiques.EcranStatistiquesVoyager
+import com.kaloy.app.presentation.favoris.FavorisContent
+import com.kaloy.app.presentation.favoris.FavorisViewModel
 
 // ── Etats de dialog ───────────────────────────────────────────────────────────
 
@@ -316,6 +318,24 @@ class MoiScreen : Screen {
                                 onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
                                 onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
                             )
+                            MoiTab.FAVORITES -> {
+                                val favorisViewModel = koinInject<FavorisViewModel>()
+                                FavorisContent(
+                                    viewModel = favorisViewModel,
+                                    onPlaySong = { song -> navigator.push(LecteurScreen(song.id)) },
+                                    onPlayAll = {
+                                        favorisViewModel.jouerTousLesFavoris()?.let { first ->
+                                            navigator.push(LecteurScreen(first.id))
+                                        }
+                                    },
+                                    onShuffle = {
+                                        favorisViewModel.jouerAleatoire()?.let { first ->
+                                            navigator.push(LecteurScreen(first.id))
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize().padding(innerPadding)
+                                )
+                            }
                             else -> MoiTabPlaceholder(
                                 tab = selectedTab,
                                 modifier = Modifier.fillMaxSize().padding(innerPadding)
@@ -428,6 +448,24 @@ class MoiScreen : Screen {
                                         onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
                                     )
                                 }
+                                item {
+                                    CarteNotifications(
+                                        nombreEnAttente = invitationsEnAttente,
+                                        onClick = { navigator.push(EcranNotificationsVoyager()) }
+                                    )
+                                }
+                                item {
+                                    CarteMesEvenements(
+                                        nombreEvenements = evenementsOrganises,
+                                        onClick = { navigator.push(EcranMesEvenementsVoyager()) }
+                                    )
+                                }
+                                item {
+                                    CarteMonCalendrier(
+                                        nombreConcerts = concertsConfirmes,
+                                        onClick = { navigator.push(EcranMonCalendrierVoyager()) }
+                                    )
+                                }
                             }
                             MoiTab.ACTIVITY -> ActivityOverview(
                                 modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -436,6 +474,24 @@ class MoiScreen : Screen {
                                 onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
                                 onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
                             )
+                            MoiTab.FAVORITES -> {
+                                val favorisViewModel = koinInject<FavorisViewModel>()
+                                FavorisContent(
+                                    viewModel = favorisViewModel,
+                                    onPlaySong = { song -> navigator.push(LecteurScreen(song.id)) },
+                                    onPlayAll = {
+                                        favorisViewModel.jouerTousLesFavoris()?.let { first ->
+                                            navigator.push(LecteurScreen(first.id))
+                                        }
+                                    },
+                                    onShuffle = {
+                                        favorisViewModel.jouerAleatoire()?.let { first ->
+                                            navigator.push(LecteurScreen(first.id))
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize().padding(innerPadding)
+                                )
+                            }
                             else -> MoiTabPlaceholder(
                                 tab = selectedTab,
                                 modifier = Modifier.fillMaxSize().padding(innerPadding)
