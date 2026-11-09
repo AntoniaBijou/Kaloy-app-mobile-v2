@@ -17,6 +17,15 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.ui.theme.KaloyDarkCard
+import com.kaloy.app.ui.theme.KaloyDarkElevated
+import com.kaloy.app.ui.theme.KaloyPurple
+import com.kaloy.app.ui.theme.KaloyPurpleLight
+import com.kaloy.app.ui.theme.KaloyRed
+import com.kaloy.app.ui.theme.KaloyTextMuted
+import com.kaloy.app.ui.theme.KaloyTextPrimary
+import com.kaloy.app.ui.theme.KaloyTextSecondary
+import com.kaloy.app.ui.theme.fondKaloy
 
 class RegisterStep1Screen : Screen {
 
@@ -35,7 +44,7 @@ class RegisterStep1Screen : Screen {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .fondKaloy()
         ) {
             Column(
                 modifier = Modifier
@@ -48,20 +57,20 @@ class RegisterStep1Screen : Screen {
                     text = "Créer un compte",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF111827)
+                    color = KaloyTextPrimary
                 )
 
                 Text(
                     text = "Rejoignez la communauté Kaloy et accordez votre identité musicale.",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color(0xFF4B5563),
+                    color = KaloyTextSecondary,
                     textAlign = TextAlign.Start
                 )
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F4F6))
+                    colors = CardDefaults.cardColors(containerColor = KaloyDarkCard.copy(alpha = 0.92f))
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -76,16 +85,16 @@ class RegisterStep1Screen : Screen {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color(0xFF111827),
-                                unfocusedTextColor = Color(0xFF111827),
-                                focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFFCBD5E1),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                cursorColor = Color(0xFF8B5CF6),
-                                focusedLabelColor = Color(0xFF8B5CF6),
-                                unfocusedLabelColor = Color(0xFF4B5563),
-                                errorBorderColor = Color(0xFFE11D48)
+                                focusedTextColor = KaloyTextPrimary,
+                                unfocusedTextColor = KaloyTextPrimary,
+                                focusedBorderColor = KaloyPurpleLight,
+                                unfocusedBorderColor = KaloyTextMuted,
+                                focusedContainerColor = KaloyDarkElevated,
+                                unfocusedContainerColor = KaloyDarkElevated,
+                                cursorColor = KaloyPurpleLight,
+                                focusedLabelColor = KaloyPurpleLight,
+                                unfocusedLabelColor = KaloyTextSecondary,
+                                errorBorderColor = KaloyRed
                             )
                         )
 
@@ -96,15 +105,15 @@ class RegisterStep1Screen : Screen {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color(0xFF111827),
-                                unfocusedTextColor = Color(0xFF111827),
-                                focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFFCBD5E1),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                cursorColor = Color(0xFF8B5CF6),
-                                focusedLabelColor = Color(0xFF8B5CF6),
-                                unfocusedLabelColor = Color(0xFF4B5563)
+                                focusedTextColor = KaloyTextPrimary,
+                                unfocusedTextColor = KaloyTextPrimary,
+                                focusedBorderColor = KaloyPurpleLight,
+                                unfocusedBorderColor = KaloyTextMuted,
+                                focusedContainerColor = KaloyDarkElevated,
+                                unfocusedContainerColor = KaloyDarkElevated,
+                                cursorColor = KaloyPurpleLight,
+                                focusedLabelColor = KaloyPurpleLight,
+                                unfocusedLabelColor = KaloyTextSecondary
                             )
                         )
 
@@ -118,16 +127,16 @@ class RegisterStep1Screen : Screen {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color(0xFF111827),
-                                unfocusedTextColor = Color(0xFF111827),
-                                focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFFCBD5E1),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                cursorColor = Color(0xFF8B5CF6),
-                                focusedLabelColor = Color(0xFF8B5CF6),
-                                unfocusedLabelColor = Color(0xFF4B5563),
-                                errorBorderColor = Color(0xFFE11D48)
+                                focusedTextColor = KaloyTextPrimary,
+                                unfocusedTextColor = KaloyTextPrimary,
+                                focusedBorderColor = KaloyPurpleLight,
+                                unfocusedBorderColor = KaloyTextMuted,
+                                focusedContainerColor = KaloyDarkElevated,
+                                unfocusedContainerColor = KaloyDarkElevated,
+                                cursorColor = KaloyPurpleLight,
+                                focusedLabelColor = KaloyPurpleLight,
+                                unfocusedLabelColor = KaloyTextSecondary,
+                                errorBorderColor = KaloyRed
                             )
                         )
                     }
@@ -136,7 +145,7 @@ class RegisterStep1Screen : Screen {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F4F6))
+                    colors = CardDefaults.cardColors(containerColor = KaloyDarkCard.copy(alpha = 0.92f))
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -145,7 +154,7 @@ class RegisterStep1Screen : Screen {
                         Text(
                             text = "Type de compte",
                             style = MaterialTheme.typography.labelLarge,
-                            color = Color(0xFF111827),
+                            color = KaloyTextPrimary,
                             fontWeight = FontWeight.SemiBold
                         )
 
@@ -154,20 +163,20 @@ class RegisterStep1Screen : Screen {
                                 selected = accountType == "CLIENT",
                                 onClick = { accountType = "CLIENT" },
                                 colors = RadioButtonDefaults.colors(
-                                    selectedColor = Color(0xFF8B5CF6),
-                                    unselectedColor = Color(0xFF6B7280)
+                                    selectedColor = KaloyPurpleLight,
+                                    unselectedColor = KaloyTextMuted
                                 )
                             )
-                            Text("Client", color = Color(0xFF111827), modifier = Modifier.padding(end = 16.dp))
+                            Text("Client", color = KaloyTextPrimary, modifier = Modifier.padding(end = 16.dp))
                             RadioButton(
                                 selected = accountType == "ARTISTE",
                                 onClick = { accountType = "ARTISTE" },
                                 colors = RadioButtonDefaults.colors(
-                                    selectedColor = Color(0xFF8B5CF6),
-                                    unselectedColor = Color(0xFF6B7280)
+                                    selectedColor = KaloyPurpleLight,
+                                    unselectedColor = KaloyTextMuted
                                 )
                             )
-                            Text("Artiste", color = Color(0xFF111827))
+                            Text("Artiste", color = KaloyTextPrimary)
                         }
                     }
                 }
@@ -210,7 +219,7 @@ class RegisterStep1Screen : Screen {
                     },
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                    colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
                 ) {
                     Text("Continuer", fontWeight = FontWeight.SemiBold)
                 }

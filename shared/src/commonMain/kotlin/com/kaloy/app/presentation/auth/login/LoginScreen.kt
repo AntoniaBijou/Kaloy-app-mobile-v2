@@ -48,6 +48,16 @@ import com.kaloy.app.data.dto.LoginRequest
 import com.kaloy.app.data.repository.AuthRepository
 import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
 import com.kaloy.app.presentation.home.HomeScreen
+import com.kaloy.app.ui.theme.KaloyCreme
+import com.kaloy.app.ui.theme.KaloyDarkCard
+import com.kaloy.app.ui.theme.KaloyDarkElevated
+import com.kaloy.app.ui.theme.KaloyPurple
+import com.kaloy.app.ui.theme.KaloyPurpleLight
+import com.kaloy.app.ui.theme.KaloyRed
+import com.kaloy.app.ui.theme.KaloyTextMuted
+import com.kaloy.app.ui.theme.KaloyTextPrimary
+import com.kaloy.app.ui.theme.KaloyTextSecondary
+import com.kaloy.app.ui.theme.fondKaloy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -120,7 +130,7 @@ class LoginScreen : Screen {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .fondKaloy()
         ) {
             Column(
                 modifier = Modifier
@@ -132,7 +142,7 @@ class LoginScreen : Screen {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F4F6))
+                    colors = CardDefaults.cardColors(containerColor = KaloyDarkCard.copy(alpha = 0.92f))
                 ) {
                     Column(
                         modifier = Modifier
@@ -144,13 +154,13 @@ class LoginScreen : Screen {
                             text = "Connexion",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF111827)
+                            color = KaloyTextPrimary
                         )
 
                         Text(
                             text = "Bienvenue à nouveau sur Kaloy.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF4B5563)
+                            color = KaloyTextSecondary
                         )
 
                         OutlinedTextField(
@@ -161,15 +171,15 @@ class LoginScreen : Screen {
                             supportingText = { if (emailError.isNotEmpty()) Text(emailError) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color(0xFF111827),
-                                unfocusedTextColor = Color(0xFF111827),
-                                focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFFCBD5E1),
-                                focusedLabelColor = Color(0xFF8B5CF6),
-                                unfocusedLabelColor = Color(0xFF4B5563),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                errorBorderColor = Color(0xFFE11D48)
+                                focusedTextColor = KaloyTextPrimary,
+                                unfocusedTextColor = KaloyTextPrimary,
+                                focusedBorderColor = KaloyPurpleLight,
+                                unfocusedBorderColor = KaloyTextMuted,
+                                focusedLabelColor = KaloyPurpleLight,
+                                unfocusedLabelColor = KaloyTextSecondary,
+                                focusedContainerColor = KaloyDarkElevated,
+                                unfocusedContainerColor = KaloyDarkElevated,
+                                errorBorderColor = KaloyRed
                             )
                         )
 
@@ -203,7 +213,7 @@ class LoginScreen : Screen {
                                         } else {
                                             "Afficher le mot de passe"
                                         },
-                                        tint = Color(0xFF4B5563)
+                                        tint = KaloyTextSecondary
                                     )
                                 }
                             },
@@ -211,15 +221,15 @@ class LoginScreen : Screen {
                             supportingText = { if (passwordError.isNotEmpty()) Text(passwordError) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color(0xFF111827),
-                                unfocusedTextColor = Color(0xFF111827),
-                                focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFFCBD5E1),
-                                focusedLabelColor = Color(0xFF8B5CF6),
-                                unfocusedLabelColor = Color(0xFF4B5563),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                errorBorderColor = Color(0xFFE11D48)
+                                focusedTextColor = KaloyTextPrimary,
+                                unfocusedTextColor = KaloyTextPrimary,
+                                focusedBorderColor = KaloyPurpleLight,
+                                unfocusedBorderColor = KaloyTextMuted,
+                                focusedLabelColor = KaloyPurpleLight,
+                                unfocusedLabelColor = KaloyTextSecondary,
+                                focusedContainerColor = KaloyDarkElevated,
+                                unfocusedContainerColor = KaloyDarkElevated,
+                                errorBorderColor = KaloyRed
                             )
                         )
 
@@ -254,14 +264,14 @@ class LoginScreen : Screen {
                                 .fillMaxWidth()
                                 .height(54.dp),
                             shape = RoundedCornerShape(18.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                            colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple),
                             enabled = uiState !is LoginUiState.Loading
                         ) {
                             if (uiState is LoginUiState.Loading) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.height(20.dp),
                                     strokeWidth = 2.dp,
-                                    color = Color.White
+                                    color = KaloyCreme
                                 )
                             } else {
                                 Text("Se connecter")

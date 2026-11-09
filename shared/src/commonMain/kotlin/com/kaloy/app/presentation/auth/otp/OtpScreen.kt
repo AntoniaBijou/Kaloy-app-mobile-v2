@@ -19,6 +19,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kaloy.app.ui.theme.KaloyPurple
+import com.kaloy.app.ui.theme.KaloyPurpleLight
+import com.kaloy.app.ui.theme.KaloyTextMuted
+import com.kaloy.app.ui.theme.KaloyTextPrimary
+import com.kaloy.app.ui.theme.KaloyTextSecondary
+import com.kaloy.app.ui.theme.fondKaloy
 import kotlinx.coroutines.delay
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -81,7 +87,7 @@ data class OtpScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .fondKaloy()
                 .padding(horizontal = 24.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -90,12 +96,12 @@ data class OtpScreen(
                 text = "Vérification",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF111827)
+                color = KaloyTextPrimary
             )
             Text(
                 text = headerText,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF4B5563),
+                color = KaloyTextSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -117,10 +123,15 @@ data class OtpScreen(
                                     .size(52.dp)
                                     .border(
                                         width = 2.dp,
+                                        // Bordure de la case du code : mise en
+                                        // avant sur la case active, attenuee
+                                        // sur les autres. Une bordure n'est pas
+                                        // du texte, son seuil de contraste est
+                                        // de 3 et non de 4,5 ; les deux passent.
                                         color = if (otpValue.length == index)
-                                            Color(0xFF8B5CF6)
+                                            KaloyPurpleLight
                                         else
-                                            Color(0xFF9CA3AF),
+                                            KaloyTextMuted,
                                         shape = RoundedCornerShape(12.dp)
                                     )
                             ) {
@@ -128,7 +139,7 @@ data class OtpScreen(
                                     text = char?.toString() ?: "",
                                     style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
                                     textAlign = TextAlign.Center,
-                                    color = Color(0xFF111827)
+                                    color = KaloyTextPrimary
                                 )
                             }
                         }
@@ -165,7 +176,7 @@ data class OtpScreen(
                 enabled = otpValue.length == 6 && uiState !is OtpUiState.Loading,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)
             ) {
                 if (uiState is OtpUiState.Loading) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -180,7 +191,7 @@ data class OtpScreen(
             ) {
                 Text(
                     text = "Vous n'avez pas reçu le code ?",
-                    color = Color(0xFF4B5563),
+                    color = KaloyTextSecondary,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 TextButton(
@@ -199,7 +210,7 @@ data class OtpScreen(
                     }
                     Text(
                         text = if (resendCooldown > 0) "$resendLabel (${resendCooldown}s)" else resendLabel,
-                        color = Color(0xFF8B5CF6),
+                        color = KaloyPurpleLight,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -213,7 +224,7 @@ data class OtpScreen(
             ) {
                 Text(
                     text = "Préférez-vous recevoir le code par SMS ?",
-                    color = Color(0xFF4B5563),
+                    color = KaloyTextSecondary,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 TextButton(
@@ -225,7 +236,7 @@ data class OtpScreen(
                 ) {
                     Text(
                         text = "Recevoir par SMS",
-                        color = Color(0xFF8B5CF6),
+                        color = KaloyPurpleLight,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -239,7 +250,7 @@ data class OtpScreen(
                 shape = RoundedCornerShape(18.dp),
                 border = ButtonDefaults.outlinedButtonBorder
             ) {
-                Text("Retour", fontWeight = FontWeight.SemiBold, color = Color(0xFF111827))
+                Text("Retour", fontWeight = FontWeight.SemiBold, color = KaloyTextPrimary)
             }
         }
     }

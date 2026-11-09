@@ -56,6 +56,7 @@ import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
+import com.kaloy.app.ui.theme.fondKaloy
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -190,6 +191,10 @@ data class HomeScreen(
         }
 
         Scaffold(
+            // Le fond photographique des ecrans d'entree. containerColor
+            // passe en transparent, sinon le Scaffold peindrait son aplat
+            // par-dessus la photo.
+            modifier = Modifier.fondKaloy(),
             bottomBar = {
                 if (!isVisitor) {
                     Column {
@@ -214,13 +219,12 @@ data class HomeScreen(
                     }
                 }
             },
-            containerColor = KaloyDarkBg
+            containerColor = Color.Transparent
         ) { espaceInterieur ->
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(espaceInterieur)
-                    .background(MaterialTheme.colorScheme.background)
             ) {
                 // ---- Barre de recherche, posee sur le degrade ----
                 //
