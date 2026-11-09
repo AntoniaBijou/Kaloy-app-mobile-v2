@@ -59,6 +59,7 @@ import com.kaloy.app.presentation.common.BarreNavigationPrincipale
 import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.ui.theme.*
+import com.kaloy.app.ui.theme.fondKaloy
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -294,6 +295,9 @@ class EcranRechercheVoyager : Screen {
         }
 
         Scaffold(
+            // Voir l'accueil : le fond photographique demande un
+            // containerColor transparent pour ne pas etre recouvert.
+            modifier = Modifier.fondKaloy(),
             bottomBar = {
                 BarreNavigationPrincipale(
                     ongletActif = OngletPrincipal.RECHERCHE,
@@ -305,13 +309,12 @@ class EcranRechercheVoyager : Screen {
                     onMoi = { navigateur.push(MoiScreen()) }
                 )
             },
-            containerColor = KaloyDarkBg
+            containerColor = Color.Transparent
         ) { espaceInterieur ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(espaceInterieur)
-                .background(MaterialTheme.colorScheme.background)
         ) {
             // ---- Barre de recherche ----
             Row(
