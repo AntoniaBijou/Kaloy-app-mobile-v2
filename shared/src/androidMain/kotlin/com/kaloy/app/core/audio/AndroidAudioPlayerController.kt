@@ -23,12 +23,14 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
     private val _durationMs = MutableStateFlow(0L)
     private val _errorMessage = MutableStateFlow<String?>(null)
     private val _statusMessage = MutableStateFlow("Service audio en connexion")
+    private val _currentUrl = MutableStateFlow<String?>(null)
 
     override val isPlaying: StateFlow<Boolean> = _isPlaying
     override val currentPositionMs: StateFlow<Long> = _currentPositionMs
     override val durationMs: StateFlow<Long> = _durationMs
     override val errorMessage: StateFlow<String?> = _errorMessage
     override val statusMessage: StateFlow<String> = _statusMessage
+    override val currentUrl: StateFlow<String?> = _currentUrl
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val controller = AndroidMediaPlayerController(context)
@@ -68,6 +70,11 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
                     }
                     is MediaPlayerStatus.Completed -> {
                         _statusMessage.value = "Lecture terminée"
+                        // La piste est au bout : elle n'est plus « en
+                        // cours ». Sans cela, reappuyer sur la meme
+                        // chanson ne la relancerait pas, le lecteur la
+                        // croyant deja chargee.
+                        _currentUrl.value = null
                         _isPlaying.value = false
                         onTrackCompletedCallback()
                     }
@@ -75,6 +82,8 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
                         _statusMessage.value = "Erreur Media3"
                         Log.e("KaloyAudio", "Erreur de lecture: ${state.message}")
                         _errorMessage.value = state.message
+                        // Une piste en echec doit pouvoir etre relancee.
+                        _currentUrl.value = null
                         _isPlaying.value = false
                     }
                     is MediaPlayerStatus.Loading -> {
@@ -91,10 +100,12 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
     }
 
     override fun play(url: String) {
+        _currentUrl.value = url
         controller.setMedia(url, MediaMetadata("Kaloy", ""))
     }
 
     override fun play(url: String, metadata: MediaMetadata) {
+        _currentUrl.value = url
         controller.setMedia(url, metadata)
     }
 
@@ -111,6 +122,8 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
     }
 
     override fun release() {
+        // Le lecteur est vide : plus aucune piste chargee.
+        _currentUrl.value = null
         scope.cancel()
         controller.release()
     }
