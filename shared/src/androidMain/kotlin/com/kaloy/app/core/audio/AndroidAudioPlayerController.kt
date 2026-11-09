@@ -78,12 +78,18 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
                         _isPlaying.value = false
                     }
                     is MediaPlayerStatus.Loading -> {
-                        _statusMessage.value = "Flux en chargement"
-                        _isPlaying.value = false
+                        // Ne pas changer statusMessage : le message précédent ("Lecture active" ou
+                        // "Lecture en pause") reste affiché — l'utilisateur voit la transition
+                        // directement, sans "Flux en chargement" intermédiaire.
+                        // Ne pas toucher _isPlaying non plus : conserve le bouton Pause affiché.
+                        _currentPositionMs.value = 0L
+                        _durationMs.value = 0L
                     }
                     else -> {
                         _statusMessage.value = "Service audio prêt"
                         _isPlaying.value = false
+                        _currentPositionMs.value = 0L
+                        _durationMs.value = 0L
                     }
                 }
             }

@@ -36,6 +36,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.core.util.Calendrier
 import com.kaloy.app.core.util.aujourdHuiLocal
 import com.kaloy.app.data.api.ArtistIdDto
@@ -354,6 +355,7 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
     @Composable
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
+        val fileAttente: QueueManager = KoinPlatform.getKoin().get()
         val modeleVue: DetailArtisteViewModel = viewModel(key = "artiste_$idArtiste") {
             DetailArtisteViewModel(idArtiste)
         }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -45,8 +46,14 @@ import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.common.EtatBarreDuBas
 import com.kaloy.app.presentation.lecteur.LecteurScreen
+import com.kaloy.app.presentation.lecteur.LecteurViewModel
+import com.kaloy.app.presentation.common.BarreNavigationPrincipale
+import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
+import com.kaloy.app.presentation.moi.MoiScreen
+import com.kaloy.app.presentation.playlist.PlaylistScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
+import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
@@ -136,10 +143,10 @@ class AccueilViewModel : ViewModel() {
                     .distinctBy { it.song?.id }
 
                 if (artistes.isEmpty() && albums.isEmpty() && chansons.isEmpty()) {
-                    erreur = "Aucune donnée disponible. Vérifiez que le backend est démarré."
+                    erreur = "Aucune donnée disponible pour le moment. Connectez-vous à Internet pour charger le contenu."
                 }
             } catch (e: Exception) {
-                erreur = "Erreur de connexion: ${e.message}"
+                erreur = com.kaloy.app.core.error.UserErrorMessages.fromThrowable(e)
             } finally {
                 enChargement = false
             }
@@ -171,14 +178,12 @@ data class HomeScreen(
         val gestionSession = koinInject<AuthSessionManager>()
         val modeleVue: AccueilViewModel = viewModel { AccueilViewModel() }
         val fileAttente = koinInject<QueueManager>()
-        val etatBarre = koinInject<EtatBarreDuBas>()
-
-        // La barre de lecture et la barre de navigation vivent desormais
-        // au-dessus du Navigator, dans App.kt. Cet ecran n'a plus qu'a
-        // signaler le mode visiteur, qu'il est seul a connaitre.
-        LaunchedEffect(isVisitor) {
-            etatBarre.estVisiteur = isVisitor
-        }
+        val lecteur = koinInject<LecteurViewModel>()
+        val chansonCourante by fileAttente.currentSong.collectAsState()
+        val chansonsSuivantes by fileAttente.upNext.collectAsState()
+        val historique by fileAttente.history.collectAsState()
+        val lectureActive by lecteur.isPlaying.collectAsState()
+        val positionCourante by lecteur.currentPositionMs.collectAsState()
 
         LaunchedEffect(Unit) {
             if (!isVisitor && !gestionSession.isLoggedIn()) {
@@ -191,6 +196,30 @@ data class HomeScreen(
             // passe en transparent, sinon le Scaffold peindrait son aplat
             // par-dessus la photo.
             modifier = Modifier.fondKaloy(),
+            bottomBar = {
+                if (!isVisitor) {
+                    Column {
+                        chansonCourante?.let { chanson ->
+                            MiniPlayer(
+                                song = chanson,
+                                isPlaying = lectureActive,
+                                onClick = { navigateur.push(LecteurScreen(chanson.id)) },
+                                onTogglePlay = { lecteur.togglePlayPause() },
+                                onPrevious = { lecteur.jouerPrecedent() },
+                                onNext = { lecteur.jouerSuivant() },
+                                canPrevious = historique.isNotEmpty() || positionCourante > 3_000L,
+                                canNext = chansonsSuivantes.isNotEmpty()
+                            )
+                        }
+                        BarreNavigationPrincipale(
+                            ongletActif = OngletPrincipal.ACCUEIL,
+                            onAccueil = {},
+                            onRecherche = { navigateur.push(EcranRechercheVoyager()) },
+                            onMoi = { navigateur.push(MoiScreen()) }
+                        )
+                    }
+                }
+            },
             containerColor = Color.Transparent
         ) { espaceInterieur ->
             LazyColumn(
@@ -281,7 +310,10 @@ data class HomeScreen(
                                             Column(
                                                 modifier = Modifier
                                                     .width(110.dp)
-                                                    .clickable { navigateur.push(LecteurScreen(songId = chanson.id)) },
+                                                    .clickable {
+                                                        fileAttente.syncCurrent(chanson)
+                                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                                    },
                                                 horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
                                                 Box(
