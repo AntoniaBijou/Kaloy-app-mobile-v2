@@ -47,6 +47,7 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.LoginRequest
 import com.kaloy.app.data.repository.AuthRepository
 import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
+import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.presentation.home.HomeScreen
 import com.kaloy.app.ui.theme.KaloyCreme
 import com.kaloy.app.ui.theme.KaloyDarkCard
@@ -105,7 +106,7 @@ class LoginViewModel(
     fun dispose() = scope.cancel()
 }
 
-class LoginScreen : Screen {
+class LoginScreen : Screen, SansBarreDuBas {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow

@@ -31,6 +31,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.presentation.auth.login.LoginScreen
 import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
+import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.ui.theme.KaloyDarkCard
 import com.kaloy.app.ui.theme.KaloyPurple
 import com.kaloy.app.ui.theme.KaloyPurpleLight
@@ -39,7 +40,7 @@ import com.kaloy.app.ui.theme.KaloyTextSecondary
 import com.kaloy.app.ui.theme.fondKaloy
 import org.koin.compose.koinInject
 
-class WelcomeScreen : Screen {
+class WelcomeScreen : Screen, SansBarreDuBas {
 
     @Composable
     override fun Content() {

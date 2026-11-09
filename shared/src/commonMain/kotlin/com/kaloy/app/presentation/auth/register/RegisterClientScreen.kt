@@ -13,6 +13,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.data.repository.AuthRepository
 import com.kaloy.app.presentation.auth.otp.OtpScreen
+import com.kaloy.app.presentation.common.SansBarreDuBas
 import org.koin.compose.koinInject
 
 data class RegisterClientScreen(
@@ -20,7 +21,7 @@ data class RegisterClientScreen(
     val phone: String,
     val password: String,
     val otpChannel: String
-) : Screen {
+) : Screen, SansBarreDuBas {
 
     @Composable
     override fun Content() {

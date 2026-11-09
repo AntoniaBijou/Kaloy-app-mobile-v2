@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.ui.theme.KaloyPurple
 import com.kaloy.app.ui.theme.KaloyPurpleLight
 import com.kaloy.app.ui.theme.KaloyTextMuted
@@ -35,7 +36,7 @@ import org.koin.compose.koinInject
 data class OtpScreen(
     val userId: Long,
     val email: String
-) : Screen {
+) : Screen, SansBarreDuBas {
 
     @Composable
     override fun Content() {

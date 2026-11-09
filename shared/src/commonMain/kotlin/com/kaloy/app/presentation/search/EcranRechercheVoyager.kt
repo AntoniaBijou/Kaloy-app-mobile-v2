@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.NorthWest
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.*
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,12 +55,10 @@ import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.repository.HistoriqueRechercheRepository
 import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
+import com.kaloy.app.presentation.common.EtatBarreDuBas
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.genre.EcranGenreVoyager
 import com.kaloy.app.ui.components.*
-import com.kaloy.app.presentation.common.BarreNavigationPrincipale
-import com.kaloy.app.presentation.common.OngletPrincipal
-import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.ui.theme.*
 import com.kaloy.app.ui.theme.fondKaloy
 import kotlinx.coroutines.Job
@@ -289,6 +289,25 @@ class EcranRechercheVoyager : Screen {
         val fileAttente = koinInject<QueueManager>()
         val modeleVue: RechercheViewModel = viewModel { RechercheViewModel(historiqueRepo) }
         val gestionnaireFocus = LocalFocusManager.current
+        val etatBarre = koinInject<EtatBarreDuBas>()
+
+        // La barre de lecture se retire pendant la saisie, et revient des
+        // que les resultats sont la : parcourir des resultats est
+        // justement un moment ou l'on ecoute, alors que sous le clavier la
+        // barre ne fait que manger la place.
+        //
+        // Les deux drapeaux sont necessaires. « aCherche » seul laisserait
+        // la barre visible quand on retouche la requete apres un premier
+        // resultat ; « suggestionsVisibles » seul la laisserait visible sur
+        // l'ecran vide d'avant la premiere recherche.
+        val enSaisie = modeleVue.suggestionsVisibles || !modeleVue.aCherche
+        LaunchedEffect(enSaisie) { etatBarre.saisieEnCours = enSaisie }
+
+        // Sans cette remise a zero, quitter la recherche en pleine saisie
+        // laisserait la barre masquee sur tous les ecrans suivants.
+        DisposableEffect(Unit) {
+            onDispose { etatBarre.saisieEnCours = false }
+        }
 
         /** Tout passage vers un écran de détail historise la recherche en cours. */
         fun ouvrir(destination: Screen) {
@@ -300,17 +319,6 @@ class EcranRechercheVoyager : Screen {
             // Voir l'accueil : le fond photographique demande un
             // containerColor transparent pour ne pas etre recouvert.
             modifier = Modifier.fondKaloy(),
-            bottomBar = {
-                BarreNavigationPrincipale(
-                    ongletActif = OngletPrincipal.RECHERCHE,
-                    // pop et non push : la recherche est toujours posee
-                    // juste au-dessus de l'accueil. Empiler un second
-                    // accueil ferait grossir la pile a chaque aller-retour.
-                    onAccueil = { navigateur.pop() },
-                    onRecherche = {},
-                    onMoi = { navigateur.push(MoiScreen()) }
-                )
-            },
             containerColor = Color.Transparent
         ) { espaceInterieur ->
         Column(

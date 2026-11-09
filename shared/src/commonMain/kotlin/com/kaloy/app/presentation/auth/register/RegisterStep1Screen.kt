@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.ui.theme.KaloyDarkCard
 import com.kaloy.app.ui.theme.KaloyDarkElevated
 import com.kaloy.app.ui.theme.KaloyPurple
@@ -27,7 +28,7 @@ import com.kaloy.app.ui.theme.KaloyTextPrimary
 import com.kaloy.app.ui.theme.KaloyTextSecondary
 import com.kaloy.app.ui.theme.fondKaloy
 
-class RegisterStep1Screen : Screen {
+class RegisterStep1Screen : Screen, SansBarreDuBas {
 
     @Composable
     override fun Content() {
