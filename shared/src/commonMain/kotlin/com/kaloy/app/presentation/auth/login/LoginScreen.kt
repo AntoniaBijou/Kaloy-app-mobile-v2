@@ -51,6 +51,7 @@ import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.presentation.home.HomeScreen
 import com.kaloy.app.ui.theme.KaloyCreme
 import com.kaloy.app.ui.theme.KaloyDarkCard
+import com.kaloy.app.ui.theme.KaloyCarteVoilee
 import com.kaloy.app.ui.theme.KaloyDarkElevated
 import com.kaloy.app.ui.theme.KaloyPurple
 import com.kaloy.app.ui.theme.KaloyPurpleLight
@@ -143,7 +144,7 @@ class LoginScreen : Screen, SansBarreDuBas {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = KaloyDarkCard.copy(alpha = 0.92f))
+                    colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee)
                 ) {
                     Column(
                         modifier = Modifier
@@ -175,7 +176,7 @@ class LoginScreen : Screen, SansBarreDuBas {
                                 focusedTextColor = KaloyTextPrimary,
                                 unfocusedTextColor = KaloyTextPrimary,
                                 focusedBorderColor = KaloyPurpleLight,
-                                unfocusedBorderColor = KaloyTextMuted,
+                                unfocusedBorderColor = KaloyTextSecondary,
                                 focusedLabelColor = KaloyPurpleLight,
                                 unfocusedLabelColor = KaloyTextSecondary,
                                 focusedContainerColor = KaloyDarkElevated,
@@ -225,7 +226,7 @@ class LoginScreen : Screen, SansBarreDuBas {
                                 focusedTextColor = KaloyTextPrimary,
                                 unfocusedTextColor = KaloyTextPrimary,
                                 focusedBorderColor = KaloyPurpleLight,
-                                unfocusedBorderColor = KaloyTextMuted,
+                                unfocusedBorderColor = KaloyTextSecondary,
                                 focusedLabelColor = KaloyPurpleLight,
                                 unfocusedLabelColor = KaloyTextSecondary,
                                 focusedContainerColor = KaloyDarkElevated,

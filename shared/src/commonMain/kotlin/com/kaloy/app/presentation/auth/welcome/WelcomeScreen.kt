@@ -33,6 +33,8 @@ import com.kaloy.app.presentation.auth.login.LoginScreen
 import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
 import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.ui.theme.KaloyDarkCard
+import com.kaloy.app.ui.theme.KaloyCarteVoilee
+import com.kaloy.app.ui.theme.KaloySable
 import com.kaloy.app.ui.theme.KaloyPurple
 import com.kaloy.app.ui.theme.KaloyPurpleLight
 import com.kaloy.app.ui.theme.KaloyTextPrimary
@@ -61,7 +63,7 @@ class WelcomeScreen : Screen, SansBarreDuBas {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(32.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = KaloyDarkCard.copy(alpha = 0.92f)
+                        containerColor = KaloyCarteVoilee
                     )
                 ) {
                     Column(
@@ -129,7 +131,7 @@ class WelcomeScreen : Screen, SansBarreDuBas {
 
                         Text(
                             text = "Continuer en tant que visiteur",
-                            color = KaloyPurpleLight,
+                            color = KaloySable,
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier

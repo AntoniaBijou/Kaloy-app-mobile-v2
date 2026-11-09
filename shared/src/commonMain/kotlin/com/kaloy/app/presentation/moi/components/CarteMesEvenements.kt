@@ -26,7 +26,7 @@ fun CarteMesEvenements(
     onClick: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
+        colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -64,7 +64,7 @@ fun CarteMesEvenements(
                 )
             }
 
-            Text("›", color = KaloyTextMuted, fontSize = 20.sp)
+            Text("›", color = KaloyTextSecondary, fontSize = 20.sp)
         }
     }
 }

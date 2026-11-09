@@ -33,7 +33,7 @@ fun CarteNotifications(
     onClick: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
+        colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -89,7 +89,7 @@ fun CarteNotifications(
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
-            Text("›", color = KaloyTextMuted, fontSize = 20.sp)
+            Text("›", color = KaloyTextSecondary, fontSize = 20.sp)
         }
     }
 }

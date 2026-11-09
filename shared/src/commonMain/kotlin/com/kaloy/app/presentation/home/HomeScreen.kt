@@ -470,7 +470,7 @@ data class HomeScreen(
 private fun CarteEvenement(evenement: Event, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
+        colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.width(220.dp)
     ) {

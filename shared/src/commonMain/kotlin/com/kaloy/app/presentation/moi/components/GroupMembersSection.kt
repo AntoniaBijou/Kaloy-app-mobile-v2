@@ -50,7 +50,7 @@ fun GroupMembersSection(
             Text(
                 text = "Aucun membre pour le moment.",
                 style = MaterialTheme.typography.bodySmall,
-                color = KaloyTextMuted,
+                color = KaloyTextSecondary,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
         } else {
@@ -78,7 +78,7 @@ private fun MemberCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = KaloyDarkElevated)
+        colors = CardDefaults.cardColors(containerColor = KaloyCarteVoileeHaute)
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
@@ -109,7 +109,7 @@ private fun MemberCard(
                     Text(
                         text = if (isActive) "ACTIF" else "ANCIEN MEMBRE",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isActive) KaloyGreen else KaloyTextMuted,
+                        color = if (isActive) KaloyGreen else KaloyTextSecondary,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
