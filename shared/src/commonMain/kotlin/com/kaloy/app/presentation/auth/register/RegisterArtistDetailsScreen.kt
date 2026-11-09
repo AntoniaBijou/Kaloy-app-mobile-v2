@@ -13,6 +13,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.data.repository.AuthRepository
 import com.kaloy.app.presentation.auth.otp.OtpScreen
+import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.presentation.common.rememberSingleImagePicker
 import org.koin.compose.koinInject
 
@@ -22,7 +23,7 @@ data class RegisterArtistDetailsScreen(
     val password: String,
     val otpChannel: String,
     val artistType: String
-) : Screen {
+) : Screen, SansBarreDuBas {
 
     @Composable
     override fun Content() {

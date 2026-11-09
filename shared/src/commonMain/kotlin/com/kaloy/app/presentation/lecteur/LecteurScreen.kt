@@ -31,12 +31,13 @@ import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.repository.LecteurRepository
 import com.kaloy.app.core.audio.AudioPlayerController
+import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
 import com.kaloy.app.presentation.common.rememberBrowserLauncher
 import com.kaloy.app.ui.theme.*
 import org.koin.compose.koinInject
 
-data class LecteurScreen(val songId: Long, val startMode: ModeEcoute = ModeEcoute.AUDIO) : Screen {
+data class LecteurScreen(val songId: Long, val startMode: ModeEcoute = ModeEcoute.AUDIO) : Screen, SansBarreDuBas {
 
     @Composable
     override fun Content() {
