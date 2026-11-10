@@ -46,8 +46,8 @@ android {
         applicationId = "com.kaloy.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 36
-        versionName = "3.0.9"
+        versionCode = 37
+        versionName = "3.1.0"
     }
     packaging {
         resources {
