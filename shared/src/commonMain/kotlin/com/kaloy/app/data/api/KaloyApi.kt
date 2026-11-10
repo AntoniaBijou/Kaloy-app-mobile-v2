@@ -1055,6 +1055,29 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
         return reponse.body<RestResponse<Song>>().exigerSucces("Declaration de la chanson")
     }
 
+    /**
+     * L'etat d'une de mes chansons, pour pre-remplir le formulaire.
+     *
+     * Et non getMesChansons() : la liste renvoie des entites Song, qui ne
+     * portent PAS leurs genres. Pre-remplir depuis la liste aurait affiche
+     * « aucun genre », et l'enregistrement les aurait tous effaces.
+     */
+    suspend fun getChansonAModifier(idChanson: Long): RestResponse<ChansonAModifierDto> {
+        return client.get("$apiBaseUrl/mes-chansons/$idChanson").body()
+    }
+
+    /** Modifie une de mes chansons. Voir [ModifierChansonDto] pour les regles. */
+    suspend fun modifierChanson(
+        idChanson: Long,
+        requete: ModifierChansonDto
+    ): RestResponse<Song> {
+        val reponse = client.put("$apiBaseUrl/mes-chansons/$idChanson") {
+            contentType(ContentType.Application.Json)
+            setBody(requete)
+        }
+        return reponse.body<RestResponse<Song>>().exigerSucces("Modification de la chanson")
+    }
+
     /** Supprime une de mes chansons. */
     suspend fun supprimerChanson(idChanson: Long): RestResponse<Unit> {
         val reponse = client.delete("$apiBaseUrl/mes-chansons/$idChanson")
@@ -1401,6 +1424,68 @@ data class CreerChansonDto(
     val dateSortie: String? = null,
     val idAlbum: Long? = null,
     val idsGenres: List<Long> = emptyList()
+)
+
+/**
+ * GET /mes-chansons/{id} — l'etat a pre-remplir.
+ *
+ * Les adresses des medias sont celles de la BASE, non resolues en adresses
+ * de lecture : le formulaire s'en sert pour savoir qu'un media existe, et
+ * pour le renvoyer inchange s'il n'y touche pas.
+ */
+@kotlinx.serialization.Serializable
+data class ChansonAModifierDto(
+    val id: Long = 0,
+    val titre: String = "",
+    val paroles: String? = null,
+    val solfa: String? = null,
+    val langue: String = "mg",
+    val urlAudio: String? = null,
+    val urlVideo: String? = null,
+    val urlKaraoke: String? = null,
+    val urlPlayback: String? = null,
+    val auteurCompositeur: String? = null,
+    val arrangeur: String? = null,
+    val dureeSecondes: Int? = null,
+    val dateSortie: String? = null,
+    val idAlbum: Long? = null,
+    val idsGenres: List<Long> = emptyList()
+)
+
+/**
+ * PUT /mes-chansons/{id}
+ *
+ * Trois conventions, et il faut les tenir ensemble :
+ *
+ *  - un champ a `null` est ABSENT du corps : le serveur n'y touche pas ;
+ *  - un champ texte a `""` EFFACE la donnee ;
+ *  - l'album, la date et la duree n'ont pas de « chaine vide » pour dire
+ *    « enleve-le », d'ou les trois drapeaux. Sans eux ces champs pouvaient
+ *    etre poses mais jamais retires.
+ *
+ * Le titre ne peut pas etre efface, et la chanson doit conserver au moins
+ * des paroles, un solfa ou un media : le serveur refuse les deux cas par un
+ * 400 plutot que de laisser une chanson vide.
+ */
+@kotlinx.serialization.Serializable
+data class ModifierChansonDto(
+    val titre: String? = null,
+    val paroles: String? = null,
+    val solfa: String? = null,
+    val langue: String? = null,
+    val urlAudio: String? = null,
+    val urlVideo: String? = null,
+    val urlKaraoke: String? = null,
+    val urlPlayback: String? = null,
+    val auteurCompositeur: String? = null,
+    val arrangeur: String? = null,
+    val dureeSecondes: Int? = null,
+    val dateSortie: String? = null,
+    val idAlbum: Long? = null,
+    val idsGenres: List<Long>? = null,
+    val effacerAlbum: Boolean? = null,
+    val effacerDateSortie: Boolean? = null,
+    val effacerDuree: Boolean? = null
 )
 
 // POST /paroles/recherche

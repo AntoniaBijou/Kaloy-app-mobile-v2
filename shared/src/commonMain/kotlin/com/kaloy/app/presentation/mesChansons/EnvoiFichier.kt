@@ -113,6 +113,23 @@ class EnvoiFichier(
         lancer(media)
     }
 
+    /**
+     * Pose un media DEJA enregistre en base, sans fichier ni envoi.
+     *
+     * Sert au formulaire de modification : la chanson porte peut-etre
+     * deja un audio, et l'emplacement doit le savoir pour l'annoncer et
+     * pour le renvoyer inchange si l'artiste n'y touche pas.
+     *
+     * [fichier] reste nul : il n'y a rien a envoyer, et c'est ce qui
+     * distingue « un media existe » de « un fichier vient d'etre choisi ».
+     */
+    fun prerenseigner(urlExistante: String?) {
+        url = urlExistante.orEmpty()
+    }
+
+    /** Un media est en base et n'a pas ete remplace pendant cette session. */
+    val dejaEnBase: Boolean get() = url.isNotBlank() && fichier == null
+
     /** Abandonne le fichier : on nettoie, sinon la copie reste sur le telephone. */
     fun retirer() {
         envoyeur.abandonner(cible)
