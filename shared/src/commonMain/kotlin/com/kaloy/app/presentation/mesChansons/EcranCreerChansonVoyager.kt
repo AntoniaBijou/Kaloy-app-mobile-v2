@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,6 +23,7 @@ import com.kaloy.app.core.envoi.EnvoyeurParMorceaux
 import com.kaloy.app.core.envoi.MemoireEnvois
 import com.kaloy.app.data.api.CreerChansonDto
 import com.kaloy.app.data.api.KaloyApi
+import com.kaloy.app.data.api.ModifierChansonDto
 import com.kaloy.app.data.api.OptionsChansonDto
 import com.kaloy.app.presentation.common.SourceMedia
 import com.kaloy.app.presentation.common.rememberSelecteurMedia
@@ -41,7 +43,17 @@ import kotlinx.coroutines.launch
  * detruit les composables au `push`, et ouvrir le selecteur de date ou la
  * recherche de paroles effacerait la saisie.
  */
-class CreerChansonViewModel : ViewModel() {
+/**
+ * Le formulaire, pour declarer OU pour completer.
+ *
+ * Un seul modele et un seul ecran pour les deux : les champs, les
+ * listes, l'envoi des fichiers et la recherche de paroles sont
+ * identiques. Un second formulaire aurait duplique trente kilo-octets
+ * a corriger deux fois.
+ *
+ * @param idChanson nul pour declarer, renseigne pour completer.
+ */
+class CreerChansonViewModel(private val idChanson: Long? = null) : ViewModel() {
     private val api = KaloyApi()
 
     /**
@@ -124,7 +136,24 @@ class CreerChansonViewModel : ViewModel() {
     var envoiEnCours by mutableStateOf(false)
         private set
     var erreur by mutableStateOf<String?>(null)
-    var chansonCreee by mutableStateOf(false)
+    var chansonEnregistree by mutableStateOf(false)
+
+    /** Vrai quand on complete une chanson existante. */
+    val modification: Boolean get() = idChanson != null
+
+    /** Le temps de lire la chanson : le formulaire ne s'affiche pas vide. */
+    var chargementEnCours by mutableStateOf(idChanson != null)
+        private set
+
+    /**
+     * La lecture a echoue : les champs sont vides et ne valent RIEN.
+     *
+     * Distinct de [erreur], qui s'affiche en bas du formulaire : celui-ci
+     * se dit en haut et interdit d'enregistrer. Un formulaire vide par
+     * echec de lecture ressemble trait pour trait a un formulaire vide
+     * par nature, et l'enregistrer ecraserait la chanson.
+     */
+    var chargementEchoue by mutableStateOf(false)
         private set
 
     // ---------------------------------------------------- recherche de paroles
@@ -143,6 +172,48 @@ class CreerChansonViewModel : ViewModel() {
 
     init {
         chargerOptions()
+        if (idChanson != null) chargerChanson(idChanson)
+    }
+
+    /**
+     * Pre-remplit le formulaire avec ce que la chanson porte deja.
+     *
+     * Par GET /mes-chansons/{id} et NON par la liste : celle-ci renvoie
+     * des entites Song, qui ne portent pas leurs genres. Pre-remplir
+     * depuis elle aurait affiche « aucun genre », et l'enregistrement les
+     * aurait tous effaces -- sans erreur, sans trace.
+     */
+    private fun chargerChanson(id: Long) {
+        viewModelScope.launch {
+            chargementEnCours = true
+            chargementEchoue = false
+            try {
+                val chanson = api.getChansonAModifier(id).data
+                if (chanson != null) {
+                    titre = chanson.titre
+                    paroles = chanson.paroles.orEmpty()
+                    solfa = chanson.solfa.orEmpty()
+                    langue = chanson.langue
+                    urlVideo = chanson.urlVideo.orEmpty()
+                    auteurCompositeur = chanson.auteurCompositeur.orEmpty()
+                    arrangeur = chanson.arrangeur.orEmpty()
+                    duree = chanson.dureeSecondes?.let(::dureeLisible).orEmpty()
+                    dateSortie = chanson.dateSortie
+                    idAlbum = chanson.idAlbum
+                    idsGenres = chanson.idsGenres
+                    // Les trois medias : l'emplacement sait qu'ils existent,
+                    // les annonce, et les renvoie inchanges si l'on n'y
+                    // touche pas.
+                    audio.prerenseigner(chanson.urlAudio)
+                    karaoke.prerenseigner(chanson.urlKaraoke)
+                    playback.prerenseigner(chanson.urlPlayback)
+                }
+            } catch (e: Exception) {
+                chargementEchoue = true
+            } finally {
+                chargementEnCours = false
+            }
+        }
     }
 
     private fun chargerOptions() {
@@ -157,6 +228,11 @@ class CreerChansonViewModel : ViewModel() {
                 optionsEnErreur = true
             }
         }
+    }
+
+    /** Relance la lecture apres un echec, sans quitter l'ecran. */
+    fun reessayerChargement() {
+        if (idChanson != null) chargerChanson(idChanson)
     }
 
     fun basculerGenre(idGenre: Long) {
@@ -182,12 +258,24 @@ class CreerChansonViewModel : ViewModel() {
 
     // ---------------------------------------------------- validation
     val titreValide: Boolean get() = titre.isNotBlank() && titre.length <= 150
-    val contenuPresent: Boolean get() = paroles.isNotBlank() || solfa.isNotBlank()
+    /**
+     * A la DECLARATION : des paroles ou un solfa, rien d'autre ne suffit.
+     *
+     * A la MODIFICATION : un media seul suffit aussi, parce que le serveur
+     * l'accepte. Garder la regle stricte aurait rendu immodifiable toute
+     * chanson n'ayant qu'un audio : l'artiste n'aurait meme pas pu lui
+     * ajouter ses paroles.
+     */
+    val contenuPresent: Boolean
+        get() = paroles.isNotBlank() || solfa.isNotBlank() ||
+            (modification && (audio.url.isNotBlank() || urlVideo.isNotBlank() ||
+                karaoke.url.isNotBlank() || playback.url.isNotBlank()))
     val dureeValide: Boolean get() = dureeAcceptable(duree)
 
     val peutEnregistrer: Boolean
         get() = titreValide && contenuPresent && dureeValide &&
-            !envoiEnCours && !envoiFichierEnCours
+            !envoiEnCours && !envoiFichierEnCours && !chargementEnCours &&
+            !chargementEchoue
 
     fun enregistrer() {
         if (!peutEnregistrer) return
@@ -195,31 +283,77 @@ class CreerChansonViewModel : ViewModel() {
             envoiEnCours = true
             erreur = null
             try {
-                api.creerChanson(
-                    CreerChansonDto(
-                        titre = titre.trim(),
-                        paroles = paroles.ifBlank { null },
-                        solfa = solfa.ifBlank { null },
-                        langue = langue,
-                        urlAudio = audio.url.ifBlank { null },
-                        urlVideo = urlVideo.ifBlank { null },
-                        urlKaraoke = karaoke.url.ifBlank { null },
-                        urlPlayback = playback.url.ifBlank { null },
-                        auteurCompositeur = auteurCompositeur.ifBlank { null },
-                        arrangeur = arrangeur.ifBlank { null },
-                        dureeSecondes = dureeEnSecondes(duree),
-                        dateSortie = dateSortie,
-                        idAlbum = idAlbum,
-                        idsGenres = idsGenres
-                    )
-                )
-                chansonCreee = true
+                if (idChanson == null) declarer() else completer(idChanson)
+                chansonEnregistree = true
             } catch (e: Exception) {
-                erreur = e.message ?: "La déclaration a échoué."
+                erreur = e.message ?: if (modification) {
+                    "La modification a échoué."
+                } else {
+                    "La déclaration a échoué."
+                }
             } finally {
                 envoiEnCours = false
             }
         }
+    }
+
+    private suspend fun declarer() {
+        api.creerChanson(
+            CreerChansonDto(
+                titre = titre.trim(),
+                paroles = paroles.ifBlank { null },
+                solfa = solfa.ifBlank { null },
+                langue = langue,
+                urlAudio = audio.url.ifBlank { null },
+                urlVideo = urlVideo.ifBlank { null },
+                urlKaraoke = karaoke.url.ifBlank { null },
+                urlPlayback = playback.url.ifBlank { null },
+                auteurCompositeur = auteurCompositeur.ifBlank { null },
+                arrangeur = arrangeur.ifBlank { null },
+                dureeSecondes = dureeEnSecondes(duree),
+                dateSortie = dateSortie,
+                idAlbum = idAlbum,
+                idsGenres = idsGenres
+            )
+        )
+    }
+
+    /**
+     * Tout est envoye, y compris ce qui n'a pas change.
+     *
+     * Le formulaire porte l'etat COMPLET de la chanson, puisqu'il a ete
+     * pre-rempli : une case videe veut donc dire « efface », et une case
+     * intacte renvoie la meme valeur. Inutile de suivre les changements
+     * champ par champ, et aucun risque d'en oublier un.
+     *
+     * Les champs texte s'effacent par la chaine vide. L'album, la date et la
+     * duree n'ont pas de chaine vide, d'ou les trois drapeaux : on envoie
+     * soit la valeur, soit le drapeau, jamais les deux.
+     */
+    private suspend fun completer(id: Long) {
+        val secondes = dureeEnSecondes(duree)
+        api.modifierChanson(
+            id,
+            ModifierChansonDto(
+                titre = titre.trim(),
+                paroles = paroles,
+                solfa = solfa,
+                langue = langue,
+                urlAudio = audio.url,
+                urlVideo = urlVideo,
+                urlKaraoke = karaoke.url,
+                urlPlayback = playback.url,
+                auteurCompositeur = auteurCompositeur,
+                arrangeur = arrangeur,
+                dureeSecondes = secondes,
+                effacerDuree = secondes == null,
+                dateSortie = dateSortie,
+                effacerDateSortie = dateSortie == null,
+                idAlbum = idAlbum,
+                effacerAlbum = idAlbum == null,
+                idsGenres = idsGenres
+            )
+        )
     }
 
     // ---------------------------------------------------- paroles
@@ -292,20 +426,32 @@ class CreerChansonViewModel : ViewModel() {
     }
 }
 
-class EcranCreerChansonVoyager : Screen {
+/**
+ * Le formulaire, en declaration ou en modification.
+ *
+ * @param idChanson nul pour declarer, renseigne pour completer une
+ *   chanson existante. Le meme ecran sert aux deux : seuls le titre de
+ *   la barre, le libelle du bouton et le pre-remplissage changent.
+ */
+class EcranCreerChansonVoyager(private val idChanson: Long? = null) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
-        val modeleVue: CreerChansonViewModel = viewModel(key = "creer_chanson") {
-            CreerChansonViewModel()
+        // Une cle PAR CHANSON. Avec la cle fixe d'avant, ouvrir la chanson
+        // A puis la B aurait reutilise le modele de A, donc le formulaire de
+        // A deja rempli, et l'enregistrement aurait ecrit les champs de A
+        // sur la chanson B.
+        val cle = if (idChanson == null) "creer_chanson" else "modifier_chanson_$idChanson"
+        val modeleVue: CreerChansonViewModel = viewModel(key = cle) {
+            CreerChansonViewModel(idChanson)
         }
 
         // Une fois la chanson declaree, on revient a la liste, qui se recharge
         // a son affichage.
-        LaunchedEffect(modeleVue.chansonCreee) {
-            if (modeleVue.chansonCreee) navigateur.pop()
+        LaunchedEffect(modeleVue.chansonEnregistree) {
+            if (modeleVue.chansonEnregistree) navigateur.pop()
         }
 
         if (modeleVue.selecteurDateOuvert) {
@@ -328,7 +474,13 @@ class EcranCreerChansonVoyager : Screen {
             containerColor = KaloyDarkBg,
             topBar = {
                 TopAppBar(
-                    title = { Text("Déclarer une chanson", color = KaloyTextPrimary) },
+                    title = {
+                        Text(
+                            if (modeleVue.modification) "Modifier la chanson"
+                            else "Déclarer une chanson",
+                            color = KaloyTextPrimary
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = { navigateur.pop() }) {
                             Icon(
@@ -351,6 +503,62 @@ class EcranCreerChansonVoyager : Screen {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Un formulaire en cours de lecture et un formulaire vide
+                // se ressemblent trait pour trait. Sans ce bandeau, « rien
+                // n'est prerempli » est le premier diagnostic, et il porte sur
+                // le mauvais probleme.
+                if (modeleVue.chargementEnCours) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            color = KaloySable,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Lecture de la chanson\u2026",
+                            color = KaloyTextSecondary,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                // L'echec se dit EN HAUT. Avant, il n'apparaissait qu'au bas
+                // du formulaire, sous tous les champs : on voyait des cases
+                // vides sans jamais lire la raison.
+                if (modeleVue.chargementEchoue) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = KaloyRed.copy(alpha = 0.08f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "La chanson n'a pas pu \u00eatre lue.",
+                                color = KaloyRed,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Les champs ci-dessous sont vides et ne " +
+                                    "repr\u00e9sentent pas la chanson. " +
+                                    "L'enregistrement est bloqu\u00e9.",
+                                color = KaloyTextSecondary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            TextButton(onClick = { modeleVue.reessayerChargement() }) {
+                                Text("R\u00e9essayer", color = KaloySable)
+                            }
+                        }
+                    }
+                }
+
                 if (modeleVue.optionsEnErreur) {
                     Text(
                         text = "Les listes n'ont pas pu être chargées. Le titre, les paroles " +
@@ -516,7 +724,11 @@ class EcranCreerChansonVoyager : Screen {
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Text("Déclarer la chanson", color = KaloyTextPrimary)
+                        Text(
+                            if (modeleVue.modification) "Enregistrer les modifications"
+                            else "Déclarer la chanson",
+                            color = KaloyTextPrimary
+                        )
                     }
                 }
                 Spacer(Modifier.height(32.dp))
@@ -542,7 +754,45 @@ private fun BlocFichier(envoi: EnvoiFichier) {
     val etape = envoi.etape
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        if (fichier == null) {
+        if (envoi.dejaEnBase) {
+            // La chanson porte deja ce media. On l'annonce, sinon l'artiste
+            // croit l'emplacement vide et ne sait pas ce qu'il va ecraser.
+            //
+            // Le nom du fichier n'est pas affiche : la base ne garde qu'un
+            // chemin, et le montrer n'apprendrait rien a l'artiste.
+            Card(
+                colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Un fichier est déjà enregistré",
+                            color = KaloyTextPrimary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = envoi.aide,
+                            color = KaloyTextMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    TextButton(onClick = { ouvrirSelecteur(envoi.source) }) {
+                        Text("Remplacer", color = KaloySable)
+                    }
+                    // Retirer envoie une chaine vide au serveur, qui efface la
+                    // colonne. La regle « au moins un contenu » empeche de
+                    // vider la chanson de tout.
+                    TextButton(onClick = { envoi.retirer() }) {
+                        Text("Retirer", color = KaloyTextMuted)
+                    }
+                }
+            }
+        } else if (fichier == null) {
             OutlinedButton(
                 onClick = { ouvrirSelecteur(envoi.source) },
                 modifier = Modifier.fillMaxWidth()

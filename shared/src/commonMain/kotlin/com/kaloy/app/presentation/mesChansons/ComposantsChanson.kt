@@ -545,6 +545,18 @@ fun tailleLisible(octets: Long): String = when {
  * tapera, et que refuser « 3:45 » serait absurde : c'est ainsi qu'une duree
  * s'ecrit sur une pochette.
  */
+/**
+ * L'inverse de [dureeEnSecondes], pour pre-remplir le formulaire.
+ *
+ * En mm:ss et non en secondes brutes : c'est la forme que l'artiste a
+ * saisie, et relire 3:20 vaut mieux que relire 200.
+ */
+fun dureeLisible(secondes: Int): String {
+    val minutes = secondes / 60
+    val reste = (secondes % 60).toString().padStart(2, '0')
+    return minutes.toString() + ":" + reste
+}
+
 fun dureeEnSecondes(saisie: String): Int? {
     val propre = saisie.trim()
     if (propre.isEmpty()) return null

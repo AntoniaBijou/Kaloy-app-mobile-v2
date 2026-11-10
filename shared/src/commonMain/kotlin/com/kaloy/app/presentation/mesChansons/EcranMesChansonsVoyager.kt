@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -211,6 +212,12 @@ class EcranMesChansonsVoyager : Screen {
                         items(modeleVue.chansons, key = { "chanson_${it.id}" }) { chanson ->
                             CarteChanson(
                                 chanson = chanson,
+                                // Le meme ecran que la declaration, avec
+                                // l'identifiant en plus : il se pre-remplit
+                                // alors au lieu de s'ouvrir vide.
+                                onModifier = {
+                                    navigateur.push(EcranCreerChansonVoyager(chanson.id))
+                                },
                                 onSupprimer = { modeleVue.aSupprimer = chanson }
                             )
                         }
@@ -223,7 +230,11 @@ class EcranMesChansonsVoyager : Screen {
 }
 
 @Composable
-private fun CarteChanson(chanson: Song, onSupprimer: () -> Unit) {
+private fun CarteChanson(
+    chanson: Song,
+    onModifier: () -> Unit,
+    onSupprimer: () -> Unit
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = KaloyDarkCard),
         shape = RoundedCornerShape(14.dp),
@@ -253,10 +264,21 @@ private fun CarteChanson(chanson: Song, onSupprimer: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+            // Modifier avant Supprimer : l'action la moins destructrice
+            // en premier, et c'est desormais la plus courante -- une chanson
+            // se declare une fois et se complete souvent.
+            IconButton(onClick = onModifier) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = "Modifier " + chanson.title,
+                    tint = KaloySable,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             IconButton(onClick = onSupprimer) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
-                    contentDescription = "Supprimer",
+                    contentDescription = "Supprimer " + chanson.title,
                     tint = KaloyTextMuted,
                     modifier = Modifier.size(20.dp)
                 )
