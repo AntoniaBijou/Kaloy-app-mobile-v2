@@ -227,24 +227,23 @@ data class HomeScreen(
                     .fillMaxSize()
                     .padding(espaceInterieur)
             ) {
-                // ---- Barre de recherche, posee sur le degrade ----
+                // ---- Barre de recherche ----
                 //
-                // Le titre est parti, le degrade reste : il porte l'identite de
-                // l'ecran. La hauteur passe de 200 a 120 dp, juste de quoi loger
-                // la barre et laisser la couleur se fondre dans le fond.
+                // AUCUN fond ici : la photo de l'ecran passe derriere, comme
+                // partout ailleurs. Le degrade indigo vers orange qui occupait
+                // cette zone est parti -- il se superposait a la photo et
+                // rendait le champ illisible.
+                //
+                // Sa disparition deplace le probleme au lieu de le resoudre :
+                // mesure sur les vrais pixels, a l'endroit le plus clair de la
+                // photo et sous le voile le plus mince, le texte d'invite ne
+                // tenait que 1,31. AUCUNE couleur de texte ne passe 4,5 sur ce
+                // fond. C'est donc le champ qui est rempli, comme dans la
+                // maquette de reference -- voir le bouton plus bas.
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        KaloyPurple.copy(alpha = 0.8f),
-                                        KaloyPink.copy(alpha = 0.4f),
-                                        MaterialTheme.colorScheme.background
-                                    )
-                                )
-                            )
                             // safeContentPadding avant le padding : c'est lui qui
                             // ecarte la barre d'etat, et sans lui le champ de
                             // recherche passerait sous l'heure et la batterie.
@@ -252,30 +251,46 @@ data class HomeScreen(
                             // Aucune hauteur fixe. Avec .height(120.dp), les
                             // encoches etaient retranchees DEDANS : il restait
                             // ~38 dp au bouton, qui en demande 40, et son texte
-                            // etait rogne. La boite s'ajuste donc a son contenu,
-                            // et le bas de marge laisse le degrade se fondre.
-                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
+                            // etait rogne. La boite s'ajuste donc a son contenu.
+                            //
+                            // 8 dp en bas et non 48 : le titre « Recemment
+                            // ecoute » apporte ses propres 12 dp, ce qui faisait
+                            // 60 dp de vide entre la recherche et le contenu.
+                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
                         contentAlignment = Alignment.TopCenter
                     ) {
+                        // Le champ est REMPLI, et c'est ce qui le rend
+                        // lisible : sur la creme, le texte d'invite tient 5,32
+                        // et l'ancien KaloyTextMuted sur la photo tenait 1,31.
+                        // C'est aussi ce que montre type de background.jpeg,
+                        // ou la barre de recherche est une pastille pleine.
+                        //
+                        // Le nuit a 65 pour cent et non a fond : a 100 pour
+                        // cent, l'invite se lirait comme une saisie deja faite.
+                        val invite = KaloyNuit.copy(alpha = 0.65f)
                         OutlinedButton(
                             onClick = { navigateur.push(EcranRechercheVoyager()) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
+                            // Pas de bordure : elle cerclait un champ vide, elle
+                            // n'a plus d'objet sur une pastille pleine.
+                            border = null,
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = KaloyTextSecondary
+                                containerColor = KaloyCreme,
+                                contentColor = invite
                             )
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
                                 contentDescription = null,
-                                tint = KaloyTextMuted,
+                                tint = invite,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Rechercher artistes, albums, chansons...",
                                 modifier = Modifier.weight(1f),
-                                color = KaloyTextMuted
+                                color = invite
                             )
                         }
                     }
