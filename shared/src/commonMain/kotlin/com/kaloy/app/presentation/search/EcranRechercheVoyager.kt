@@ -60,7 +60,6 @@ import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.genre.EcranGenreVoyager
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
-import com.kaloy.app.ui.theme.fondKaloy
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -318,7 +317,9 @@ class EcranRechercheVoyager : Screen {
         Scaffold(
             // Voir l'accueil : le fond photographique demande un
             // containerColor transparent pour ne pas etre recouvert.
-            modifier = Modifier.fondKaloy(),
+            // Pas de fond ici : il est pose une fois sur le conteneur du
+            // pager, dans EcranPrincipal, pour qu'il ne glisse pas avec la
+            // page. containerColor reste transparent pour le laisser voir.
             containerColor = Color.Transparent
         ) { espaceInterieur ->
         Column(
@@ -333,14 +334,10 @@ class EcranRechercheVoyager : Screen {
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navigateur.pop() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Retour",
-                        tint = KaloyTextPrimary
-                    )
-                }
-
+                // Plus de fleche de retour : la recherche est un ONGLET,
+                // pas un ecran empile. Il n'y a rien derriere elle a depiler,
+                // et la fleche serait sortie des trois onglets. On change
+                // d'onglet par la barre du bas ou en glissant.
                 OutlinedTextField(
                     value = modeleVue.rechercheTexte,
                     onValueChange = { modeleVue.surChangementTexte(it) },

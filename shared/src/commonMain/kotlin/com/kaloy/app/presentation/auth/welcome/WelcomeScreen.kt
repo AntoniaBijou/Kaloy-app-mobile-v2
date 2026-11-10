@@ -137,7 +137,12 @@ class WelcomeScreen : Screen, SansBarreDuBas {
                             modifier = Modifier
                                 .padding(top = 4.dp)
                                 .clickable {
-                                    navigator.push(com.kaloy.app.presentation.home.HomeScreen(username = "Visiteur", isVisitor = true))
+                                    navigator.push(
+                                        com.kaloy.app.presentation.common.EcranPrincipal(
+                                            username = "Visiteur",
+                                            isVisitor = true
+                                        )
+                                    )
                                 }
                         )
                     }
