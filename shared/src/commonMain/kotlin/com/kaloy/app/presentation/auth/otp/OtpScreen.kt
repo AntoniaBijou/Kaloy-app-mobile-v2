@@ -81,7 +81,9 @@ data class OtpScreen(
             if (uiState is OtpUiState.Success) {
                 sessionManager.saveSession((uiState as OtpUiState.Success).response)
                 val username = (uiState as OtpUiState.Success).response.email.substringBefore("@")
-                navigator.replace(com.kaloy.app.presentation.home.HomeScreen(username = username))
+                navigator.replace(
+                    com.kaloy.app.presentation.common.EcranPrincipal(username = username)
+                )
             }
         }
 

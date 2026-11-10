@@ -48,7 +48,7 @@ import com.kaloy.app.data.dto.LoginRequest
 import com.kaloy.app.data.repository.AuthRepository
 import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
 import com.kaloy.app.presentation.common.SansBarreDuBas
-import com.kaloy.app.presentation.home.HomeScreen
+import com.kaloy.app.presentation.common.EcranPrincipal
 import com.kaloy.app.ui.theme.KaloyCreme
 import com.kaloy.app.ui.theme.KaloyDarkCard
 import com.kaloy.app.ui.theme.KaloyCarteVoilee
@@ -125,7 +125,10 @@ class LoginScreen : Screen, SansBarreDuBas {
         LaunchedEffect(uiState) {
             if (uiState is LoginUiState.Success) {
                 val username = (uiState as LoginUiState.Success).email.substringBefore("@")
-                navigator.replace(HomeScreen(username = username))
+                // L'ecran hote des trois onglets, et non l'accueil seul :
+                // Accueil, Recherche et Moi sont desormais trois pages
+                // d'un meme ecran, que l'on fait glisser.
+                navigator.replace(EcranPrincipal(username = username))
             }
         }
 

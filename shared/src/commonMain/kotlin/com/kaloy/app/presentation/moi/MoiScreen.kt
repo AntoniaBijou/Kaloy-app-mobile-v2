@@ -28,7 +28,6 @@ import com.kaloy.app.presentation.organisation.EcranMesEvenementsVoyager
 import com.kaloy.app.presentation.calendrier.EcranMonCalendrierVoyager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.ui.theme.*
-import com.kaloy.app.ui.theme.fondKaloy
 import org.koin.compose.koinInject
 import com.kaloy.app.presentation.moi.components.CarteStatistiques
 import com.kaloy.app.presentation.moi.components.DangerZone
@@ -178,20 +177,19 @@ class MoiScreen : Screen {
                             )
                         },
                         navigationIcon = {
-                            IconButton(
-                                onClick = {
-                                    if (selectedActivitySection != null) {
-                                        selectedActivitySection = null
-                                    } else {
-                                        navigator.pop()
-                                    }
+                            // La fleche ne sert plus QUE dans une section
+                            // d'activite, pour revenir a la liste des sections.
+                            // Hors de la, « Moi » est un ONGLET : il n'y a rien
+                            // derriere lui, et depiler serait sorti des trois
+                            // onglets d'un coup.
+                            if (selectedActivitySection != null) {
+                                IconButton(onClick = { selectedActivitySection = null }) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowBack,
+                                        contentDescription = "Retour aux sections",
+                                        tint = KaloyTextPrimary
+                                    )
                                 }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "Retour",
-                                    tint = KaloyTextPrimary
-                                )
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkSurface)
@@ -233,7 +231,9 @@ class MoiScreen : Screen {
             // La barre du haut garde son aplat KaloyDarkSurface : dans la
             // maquette de reference, la barre est une bande opaque et la
             // photo court derriere le contenu en dessous d'elle.
-            modifier = Modifier.fondKaloy(),
+            // Pas de fond ici : il est pose une fois sur le conteneur du
+            // pager, dans EcranPrincipal, pour qu'il ne glisse pas avec la
+            // page. containerColor reste transparent pour le laisser voir.
             containerColor = Color.Transparent
         ) { innerPadding ->
             when (val state = uiState) {

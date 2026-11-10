@@ -44,13 +44,13 @@ import com.kaloy.app.data.model.*
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.common.EtatBarreDuBas
+import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
-import com.kaloy.app.ui.theme.fondKaloy
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -190,7 +190,9 @@ data class HomeScreen(
             // Le fond photographique des ecrans d'entree. containerColor
             // passe en transparent, sinon le Scaffold peindrait son aplat
             // par-dessus la photo.
-            modifier = Modifier.fondKaloy(),
+            // Pas de fond ici : il est pose une fois sur le conteneur du
+            // pager, dans EcranPrincipal, pour qu'il ne glisse pas avec la
+            // page. containerColor reste transparent pour le laisser voir.
             containerColor = Color.Transparent
         ) { espaceInterieur ->
             LazyColumn(
@@ -240,7 +242,12 @@ data class HomeScreen(
                         // cent, l'invite se lirait comme une saisie deja faite.
                         val invite = KaloyNuit.copy(alpha = 0.65f)
                         OutlinedButton(
-                            onClick = { navigateur.push(EcranRechercheVoyager()) },
+                            // On demande la page, on ne l'empile plus :
+                            // la recherche est l'onglet voisin, et le
+                            // pager y glisse comme sous le doigt.
+                            onClick = {
+                                etatBarre.ongletDemande = OngletPrincipal.RECHERCHE
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
                             // Pas de bordure : elle cerclait un champ vide, elle

@@ -13,12 +13,9 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.Navigator
 import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.queue.QueueManager
-import com.kaloy.app.presentation.home.HomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
-import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.presentation.queue.UpNextSheet
-import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import org.koin.compose.koinInject
 
 /**
@@ -60,6 +57,26 @@ class EtatBarreDuBas {
      * que la barre -- qui vit au-dessus de lui -- puisse en tenir compte.
      */
     var estVisiteur by mutableStateOf(false)
+
+    /**
+     * L'onglet affiche par [com.kaloy.app.presentation.common.EcranPrincipal].
+     *
+     * Le pager le renseigne a chaque glissement, et la barre le lit pour
+     * marquer le bon onglet. Il passe par ici et non par le Navigator parce
+     * que les trois onglets ne sont plus trois ecrans : ils sont trois pages
+     * d'un seul, et `navigateur.lastItem` ne sait donc plus laquelle est a
+     * l'image.
+     */
+    var onglet by mutableStateOf(OngletPrincipal.ACCUEIL)
+
+    /**
+     * Un onglet demande par la barre, que le pager consomme puis remet a nul.
+     *
+     * Le sens inverse du precedent. La remise a nul est indispensable : sans
+     * elle, le meme ordre se rejouerait a chaque recomposition et ramenerait
+     * sans cesse sur l'onglet demande, rendant le glissement impossible.
+     */
+    var ongletDemande by mutableStateOf<OngletPrincipal?>(null)
 }
 
 /**
@@ -90,7 +107,7 @@ fun BarreDuBas(navigateur: Navigator) {
 
     var afficherFile by remember { mutableStateOf(false) }
 
-    val onglet = ongletDe(ecran)
+    val onglet = ongletDe(ecran, etatBarre)
 
     Column {
         val chanson = chansonCourante
@@ -118,11 +135,12 @@ fun BarreDuBas(navigateur: Navigator) {
         onglet?.let { actif ->
             BarreNavigationPrincipale(
                 ongletActif = actif,
-                onAccueil = { allerA(navigateur, { it is HomeScreen }) { HomeScreen() } },
-                onRecherche = {
-                    allerA(navigateur, { it is EcranRechercheVoyager }) { EcranRechercheVoyager() }
-                },
-                onMoi = { allerA(navigateur, { it is MoiScreen }) { MoiScreen() } }
+                // On ne navigue plus : on demande une page, et le pager y
+                // glisse. L'ancien allerA empilait ou depilait des ecrans, ce
+                // qui n'a plus de sens quand les trois vivent ensemble.
+                onAccueil = { etatBarre.ongletDemande = OngletPrincipal.ACCUEIL },
+                onRecherche = { etatBarre.ongletDemande = OngletPrincipal.RECHERCHE },
+                onMoi = { etatBarre.ongletDemande = OngletPrincipal.MOI }
             )
         }
     }
@@ -151,12 +169,15 @@ fun BarreDuBas(navigateur: Navigator) {
  * BarreNavigationPrincipale decrit : « Accueil » restait allume pendant qu'on
  * etait ailleurs.
  */
-private fun ongletDe(ecran: Screen): OngletPrincipal? = when (ecran) {
-    is HomeScreen -> OngletPrincipal.ACCUEIL
-    is EcranRechercheVoyager -> OngletPrincipal.RECHERCHE
-    is MoiScreen -> OngletPrincipal.MOI
-    else -> null
-}
+/**
+ * L'onglet a marquer, ou null quand la barre de navigation ne s'affiche pas.
+ *
+ * Un seul ecran porte les onglets desormais, et c'est lui qui sait laquelle
+ * de ses trois pages est a l'image. Sur tout autre ecran -- une fiche, un
+ * lecteur, un formulaire -- il n'y a pas d'onglet actif.
+ */
+private fun ongletDe(ecran: Screen, etatBarre: EtatBarreDuBas): OngletPrincipal? =
+    if (ecran is EcranPrincipal) etatBarre.onglet else null
 
 /**
  * Va vers un onglet sans faire grossir la pile.
@@ -167,6 +188,4 @@ private fun ongletDe(ecran: Screen): OngletPrincipal? = when (ecran) {
  * porte lui aussi la barre, cette hypothese ne tient plus : revenir du profil
  * par un `pop()` aurait ramene sur la recherche, pas sur l'accueil.
  */
-private fun allerA(navigateur: Navigator, estCible: (Screen) -> Boolean, creer: () -> Screen) {
-    if (navigateur.items.any(estCible)) navigateur.popUntil(estCible) else navigateur.push(creer())
-}
+
