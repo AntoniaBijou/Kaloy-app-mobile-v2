@@ -17,18 +17,12 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.core.offline.OfflineDownloadCoordinator
 import com.kaloy.app.core.offline.OfflineDownloadState
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.repository.PlaylistRepository
-import com.kaloy.app.presentation.lecteur.LecteurScreen
-import com.kaloy.app.presentation.lecteur.LecteurViewModel
-import com.kaloy.app.presentation.moi.MoiScreen
-import com.kaloy.app.presentation.radio.RadioScreen
 import com.kaloy.app.presentation.playlist.components.*
 import com.kaloy.app.presentation.playlist.PlaylistDownloadsScreen
-import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.delay
@@ -43,8 +37,6 @@ class PlaylistScreen : Screen {
         val repository = koinInject<PlaylistRepository>()
         val sessionManager = koinInject<AuthSessionManager>()
         val offlineDownloadCoordinator = koinInject<OfflineDownloadCoordinator>()
-        val fileAttente = koinInject<QueueManager>()
-        val lecteur = koinInject<LecteurViewModel>()
 
         val modeleVue = remember { PlaylistViewModel(repository, sessionManager, offlineDownloadCoordinator) }
         DisposableEffect(Unit) { onDispose { modeleVue.dispose() } }
@@ -60,12 +52,6 @@ class PlaylistScreen : Screen {
         val discoveryMode by modeleVue.discoveryMode.collectAsState()
         val publicSearchQuery by modeleVue.publicSearchQuery.collectAsState()
         val publicPlaylistState by modeleVue.publicPlaylistState.collectAsState()
-
-        val chansonCourante by fileAttente.currentSong.collectAsState()
-        val chansonsSuivantes by fileAttente.upNext.collectAsState()
-        val historique by fileAttente.history.collectAsState()
-        val lectureActive by lecteur.isPlaying.collectAsState()
-        val positionCourante by lecteur.currentPositionMs.collectAsState()
 
         // Réaction aux états d'opération
         LaunchedEffect(operationState) {
@@ -118,76 +104,6 @@ class PlaylistScreen : Screen {
                     )
                 )
             },
-            bottomBar = {
-                Column {
-                    chansonCourante?.let { chanson ->
-                        MiniPlayer(
-                            song = chanson,
-                            isPlaying = lectureActive,
-                            onClick = { navigateur.push(LecteurScreen(chanson.id)) },
-                            onTogglePlay = { lecteur.togglePlayPause() },
-                            onPrevious = { lecteur.jouerPrecedent() },
-                            onNext = { lecteur.jouerSuivant() },
-                            canPrevious = historique.isNotEmpty() || positionCourante > 3_000L,
-                            canNext = chansonsSuivantes.isNotEmpty()
-                        )
-                    }
-                    NavigationBar(containerColor = KaloyDarkSurface) {
-                        NavigationBarItem(
-                            selected = false,
-                            onClick = { navigateur.pop() },
-                            icon = { Icon(Icons.Default.Home, contentDescription = "Accueil") },
-                            label = { Text("Accueil") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = true,
-                            onClick = { },
-                            icon = { Icon(Icons.Default.QueueMusic, contentDescription = "Playlist") },
-                            label = { Text("Playlist") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = false,
-                            onClick = { navigateur.push(RadioScreen()) },
-                            icon = { Icon(Icons.Default.Radio, contentDescription = "Radio") },
-                            label = { Text("Radio") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = false,
-                            onClick = { navigateur.push(MoiScreen()) },
-                            icon = { Icon(Icons.Default.Person, contentDescription = "Mon profil") },
-                            label = { Text("Moi") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = KaloyPurple,
-                                selectedTextColor = KaloyPurple,
-                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
-                                unselectedIconColor = KaloyTextMuted,
-                                unselectedTextColor = KaloyTextMuted
-                            )
-                        )
-                    }
-                }
-            }
         ) { paddingValues ->
             LazyColumn(
                 modifier = Modifier

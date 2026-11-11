@@ -20,6 +20,7 @@ import com.kaloy.app.data.repository.PlaylistRepository
 import com.kaloy.app.data.repository.PlaylistRepositoryImpl
 import com.kaloy.app.data.repository.RadioRepository
 import com.kaloy.app.data.repository.RadioRepositoryImpl
+import com.kaloy.app.presentation.common.EtatBarreDuBas
 import com.kaloy.app.presentation.favoris.FavorisViewModel
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.russhwolf.settings.Settings
@@ -27,6 +28,7 @@ import org.koin.dsl.module
 
 val appModule = module {
     single { Settings() }
+    single { EtatBarreDuBas() }
     single { AuthSessionManager(get(), get()) }
     single { OfflinePlaylistCatalog(get()) }
     single { OfflineDownloadCoordinator(get(), get<OfflineFileStore>(), get(), get()) }

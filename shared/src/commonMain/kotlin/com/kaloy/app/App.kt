@@ -80,7 +80,14 @@ fun App() {
 
     KaloyTheme {
         when {
-            initialScreen != null -> Navigator(screen = initialScreen!!)
+            initialScreen != null -> Navigator(screen = initialScreen!!) { navigateur ->
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(1f)) {
+                        CurrentScreen()
+                    }
+                    BarreDuBas(navigateur)
+                }
+            }
             startupError != null -> SessionStartupError(
                 message = startupError!!,
                 onRetry = { startupAttempt += 1 },
@@ -121,23 +128,6 @@ private fun SessionStartupError(
             modifier = Modifier.padding(top = 8.dp)
         ) {
             Text("Continuer sans compte")
-        }
-        // La barre du bas est posee ICI, au-dessus du Navigator, et non dans
-        // chaque ecran. Avant, deux ecrans sur vingt-cinq la posaient : la
-        // barre de lecture n'existait que sur l'accueil, et la barre de
-        // navigation disparaissait sur l'onglet « Moi ».
-        //
-        // L'ecran courant occupe toute la place restante, la barre prend la
-        // sienne en dessous. Un Column et non une superposition : la barre ne
-        // doit pas recouvrir le bas du contenu, sinon le dernier element
-        // d'une liste reste inatteignable.
-        Navigator(screen = WelcomeScreen()) { navigateur ->
-            Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) {
-                    CurrentScreen()
-                }
-                BarreDuBas(navigateur)
-            }
         }
     }
 }

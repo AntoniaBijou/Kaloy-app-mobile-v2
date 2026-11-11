@@ -164,7 +164,8 @@ class PlaylistDownloadsScreen : Screen {
                 error = null
                 try {
                     coordinator.delete(playlist)
-                    loadDownloads()
+                    playlists = playlists.filterNot { it.playlistId == playlist.playlistId }
+                    localPlaylistIds = localPlaylistIds - playlist.playlistId
                 } catch (exception: Exception) {
                     if (catalog.get(sessionManager.getUserId())
                             .none { it.playlistId == playlist.playlistId }
