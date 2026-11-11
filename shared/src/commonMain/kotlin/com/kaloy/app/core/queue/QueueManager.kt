@@ -4,14 +4,19 @@ import com.kaloy.app.data.model.Song
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+enum class ModeLecture { ALEATOIRE, BOUCLE, UNIQUE }
+
 class QueueManager {
     private val _currentSong = MutableStateFlow<Song?>(null)
     private val _upNext = MutableStateFlow<List<Song>>(emptyList())
     private val _history = MutableStateFlow<List<Song>>(emptyList())
+    private val _modeLecture = MutableStateFlow(ModeLecture.ALEATOIRE)
+    private var _contexteSongs: List<Song> = emptyList()
 
     val currentSong: StateFlow<Song?> = _currentSong
     val upNext: StateFlow<List<Song>> = _upNext
     val history: StateFlow<List<Song>> = _history
+    val modeLecture: StateFlow<ModeLecture> = _modeLecture
 
     fun playNow(song: Song) {
         if (_currentSong.value?.id == song.id) {
@@ -35,16 +40,28 @@ class QueueManager {
         playNow(song)
     }
 
+    fun setModeLecture(mode: ModeLecture) {
+        _modeLecture.value = mode
+        if (mode == ModeLecture.ALEATOIRE) _upNext.value = _upNext.value.shuffled()
+    }
+
+    fun reboucler() {
+        val current = _currentSong.value ?: return
+        _upNext.value = _contexteSongs.filter { it.id != current.id }
+    }
+
     // Définit une liste entière comme contexte de lecture.
     // Les chansons avant startSong deviennent l'historique, celles après deviennent upNext.
     fun setContext(songs: List<Song>, startSong: Song) {
+        _contexteSongs = songs
         val startIndex = songs.indexOfFirst { it.id == startSong.id }
         if (startIndex < 0) {
             syncCurrent(startSong)
             return
         }
         _currentSong.value = startSong
-        _upNext.value = songs.drop(startIndex + 1)
+        val remaining = songs.drop(startIndex + 1)
+        _upNext.value = if (_modeLecture.value == ModeLecture.ALEATOIRE) remaining.shuffled() else remaining
         _history.value = songs.take(startIndex).reversed().take(49)
     }
 

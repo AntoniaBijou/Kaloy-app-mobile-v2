@@ -1,5 +1,6 @@
 package com.kaloy.app.presentation.chanson
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,7 +13,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.core.queue.ModeLecture
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Song
@@ -119,6 +124,7 @@ class EcranToutesChansonsVoyager : Screen {
         val fileAttente = koinInject<QueueManager>()
         val modeleVue: ToutesChansonsViewModel = viewModel { ToutesChansonsViewModel() }
         val gestionnaireFocus = LocalFocusManager.current
+        val modeLecture by fileAttente.modeLecture.collectAsState()
 
         var filtreTexte by remember { mutableStateOf("") }
         var suggestionsVisibles by remember { mutableStateOf(false) }
@@ -177,19 +183,59 @@ class EcranToutesChansonsVoyager : Screen {
                     }
                     Column(modifier = Modifier.padding(start = 4.dp)) {
                         Text(
-                            text = "Toutes les chansons",
+                            text = "MA BIBLIOTHÈQUE",
                             style = MaterialTheme.typography.headlineSmall,
                             color = Color.White,
                             fontWeight = FontWeight.Bold
                         )
-                        if (modeleVue.chansons.isNotEmpty()) {
-                            Text(
-                                text = "${chansonsFiltrees.size} chanson${if (chansonsFiltrees.size > 1) "s" else ""}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
+                        Text(
+                            text = "Toutes les chansons · ${chansonsFiltrees.size} titre${if (chansonsFiltrees.size > 1) "s" else ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+
+                // ---- Sélecteur de mode de lecture ----
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            Triple(ModeLecture.ALEATOIRE, Icons.Default.Shuffle, "Aléatoire"),
+                            Triple(ModeLecture.BOUCLE, Icons.Default.Repeat, "Boucle"),
+                            Triple(ModeLecture.UNIQUE, Icons.Default.RepeatOne, "Unique")
+                        ).forEach { (mode, icone, label) ->
+                            val actif = modeLecture == mode
+                            OutlinedButton(
+                                onClick = { fileAttente.setModeLecture(mode) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (actif) KaloyOrangeVif else KaloyDarkCard,
+                                    contentColor = if (actif) Color.White else KaloyTextSecondary
+                                ),
+                                border = BorderStroke(0.dp, Color.Transparent),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                            ) {
+                                Icon(icone, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(label, style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
+                    Text(
+                        text = "Mode sélectionné : ${when (modeLecture) {
+                            ModeLecture.ALEATOIRE -> "Aléatoire"
+                            ModeLecture.BOUCLE    -> "Boucle"
+                            ModeLecture.UNIQUE    -> "Unique"
+                        }}",
+                        color = KaloyTextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
 
                 // ---- Barre de filtre ----
@@ -277,6 +323,16 @@ class EcranToutesChansonsVoyager : Screen {
                             }
                         }
                     }
+                }
+
+                // ---- Section header ----
+                if (!modeleVue.enChargement && modeleVue.erreur == null) {
+                    Text(
+                        text = "RÉCEMMENT AJOUTÉES",
+                        color = KaloyTextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
 
                 // ---- Contenu ----

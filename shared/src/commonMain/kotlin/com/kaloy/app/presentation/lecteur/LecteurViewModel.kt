@@ -4,6 +4,7 @@ import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.audio.MediaMetadata
 import com.kaloy.app.core.offline.OfflineFileStore
 import com.kaloy.app.core.offline.OfflinePlaylistCatalog
+import com.kaloy.app.core.queue.ModeLecture
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.model.Album
 import com.kaloy.app.data.model.Artist
@@ -276,14 +277,29 @@ class LecteurViewModel(
 
     fun jouerSuivant() {
         if (autoPlayTriggered) return
-        val nextSong = queueManager.upNext.value.firstOrNull() ?: return
+        val mode = queueManager.modeLecture.value
+
+        if (mode == ModeLecture.UNIQUE) {
+            val current = queueManager.currentSong.value ?: return
+            autoPlayTriggered = true
+            charger(current.id, silencieux = true, offlinePlaylistId = activeOfflinePlaylistId)
+            return
+        }
+
+        val nextSong = queueManager.upNext.value.firstOrNull()
+        if (nextSong == null) {
+            if (mode == ModeLecture.BOUCLE) {
+                queueManager.reboucler()
+                val first = queueManager.upNext.value.firstOrNull() ?: return
+                autoPlayTriggered = true
+                queueManager.playFromQueue(first)
+                charger(first.id, silencieux = true, offlinePlaylistId = activeOfflinePlaylistId)
+            }
+            return
+        }
         autoPlayTriggered = true
         queueManager.playFromQueue(nextSong)
-        charger(
-            nextSong.id,
-            silencieux = true,
-            offlinePlaylistId = activeOfflinePlaylistId
-        )
+        charger(nextSong.id, silencieux = true, offlinePlaylistId = activeOfflinePlaylistId)
     }
 
     fun jouerDepuisFile(song: Song) {
