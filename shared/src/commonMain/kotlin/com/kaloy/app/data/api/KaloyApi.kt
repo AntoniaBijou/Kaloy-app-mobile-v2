@@ -1047,6 +1047,9 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
     suspend fun getMesPlaylists(token: String): RestResponse<List<PlaylistResume>> {
         return client.get("$apiBaseUrl/playlists/me") {
             header(HttpHeaders.Authorization, "Bearer $token")
+        }.body()
+    }
+
     // ============================================================
     // Mes chansons, et l'aide a la saisie des paroles
     // ============================================================
