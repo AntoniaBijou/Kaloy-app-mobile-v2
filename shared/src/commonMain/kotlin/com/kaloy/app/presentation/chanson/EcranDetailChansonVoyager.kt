@@ -13,11 +13,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -531,29 +533,68 @@ private fun SectionTexte(
         color = KaloyDarkCard,
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            val contenu = if (choix == "Paroles") paroles else solfa
-            if (!contenu.isNullOrBlank()) {
-                Text(
-                    text = contenu,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = KaloyTextSecondary,
-                    lineHeight = 26.sp
-                )
-            } else {
-                Text(
-                    text = if (choix == "Paroles")
-                        "Les paroles ne sont pas disponibles pour cette chanson."
-                    else
-                        "Le solfa n'est pas disponible pour cette chanson.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = KaloyTextMuted,
-                    fontStyle = FontStyle.Italic,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+        // Les DEUX textes sont poses l'un sur l'autre, le masque a opacite
+        // nulle. La boite prend donc la hauteur du PLUS GRAND des deux, et
+        // cette hauteur ne change plus quand on bascule.
+        //
+        // Avant, seul le texte choisi etait compose : passer de vingt lignes
+        // de paroles a trois de solfa raccourcissait la page, la position de
+        // defilement n'existait plus, elle etait ramenee au nouveau maximum,
+        // et l'ecran sautait. Aucune manipulation du defilement ne pouvait y
+        // remedier : on ne reste pas a une position qui n'existe plus.
+        //
+        // La contrepartie est assumee : sur une chanson aux paroles longues,
+        // l'onglet Solfa laisse du vide sous son texte. C'est le prix d'une
+        // page qui ne bouge pas.
+        Box(modifier = Modifier.padding(20.dp)) {
+            TexteDeChanson(
+                contenu = paroles,
+                absent = "Les paroles ne sont pas disponibles pour cette chanson.",
+                visible = choix == "Paroles"
+            )
+            TexteDeChanson(
+                contenu = solfa,
+                absent = "Le solfa n'est pas disponible pour cette chanson.",
+                visible = choix == "Solfa"
+            )
         }
+    }
+}
+
+/**
+ * Un des deux textes de la carte, visible ou masque.
+ *
+ * Le texte masque reste MESURE et MIS EN PAGE : c'est lui qui donne sa
+ * hauteur a la boite lorsqu'il est le plus long, et c'est precisement ce qui
+ * empeche la page de bouger. Une condition `if` l'aurait retire de la mise en
+ * page, et le saut serait revenu.
+ *
+ * clearAndSetSemantics sur le masque : sans cela un lecteur d'ecran lirait
+ * les deux textes a la suite, le visible et l'invisible.
+ */
+@Composable
+private fun TexteDeChanson(contenu: String?, absent: String, visible: Boolean) {
+    val apparence = Modifier
+        .alpha(if (visible) 1f else 0f)
+        .then(if (visible) Modifier else Modifier.clearAndSetSemantics {})
+
+    if (!contenu.isNullOrBlank()) {
+        Text(
+            text = contenu,
+            style = MaterialTheme.typography.bodyMedium,
+            color = KaloyTextSecondary,
+            lineHeight = 26.sp,
+            modifier = apparence
+        )
+    } else {
+        Text(
+            text = absent,
+            style = MaterialTheme.typography.bodyMedium,
+            color = KaloyTextMuted,
+            fontStyle = FontStyle.Italic,
+            textAlign = TextAlign.Center,
+            modifier = apparence.fillMaxWidth()
+        )
     }
 }
 
