@@ -304,6 +304,21 @@ data class Follow(
 )
 
 @Serializable
+data class StatsFavoris(
+    val chansons: Long = 0,
+    val albums: Long = 0,
+    val artistes: Long = 0
+)
+
+@Serializable
+data class FollowArtisteInfo(
+    val followId: Long = 0,
+    val artisteId: Long = 0,
+    val stageName: String = "",
+    val photoUrl: String? = null
+)
+
+@Serializable
 data class Comment(
     val id: Long = 0,
     @SerialName("authoruseridUsers") val authorUser: User? = null,
@@ -347,6 +362,14 @@ data class Playlist(
     @SerialName("shareToken") val shareToken: String? = null,
     @SerialName("createdAt") val createdAt: String? = null,
     @SerialName("updatedAt") val updatedAt: String? = null
+)
+
+@Serializable
+data class PlaylistResume(
+    val id: Long = 0,
+    val name: String = "",
+    val nombreTitres: Int = 0,
+    val visibility: String = ""
 )
 
 @Serializable

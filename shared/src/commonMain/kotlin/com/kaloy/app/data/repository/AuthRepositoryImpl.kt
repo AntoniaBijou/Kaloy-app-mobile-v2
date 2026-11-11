@@ -27,9 +27,6 @@ class AuthRepositoryImpl(
 
     private suspend inline fun <reified T> HttpResponse.decodeData(): T {
         val rest = body<RestResponse>()
-        if (status.value == 401) {
-            sessionManager.clear()
-        }
         if (status.value >= 400) {
             throw Exception(UserErrorMessages.fromRawMessage(rest.message))
         }
@@ -42,10 +39,8 @@ class AuthRepositoryImpl(
             contentType(ContentType.Application.Json)
             setBody(request)
         }
-
         val rest = response.body<RestResponse>()
         if (response.status.value == 401) {
-            sessionManager.clear()
             throw Exception(UserErrorMessages.fromRawMessage(rest.message))
         }
         if (response.status.value >= 400) {

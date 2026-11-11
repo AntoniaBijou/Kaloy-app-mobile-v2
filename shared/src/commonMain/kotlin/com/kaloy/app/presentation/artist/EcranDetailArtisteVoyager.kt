@@ -52,7 +52,10 @@ import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.calendrier.GrilleCalendrier
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.ui.theme.*
+import com.kaloy.app.presentation.favoris.BoutonFavori
+import com.kaloy.app.presentation.favoris.FavorisViewModel
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import org.koin.mp.KoinPlatform
 
 // ============================================================
@@ -356,6 +359,8 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val fileAttente: QueueManager = KoinPlatform.getKoin().get()
+        val favorisVm: FavorisViewModel = koinInject()
+        val favorisArtisteIds by favorisVm.favorisArtisteIds.collectAsState()
         val modeleVue: DetailArtisteViewModel = viewModel(key = "artiste_$idArtiste") {
             DetailArtisteViewModel(idArtiste)
         }
@@ -411,17 +416,27 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                     .safeContentPadding(),
                                 verticalArrangement = Arrangement.SpaceBetween
                             ) {
-                                // Bouton retour
-                                IconButton(
-                                    onClick = { navigateur.pop() },
-                                    colors = IconButtonDefaults.iconButtonColors(
-                                        contentColor = Color.White
-                                    )
+                                // Barre retour + favori artiste
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Retour",
-                                        tint = Color.White
+                                    IconButton(
+                                        onClick = { navigateur.pop() },
+                                        colors = IconButtonDefaults.iconButtonColors(
+                                            contentColor = Color.White
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Retour",
+                                            tint = Color.White
+                                        )
+                                    }
+                                    BoutonFavori(
+                                        isFavori = favorisArtisteIds.contains(idArtiste),
+                                        onToggle = { favorisVm.toggleFavoriArtisteId(idArtiste) }
                                     )
                                 }
 

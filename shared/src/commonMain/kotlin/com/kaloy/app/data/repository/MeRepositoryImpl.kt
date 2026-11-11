@@ -4,6 +4,7 @@ import com.kaloy.app.core.error.UserErrorMessages
 import com.kaloy.app.core.network.BASE_URL
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.RestResponse
+import com.kaloy.app.data.dto.RefreshRequest
 import com.kaloy.app.data.dto.me.*
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -151,10 +152,18 @@ class MeRepositoryImpl(
     override suspend fun getInstrumentRoles(): List<InstrumentRoleDto> =
         client.get("$BASE_URL/me/instrument-roles") { withSessionToken() }.decodeData()
 
-    override suspend fun logout(): String =
-        client.post("$BASE_URL/me/logout") {
-            withSessionToken()
+    override suspend fun logout(): String {
+        val refreshToken = sessionManager.getRefreshToken()
+        if (refreshToken.isNullOrBlank()) {
+            return client.post("$BASE_URL/me/logout") {
+                withSessionToken()
+            }.decodeMessage()
+        }
+        return client.post("$BASE_URL/auth/logout") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(refreshToken))
         }.decodeMessage()
+    }
 
     override suspend fun deleteMyAccount(): String =
         client.delete("$BASE_URL/me") {

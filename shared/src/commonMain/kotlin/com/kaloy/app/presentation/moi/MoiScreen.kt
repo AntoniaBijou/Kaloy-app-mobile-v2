@@ -19,6 +19,7 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.me.GroupMemberDto
 import com.kaloy.app.data.repository.MeRepository
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
+import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.components.*
@@ -54,8 +55,7 @@ private sealed class ActiveDialog {
 private enum class MoiTab(val label: String, val emptyMessage: String) {
     PROFILE("Profil", ""),
     ACTIVITY("Activité", "Votre activité apparaîtra ici."),
-    FAVORITES("Favoris", "Vos favoris apparaîtront ici."),
-    OFFLINE("Offline", "Vos contenus disponibles hors ligne apparaîtront ici.")
+    FAVORITES("Favoris", "Vos favoris apparaîtront ici.")
 }
 
 // ── Ecran ─────────────────────────────────────────────────────────────────────
@@ -141,10 +141,6 @@ class MoiScreen : Screen {
                         else -> {}
                     }
                     viewModel.resetOperationState()
-                }
-                is MoiOperationState.NeedsRelogin -> {
-                    sessionManager.clear()
-                    navigator.replaceAll(WelcomeScreen())
                 }
                 is MoiOperationState.AccountDeleted -> {
                     navigator.replaceAll(WelcomeScreen())
@@ -280,7 +276,8 @@ class MoiScreen : Screen {
                             sessionManager = sessionManager,
                             modifier = Modifier.fillMaxSize().padding(innerPadding),
                             onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
-                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
+                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) },
+                            onNavigateToArtist = { artistId -> navigator.push(EcranDetailArtisteVoyager(idArtiste = artistId)) }
                         )
                     } else {
                         when (selectedTab) {
@@ -352,7 +349,8 @@ class MoiScreen : Screen {
                             sessionManager = sessionManager,
                             modifier = Modifier.fillMaxSize().padding(innerPadding),
                             onPlay = { songId -> navigator.push(LecteurScreen(songId)) },
-                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) }
+                            onNavigateToSong = { songId -> navigator.push(EcranDetailChansonVoyager(idChanson = songId)) },
+                            onNavigateToArtist = { artistId -> navigator.push(EcranDetailArtisteVoyager(idArtiste = artistId)) }
                         )
                     } else {
                         when (selectedTab) {

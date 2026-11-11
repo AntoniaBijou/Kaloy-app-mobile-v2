@@ -35,4 +35,10 @@ interface AudioPlayerController {
     fun release()
     fun setOnTrackCompleted(callback: () -> Unit) {}
     fun setOnSkipToPrevious(callback: () -> Unit) {}
+
+    /** Met à jour l'état favori de la chanson courante (affiché sur la notification). */
+    fun updateFavoriteState(isFavorite: Boolean) {}
+
+    /** Enregistre le callback déclenché quand l'utilisateur tape le bouton cœur. */
+    fun setOnToggleFavorite(callback: () -> Unit) {}
 }

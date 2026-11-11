@@ -28,6 +28,8 @@ import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Album
 import com.kaloy.app.data.model.Song
+import com.kaloy.app.presentation.favoris.BoutonFavori
+import com.kaloy.app.presentation.favoris.FavorisViewModel
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.ui.components.ErrorState
 import com.kaloy.app.ui.components.LoadingIndicator
@@ -82,6 +84,8 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val fileAttente = koinInject<QueueManager>()
+        val favorisVm: FavorisViewModel = koinInject()
+        val favorisAlbumIds by favorisVm.favorisAlbumIds.collectAsState()
         val modeleVue: DetailAlbumViewModel = viewModel(key = "album_$idAlbum") {
             DetailAlbumViewModel(idAlbum)
         }
@@ -142,10 +146,11 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
                                 verticalArrangement = Arrangement.SpaceBetween,
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                // En-tête avec bouton retour
+                                // En-tête avec bouton retour + favori album
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.Start
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(
                                         onClick = { navigateur.pop() },
@@ -157,6 +162,10 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
                                             tint = Color.White
                                         )
                                     }
+                                    BoutonFavori(
+                                        isFavori = favorisAlbumIds.contains(idAlbum),
+                                        onToggle = { favorisVm.toggleFavoriAlbumId(idAlbum) }
+                                    )
                                 }
 
                                 // Pochette de l'album

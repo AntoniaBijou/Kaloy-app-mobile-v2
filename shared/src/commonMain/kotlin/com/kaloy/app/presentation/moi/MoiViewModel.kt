@@ -27,7 +27,6 @@ sealed class MoiOperationState {
     data class Success(val message: String) : MoiOperationState()
     data class Error(val message: String) : MoiOperationState()
     data object OtpRequired : MoiOperationState()
-    data object NeedsRelogin : MoiOperationState()
     data object AccountDeleted : MoiOperationState()
 }
 
@@ -61,8 +60,7 @@ class MoiViewModel(
                 }
             } catch (e: Exception) {
                 if (e.message == "SESSION_EXPIRED") {
-                    sessionManager.clear()
-                    _operationState.value = MoiOperationState.NeedsRelogin
+                    _uiState.value = MoiUiState.Error(AuthSessionManager.SESSION_RETAINED_MESSAGE)
                 } else {
                     _uiState.value = MoiUiState.Error(UserErrorMessages.fromThrowable(e))
                 }
@@ -146,7 +144,7 @@ class MoiViewModel(
             _operationState.value = MoiOperationState.Loading
             try {
                 repository.confirmEmailChange(ConfirmEmailRequest(code))
-                _operationState.value = MoiOperationState.NeedsRelogin
+                _operationState.value = MoiOperationState.Success("Adresse e-mail mise à jour.")
             } catch (e: Exception) {
                 _operationState.value = MoiOperationState.Error(UserErrorMessages.fromThrowable(e))
             }

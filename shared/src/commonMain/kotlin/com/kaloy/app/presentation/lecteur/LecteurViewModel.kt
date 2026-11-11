@@ -11,6 +11,7 @@ import com.kaloy.app.data.model.Song
 import com.kaloy.app.core.error.UserErrorMessages
 import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.data.repository.LecteurRepository
+import com.kaloy.app.presentation.favoris.FavorisViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +20,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -36,7 +38,8 @@ class LecteurViewModel(
     private val queueManager: QueueManager,
     private val offlineCatalog: OfflinePlaylistCatalog,
     private val offlineFileStore: OfflineFileStore,
-    private val sessionManager: AuthSessionManager
+    private val sessionManager: AuthSessionManager,
+    private val favorisViewModel: FavorisViewModel
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -69,6 +72,18 @@ class LecteurViewModel(
         scope.launch { audioPlayer.isPlaying.collect { _isPlayingLocal.value = it } }
         audioPlayer.setOnTrackCompleted { jouerSuivant() }
         audioPlayer.setOnSkipToPrevious { jouerPrecedent() }
+
+        // Synchronise le cœur de la notification avec l'état favori de la chanson courante.
+        scope.launch {
+            combine(queueManager.currentSong, favorisViewModel.favorisSongIds) { song, favIds ->
+                song?.id?.let { it in favIds } ?: false
+            }.collect { isFav -> audioPlayer.updateFavoriteState(isFav) }
+        }
+
+        // Délègue le toggle depuis la notification à FavorisViewModel (gère optimiste + API + rollback).
+        audioPlayer.setOnToggleFavorite {
+            activeSongId?.let { favorisViewModel.toggleFavoriChansonId(it) }
+        }
     }
 
     private fun ModeEcoute.toPlayModeId(): Long = when (this) {
@@ -126,16 +141,9 @@ class LecteurViewModel(
                         offlineCatalog.findPlayableSong(userId, songId, offlineFileStore, null, fallback)
                     } else null
 
-                    cached?.let {
-                        SongPlayerResponse(
-                            id = it.song.songId,
-                            title = it.song.title,
-                            durationSeconds = it.song.durationSeconds,
-                            artistStageName = it.song.artistName,
-                            audioStreamUrl = it.playableUrl,
-                            isOffline = true
-                        )
-                    } ?: repository.getSongPlayerDetails(songId)
+                    resolveSongPlayerDetails(cached) {
+                        repository.getSongPlayerDetails(songId)
+                    }
                 }
                 queueManager.syncCurrent(song.asQueueSong())
                 _uiState.value = LecteurUiState.Success(song)

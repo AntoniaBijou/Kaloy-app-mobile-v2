@@ -33,6 +33,8 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
     private var mediaRequestStartedAtMs: Long? = null
     private var mediaRequestApplied = false
     private var completionHandled = false
+    private var mediaItemSequence = 0L
+    private var playRequestPending = false
     private val mainExecutor = Executor { command -> command.run() }
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main.immediate)
 
@@ -51,6 +53,15 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
                             if (playbackState == Player.STATE_READY && mediaRequestApplied) {
                                 logMediaRequestDuration("Media3 ready")
                             }
+                            if (
+                                playbackState == Player.STATE_READY &&
+                                playRequestPending &&
+                                !connectedController.isPlaying
+                            ) {
+                                playRequestPending = false
+                                Log.w("KaloyAudio", "Reasserting play request after Media3 became ready")
+                                connectedController.play()
+                            }
                             when (playbackState) {
                                 Player.STATE_ENDED -> {
                                     if (!completionHandled) {
@@ -66,6 +77,7 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
                             }
                         }
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            if (isPlaying) playRequestPending = false
                             if (isPlaying && mediaRequestApplied) {
                                 logMediaRequestDuration("Playback started")
                             }
@@ -81,7 +93,7 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
                         logMediaRequestDuration("MediaController connected")
                         connectedController.setMediaItem(mediaItem)
                         connectedController.prepare()
-                        connectedController.play()
+                        if (playRequestPending) connectedController.play()
                         pendingMedia = null
                     }
                 }
@@ -101,10 +113,12 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
     }
 
     override fun play() {
+        playRequestPending = true
         controller?.play()
     }
 
     override fun pause() {
+        playRequestPending = false
         controller?.pause()
     }
 
@@ -115,8 +129,11 @@ class AndroidMediaPlayerController(context: Context) : MediaPlayerController {
     override fun setMedia(url: String, metadata: MediaMetadata) {
         mediaRequestStartedAtMs = SystemClock.elapsedRealtime()
         mediaRequestApplied = false
+        completionHandled = false
+        playRequestPending = true
         _state.value = MediaPlayerStatus.Loading
         val mediaItem = MediaItem.Builder()
+            .setMediaId("kaloy-track-${++mediaItemSequence}")
             .setUri(url)
             .setMediaMetadata(
                 Media3Metadata.Builder()

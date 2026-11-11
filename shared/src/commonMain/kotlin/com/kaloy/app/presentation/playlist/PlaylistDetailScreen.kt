@@ -27,7 +27,6 @@ import com.kaloy.app.data.dto.playlist.PlaylistSongUiItem
 import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.repository.PlaylistRepository
-import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.queue.MiniPlayer
@@ -76,7 +75,6 @@ data class PlaylistDetailScreen(
 
         LaunchedEffect(operationState) {
             when (operationState) {
-                is PlaylistDetailOperationState.NeedsRelogin -> navigateur.replaceAll(WelcomeScreen())
                 is PlaylistDetailOperationState.Success, is PlaylistDetailOperationState.Error -> {
                     delay(2000)
                     modeleVue.resetOperationState()

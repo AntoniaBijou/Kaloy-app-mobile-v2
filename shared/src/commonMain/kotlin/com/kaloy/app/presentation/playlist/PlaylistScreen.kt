@@ -22,10 +22,10 @@ import com.kaloy.app.core.offline.OfflineDownloadCoordinator
 import com.kaloy.app.core.offline.OfflineDownloadState
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.repository.PlaylistRepository
-import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.moi.MoiScreen
+import com.kaloy.app.presentation.radio.RadioScreen
 import com.kaloy.app.presentation.playlist.components.*
 import com.kaloy.app.presentation.playlist.PlaylistDownloadsScreen
 import com.kaloy.app.presentation.queue.MiniPlayer
@@ -70,7 +70,6 @@ class PlaylistScreen : Screen {
         // Réaction aux états d'opération
         LaunchedEffect(operationState) {
             when (operationState) {
-                is PlaylistOperationState.NeedsRelogin -> navigateur.replaceAll(WelcomeScreen())
                 is PlaylistOperationState.Success, is PlaylistOperationState.Error -> {
                     delay(2000)
                     modeleVue.resetOperationState()
@@ -152,6 +151,19 @@ class PlaylistScreen : Screen {
                             onClick = { },
                             icon = { Icon(Icons.Default.QueueMusic, contentDescription = "Playlist") },
                             label = { Text("Playlist") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = KaloyPurple,
+                                selectedTextColor = KaloyPurple,
+                                indicatorColor = KaloyPurple.copy(alpha = 0.15f),
+                                unselectedIconColor = KaloyTextMuted,
+                                unselectedTextColor = KaloyTextMuted
+                            )
+                        )
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = { navigateur.push(RadioScreen()) },
+                            icon = { Icon(Icons.Default.Radio, contentDescription = "Radio") },
+                            label = { Text("Radio") },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = KaloyPurple,
                                 selectedTextColor = KaloyPurple,

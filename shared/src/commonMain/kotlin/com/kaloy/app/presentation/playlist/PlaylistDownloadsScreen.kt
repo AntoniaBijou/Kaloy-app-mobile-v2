@@ -65,7 +65,6 @@ import com.kaloy.app.data.dto.playlist.OfflinePlaylistDownload
 import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.repository.PlaylistRepository
-import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.ui.theme.KaloyDarkBg
 import com.kaloy.app.ui.theme.KaloyDarkCard
@@ -117,8 +116,11 @@ class PlaylistDownloadsScreen : Screen {
                         .map { it.playlistId }.toSet()
                 } catch (exception: Exception) {
                     if (exception.message == "SESSION_EXPIRED") {
-                        sessionManager.clear()
-                        navigator.replaceAll(WelcomeScreen())
+                        playlists = catalog.displayPlaylists(sessionManager.getUserId())
+                        localPlaylistIds = catalog.localPlaylists(sessionManager.getUserId())
+                            .map { it.playlistId }.toSet()
+                        showingLocalCache = playlists.isNotEmpty()
+                        error = AuthSessionManager.SESSION_RETAINED_MESSAGE
                     } else {
                         playlists = catalog.displayPlaylists(sessionManager.getUserId())
                         localPlaylistIds = catalog.localPlaylists(sessionManager.getUserId())
@@ -146,8 +148,7 @@ class PlaylistDownloadsScreen : Screen {
                     throw cancelled
                 } catch (exception: Exception) {
                     if (exception.message == "SESSION_EXPIRED") {
-                        sessionManager.clear()
-                        navigator.replaceAll(WelcomeScreen())
+                        error = AuthSessionManager.SESSION_RETAINED_MESSAGE
                     } else {
                         error = UserErrorMessages.fromThrowable(exception)
                     }
@@ -172,8 +173,7 @@ class PlaylistDownloadsScreen : Screen {
                         localPlaylistIds = localPlaylistIds - playlist.playlistId
                     }
                     if (exception.message == "SESSION_EXPIRED") {
-                        sessionManager.clear()
-                        navigator.replaceAll(WelcomeScreen())
+                        error = AuthSessionManager.SESSION_RETAINED_MESSAGE
                     } else {
                         error = UserErrorMessages.fromThrowable(exception)
                     }

@@ -42,7 +42,9 @@ import com.kaloy.app.data.api.UserIdDto
 import com.kaloy.app.core.util.Calendrier
 import com.kaloy.app.core.util.aujourdHuiLocal
 import com.kaloy.app.data.model.*
+import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
+import com.kaloy.app.presentation.chanson.EcranToutesChansonsVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
 import com.kaloy.app.presentation.common.EtatBarreDuBas
 import com.kaloy.app.presentation.common.OngletPrincipal
@@ -53,6 +55,7 @@ import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.PlaylistScreen
+import com.kaloy.app.presentation.radio.RadioScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
 import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.core.queue.QueueManager
@@ -192,6 +195,32 @@ data class HomeScreen(
         }
 
         Scaffold(
+            bottomBar = {
+                if (!isVisitor) {
+                    Column {
+                        chansonCourante?.let { chanson ->
+                            MiniPlayer(
+                                song = chanson,
+                                isPlaying = lectureActive,
+                                onClick = { navigateur.push(LecteurScreen(chanson.id)) },
+                                onTogglePlay = { lecteur.togglePlayPause() },
+                                onPrevious = { lecteur.jouerPrecedent() },
+                                onNext = { lecteur.jouerSuivant() },
+                                canPrevious = historique.isNotEmpty() || positionCourante > 3_000L,
+                                canNext = chansonsSuivantes.isNotEmpty()
+                            )
+                        }
+                        BarreNavigationPrincipale(
+                            ongletActif = OngletPrincipal.ACCUEIL,
+                            onAccueil = {},
+                            onPlaylist = { navigateur.push(PlaylistScreen()) },
+                            onRadio = { navigateur.push(RadioScreen()) },
+                            onMoi = { navigateur.push(MoiScreen()) }
+                        )
+                    }
+                }
+            },
+            containerColor = KaloyDarkBg
             // Le fond photographique des ecrans d'entree. containerColor
             // passe en transparent, sinon le Scaffold peindrait son aplat
             // par-dessus la photo.
@@ -416,7 +445,7 @@ data class HomeScreen(
                                     items(modeleVue.albums) { album ->
                                         AlbumCard(
                                             album = album,
-                                            onClick = { /* TODO: navigation album */ }
+                                            onClick = { navigateur.push(EcranDetailAlbumVoyager(idAlbum = album.id)) }
                                         )
                                     }
                                 }
@@ -426,7 +455,12 @@ data class HomeScreen(
                         // Chansons
                         if (modeleVue.chansons.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "Top de la semaine", icon = Icons.Filled.EmojiEvents)
+                                SectionHeader(
+                                    title = "Top de la semaine",
+                                    icon = Icons.Filled.EmojiEvents,
+                                    action = "Voir tout",
+                                    onAction = { navigateur.push(EcranToutesChansonsVoyager()) }
+                                )
                             }
                             items(
                                 count = modeleVue.chansons.size,

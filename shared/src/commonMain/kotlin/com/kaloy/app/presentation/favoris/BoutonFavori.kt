@@ -7,11 +7,11 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import com.kaloy.app.ui.theme.KaloyPink
 
 @Composable
@@ -29,7 +29,7 @@ fun BoutonFavori(
         Icon(
             imageVector = if (isFavori) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
             contentDescription = if (isFavori) "Retirer des favoris" else "Ajouter aux favoris",
-            tint = if (isFavori) KaloyPink else LocalContentColor.current,
+            tint = if (isFavori) KaloyPink else Color.White,
             modifier = Modifier.scale(scale)
         )
     }
