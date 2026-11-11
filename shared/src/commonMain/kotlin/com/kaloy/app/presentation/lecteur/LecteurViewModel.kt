@@ -5,7 +5,6 @@ import com.kaloy.app.core.audio.MediaMetadata
 import com.kaloy.app.core.offline.OfflineFileStore
 import com.kaloy.app.core.offline.OfflinePlaylistCatalog
 import com.kaloy.app.core.queue.QueueManager
-import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.model.Album
 import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.Song
@@ -148,6 +147,30 @@ class LecteurViewModel(
                 }
                 queueManager.syncCurrent(song.asQueueSong())
                 _uiState.value = LecteurUiState.Success(song)
+
+                // La barre du bas affiche QueueManager.currentSong. Sans
+                // cette ligne, cette valeur ne changeait QUE depuis
+                // l'accueil : c'etait le seul ecran a renseigner la file.
+                // Lancer depuis la recherche, un genre, un album, une fiche
+                // d'artiste ou le bouton Lire du profil jouait donc le bon
+                // son en affichant la chanson precedente.
+                //
+                // Ici plutot qu'a chaque appel : meme la rangee « ecoutes
+                // recemment » de l'accueil avait oublie de le faire, et le
+                // prochain ecran l'oublierait a son tour.
+                //
+                // Le garde-fou sur l'identifiant est indispensable. Suivant
+                // et Precedent renseignent la file AVANT d'appeler charger(),
+                // par playFromQueue() et playPrevious() ; sans lui, playNow()
+                // empilerait une deuxieme fois la chanson dans l'historique.
+                //
+                // playNow() et non setContext() : la file d'attente n'est pas
+                // touchee. Lancer une chanson depuis la recherche laisse donc
+                // la file de l'accueil en place, et Suivant y mene toujours.
+                if (queueManager.currentSong.value?.id != song.id) {
+                    queueManager.playNow(song.versChanson())
+                }
+
                 lancerLecture(song, _modeEcoute.value)
             } catch (e: CancellationException) {
                 throw e
@@ -187,16 +210,40 @@ class LecteurViewModel(
             ModeEcoute.PLAYBACK -> song.playbackStreamUrl ?: song.audioStreamUrl
         }
         if (url != null) {
-            audioPlayer.play(
-                url,
-                MediaMetadata(
-                    title = song.title,
-                    artist = song.artistStageName,
-                    artworkUrl = song.albumCoverUrl ?: song.artistPhotoUrl,
-                    durationMs = (song.durationSeconds ?: 0) * 1000L
+            // On ne relance QUE si la piste change. play() repart de zero :
+            // sans ce test, la position etait perdue des qu'on touchait la
+            // barre du bas pour revenir au morceau en cours.
+            //
+            // La comparaison porte sur l'ADRESSE et non sur l'identifiant de
+            // la chanson : l'adresse encode aussi le mode. Ouvrir le playback
+            // d'un morceau deja en ecoute relance donc bien, puisque son
+            // adresse differe de celle de l'audio.
+            // « Terminee » compte comme « plus chargee ». iOS n'a aucune
+            // detection de fin de piste : rien n'y effacerait l'adresse,
+            // et une chanson arrivee au bout ne repartirait jamais.
+            val duree = audioPlayer.durationMs.value
+            val terminee = duree > 0 &&
+                audioPlayer.currentPositionMs.value >= duree - 1_000L
+
+            if (audioPlayer.currentUrl.value != url || terminee) {
+                audioPlayer.play(
+                    url,
+                    MediaMetadata(
+                        title = song.title,
+                        artist = song.artistStageName,
+                        artworkUrl = song.albumCoverUrl ?: song.artistPhotoUrl,
+                        durationMs = (song.durationSeconds ?: 0) * 1000L
+                    )
                 )
-            )
-            prewarmNextSong()
+            } else if (!audioPlayer.isPlaying.value) {
+                // Meme piste, deja chargee, mais a l'arret : on reprend la ou
+                // elle en est. Ne rien faire la laisserait en pause, alors que
+                // l'utilisateur vient d'appuyer sur la chanson POUR l'ecouter.
+                //
+                // resume() et non play() : play() rechargerait la piste et
+                // reviendrait au debut, ce que tout ce qui precede evite.
+                audioPlayer.resume()
+            }
         } else {
             audioPlayer.pause()
         }
@@ -275,6 +322,33 @@ class LecteurViewModel(
     fun onPlayerScreenClosed() {
         saveHistoryForActiveSong()
     }
+
+    /**
+     * La chanson telle que la file d'attente et la barre du bas l'attendent.
+     *
+     * Le lecteur travaille sur SongPlayerResponse, la file sur Song : deux
+     * formes du meme objet, l'une a plat et l'autre imbriquee.
+     *
+     * La barre affiche le titre, le nom d'artiste et la pochette. Les trois
+     * sont repris ici, sans quoi on lirait un titre sans artiste au-dessus
+     * d'un carre vide -- la pochette venant de l'album, puis a defaut de la
+     * photo de l'artiste.
+     */
+    private fun SongPlayerResponse.versChanson() = Song(
+        id = id,
+        title = title,
+        durationSeconds = durationSeconds,
+        artist = Artist(
+            id = artistId,
+            stageName = artistStageName,
+            photoUrl = artistPhotoUrl
+        ),
+        // Nul si la chanson n'appartient a aucun album : la barre se rabat
+        // alors sur la photo de l'artiste.
+        album = albumId?.let {
+            Album(id = it, title = albumTitle ?: "", coverUrl = albumCoverUrl)
+        }
+    )
 
     fun dispose() {
         saveHistoryForActiveSong()

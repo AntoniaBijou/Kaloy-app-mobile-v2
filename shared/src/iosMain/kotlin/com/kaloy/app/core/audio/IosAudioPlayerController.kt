@@ -52,6 +52,9 @@ class IosAudioPlayerController : AudioPlayerController {
     private val _statusMessage = MutableStateFlow("")
     override val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
 
+    private val _currentUrl = MutableStateFlow<String?>(null)
+    override val currentUrl: StateFlow<String?> = _currentUrl.asStateFlow()
+
     private var lecteur: AVPlayer? = null
 
     /** Jeton de l'observateur de progression, a retirer avant de liberer le lecteur. */
@@ -84,6 +87,9 @@ class IosAudioPlayerController : AudioPlayerController {
         observerProgression(nouveau)
 
         nouveau.play()
+        // Apres la verification de l'adresse seulement : une adresse
+        // invalide sort plus haut sans rien charger.
+        _currentUrl.value = url
         _isPlaying.value = true
         _statusMessage.value = "Lecture en cours"
         _errorMessage.value = null
@@ -110,6 +116,8 @@ class IosAudioPlayerController : AudioPlayerController {
 
     override fun release() {
         libererLecteur()
+        // Le lecteur est vide : plus aucune piste chargee.
+        _currentUrl.value = null
         _isPlaying.value = false
         _currentPositionMs.value = 0L
         _durationMs.value = 0L

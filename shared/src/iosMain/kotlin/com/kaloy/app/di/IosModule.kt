@@ -14,9 +14,13 @@ import org.koin.dsl.module
 /**
  * Dependances propres a iOS.
  *
- * Pendant de androidModule. Les deux lecteurs y figurent avec les memes portees
- * que cote Android : le lecteur audio reste unique afin de survivre a la
- * navigation et de partager son etat entre le lecteur complet et le mini-player.
+ * Pendant de androidModule, avec les memes portees.
+ *
+ * Le commentaire precedent decrivait un montage qui n'a jamais existe : il
+ * annoncait un lecteur recree pour l'ecran chanson et un lecteur unique pour
+ * le mini-player. En realite la barre du bas ET l'ecran lecteur injectent le
+ * meme type, AudioPlayerController, et MediaPlayerController n'est injecte
+ * nulle part -- le controleur Android cree le sien directement.
  */
 val iosModule = module {
     single<SecureCredentialStore> { IosSecureCredentialStore() }

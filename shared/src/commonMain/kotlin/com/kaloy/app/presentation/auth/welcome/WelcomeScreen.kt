@@ -31,9 +31,18 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.presentation.auth.login.LoginScreen
 import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
+import com.kaloy.app.presentation.common.SansBarreDuBas
+import com.kaloy.app.ui.theme.KaloyDarkCard
+import com.kaloy.app.ui.theme.KaloyCarteVoilee
+import com.kaloy.app.ui.theme.KaloySable
+import com.kaloy.app.ui.theme.KaloyPurple
+import com.kaloy.app.ui.theme.KaloyPurpleLight
+import com.kaloy.app.ui.theme.KaloyTextPrimary
+import com.kaloy.app.ui.theme.KaloyTextSecondary
+import com.kaloy.app.ui.theme.fondKaloy
 import org.koin.compose.koinInject
 
-class WelcomeScreen : Screen {
+class WelcomeScreen : Screen, SansBarreDuBas {
 
     @Composable
     override fun Content() {
@@ -41,7 +50,7 @@ class WelcomeScreen : Screen {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .fondKaloy()
         ) {
             Column(
                 modifier = Modifier
@@ -54,7 +63,7 @@ class WelcomeScreen : Screen {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(32.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFF3F4F6)
+                        containerColor = KaloyCarteVoilee
                     )
                 ) {
                     Column(
@@ -68,20 +77,20 @@ class WelcomeScreen : Screen {
                             text = "Kaloy",
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF111827)
+                            color = KaloyTextPrimary
                         )
 
                         Text(
                             text = "Votre musique, partout.",
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color(0xFF374151),
+                            color = KaloyTextSecondary,
                             textAlign = TextAlign.Center
                         )
 
                         Text(
                             text = "Découvrez, écoutez et partagez votre univers musical avec une expérience premium.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF6B7280),
+                            color = KaloyTextSecondary,
                             textAlign = TextAlign.Center
                         )
 
@@ -91,7 +100,7 @@ class WelcomeScreen : Screen {
                             onClick = { navigator.push(RegisterStep1Screen()) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF8B5CF6)
+                                containerColor = KaloyPurple
                             ),
                             shape = RoundedCornerShape(18.dp)
                         ) {
@@ -114,7 +123,7 @@ class WelcomeScreen : Screen {
 
                         Text(
                             text = "Pour bénéficier de toutes les fonctionnalités réservées, créez un compte ou connectez-vous.",
-                            color = Color(0xFF6B7280),
+                            color = KaloyTextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(top = 4.dp)
@@ -122,13 +131,18 @@ class WelcomeScreen : Screen {
 
                         Text(
                             text = "Continuer en tant que visiteur",
-                            color = Color(0xFF4F46E5),
+                            color = KaloySable,
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .padding(top = 4.dp)
                                 .clickable {
-                                    navigator.push(com.kaloy.app.presentation.home.HomeScreen(username = "Visiteur", isVisitor = true))
+                                    navigator.push(
+                                        com.kaloy.app.presentation.common.EcranPrincipal(
+                                            username = "Visiteur",
+                                            isVisitor = true
+                                        )
+                                    )
                                 }
                         )
                     }

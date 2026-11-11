@@ -1047,6 +1047,87 @@ class KaloyApi(baseUrl: String = DEFAULT_BASE_URL) {
     suspend fun getMesPlaylists(token: String): RestResponse<List<PlaylistResume>> {
         return client.get("$apiBaseUrl/playlists/me") {
             header(HttpHeaders.Authorization, "Bearer $token")
+    // ============================================================
+    // Mes chansons, et l'aide a la saisie des paroles
+    // ============================================================
+
+    /** Chansons declarees par l'artiste connecte, de la plus recente a la plus ancienne. */
+    suspend fun getMesChansons(): RestResponse<List<Song>> {
+        return client.get("$apiBaseUrl/mes-chansons").body()
+    }
+
+    /**
+     * Les listes du formulaire en un seul appel.
+     *
+     * On ne passe pas par /albums : cet endpoint renvoie les albums de tous
+     * les artistes, et un artiste ne doit pouvoir rattacher sa chanson qu'a
+     * un des siens.
+     */
+    suspend fun getOptionsChanson(): RestResponse<OptionsChansonDto> {
+        return client.get("$apiBaseUrl/mes-chansons/options").body()
+    }
+
+    /** Declare une chanson. Le serveur deduit l'artiste du jeton. */
+    suspend fun creerChanson(requete: CreerChansonDto): RestResponse<Song> {
+        val reponse = client.post("$apiBaseUrl/mes-chansons") {
+            contentType(ContentType.Application.Json)
+            setBody(requete)
+        }
+        return reponse.body<RestResponse<Song>>().exigerSucces("Declaration de la chanson")
+    }
+
+    /**
+     * L'etat d'une de mes chansons, pour pre-remplir le formulaire.
+     *
+     * Et non getMesChansons() : la liste renvoie des entites Song, qui ne
+     * portent PAS leurs genres. Pre-remplir depuis la liste aurait affiche
+     * « aucun genre », et l'enregistrement les aurait tous effaces.
+     */
+    suspend fun getChansonAModifier(idChanson: Long): RestResponse<ChansonAModifierDto> {
+        return client.get("$apiBaseUrl/mes-chansons/$idChanson").body()
+    }
+
+    /** Modifie une de mes chansons. Voir [ModifierChansonDto] pour les regles. */
+    suspend fun modifierChanson(
+        idChanson: Long,
+        requete: ModifierChansonDto
+    ): RestResponse<Song> {
+        val reponse = client.put("$apiBaseUrl/mes-chansons/$idChanson") {
+            contentType(ContentType.Application.Json)
+            setBody(requete)
+        }
+        return reponse.body<RestResponse<Song>>().exigerSucces("Modification de la chanson")
+    }
+
+    /** Supprime une de mes chansons. */
+    suspend fun supprimerChanson(idChanson: Long): RestResponse<Unit> {
+        val reponse = client.delete("$apiBaseUrl/mes-chansons/$idChanson")
+        return reponse.body<RestResponse<Unit>>().exigerSucces("Suppression de la chanson")
+    }
+
+    /**
+     * Cherche des paroles par titre. Renvoie des references, SANS le texte :
+     * une recherche sur un mot courant remonte une vingtaine de resultats, et
+     * les telecharger tous serait autant de pages demandees pour rien au site.
+     */
+    suspend fun rechercherParoles(titre: String, artiste: String? = null)
+            : RestResponse<List<CandidatParolesDto>> {
+        return client.post("$apiBaseUrl/paroles/recherche") {
+            contentType(ContentType.Application.Json)
+            setBody(RechercheParolesDto(titre = titre, artiste = artiste))
+        }.body()
+    }
+
+    /**
+     * Telecharge le texte d'un candidat, pour apercu. Rien n'est enregistre :
+     * c'est la declaration de la chanson qui decide de ce qui finit en base.
+     *
+     * Un 503 signifie que le site de paroles ne repond pas, pas que l'appel a
+     * echoue chez nous : l'ecran propose alors la saisie a la main.
+     */
+    suspend fun getTexteParoles(url: String): RestResponse<ParolesTrouveesDto> {
+        return client.get("$apiBaseUrl/paroles") {
+            parameter("url", url)
         }.body()
     }
 }
@@ -1313,3 +1394,149 @@ data class OuvrirSessionDto(
     val tailleTotale: Long
 )
 
+// GET /mes-chansons/options
+@kotlinx.serialization.Serializable
+data class OptionsChansonDto(
+    val albums: List<OptionChoixDto> = emptyList(),
+    val genres: List<OptionChoixDto> = emptyList(),
+    val typesStockage: List<OptionChoixDto> = emptyList(),
+    val langues: List<String> = emptyList(),
+    /**
+     * Les noms deja saisis sur le catalogue. Une aide a la saisie, pas une
+     * contrainte : le formulaire accepte aussi un nom nouveau, sans quoi la
+     * liste des arrangeurs — vide en base — le resterait a jamais.
+     */
+    val auteursCompositeurs: List<String> = emptyList(),
+    val arrangeurs: List<String> = emptyList()
+)
+
+/** Un element de liste : ce qui part en base, et ce qui s'affiche. */
+@kotlinx.serialization.Serializable
+data class OptionChoixDto(
+    val id: Long,
+    val libelle: String
+)
+
+/**
+ * POST /mes-chansons
+ *
+ * Les onze champs d'un coup, et non un POST puis un PUT : la creation est
+ * transactionnelle cote serveur, donc un echec ne laisse pas une chanson a
+ * moitie declaree.
+ *
+ * [urlAudio] n'est pas une adresse tapee : c'est le chemin rendu par l'envoi
+ * du fichier, de la forme /uploads/xxx.mp3. Le type de stockage n'est plus
+ * transmis — le serveur sait d'ou vient le fichier, puisqu'il l'a recu.
+ */
+@kotlinx.serialization.Serializable
+data class CreerChansonDto(
+    val titre: String,
+    val paroles: String? = null,
+    val solfa: String? = null,
+    val langue: String = "mg",
+    val urlAudio: String? = null,
+    val urlVideo: String? = null,
+    // Chemins rendus par l'envoi de fichier, comme urlAudio.
+    val urlKaraoke: String? = null,
+    val urlPlayback: String? = null,
+    val auteurCompositeur: String? = null,
+    val arrangeur: String? = null,
+    val dureeSecondes: Int? = null,
+    val dateSortie: String? = null,
+    val idAlbum: Long? = null,
+    val idsGenres: List<Long> = emptyList()
+)
+
+/**
+ * GET /mes-chansons/{id} — l'etat a pre-remplir.
+ *
+ * Les adresses des medias sont celles de la BASE, non resolues en adresses
+ * de lecture : le formulaire s'en sert pour savoir qu'un media existe, et
+ * pour le renvoyer inchange s'il n'y touche pas.
+ */
+@kotlinx.serialization.Serializable
+data class ChansonAModifierDto(
+    val id: Long = 0,
+    val titre: String = "",
+    val paroles: String? = null,
+    val solfa: String? = null,
+    val langue: String = "mg",
+    val urlAudio: String? = null,
+    val urlVideo: String? = null,
+    val urlKaraoke: String? = null,
+    val urlPlayback: String? = null,
+    val auteurCompositeur: String? = null,
+    val arrangeur: String? = null,
+    val dureeSecondes: Int? = null,
+    val dateSortie: String? = null,
+    val idAlbum: Long? = null,
+    val idsGenres: List<Long> = emptyList()
+)
+
+/**
+ * PUT /mes-chansons/{id}
+ *
+ * Trois conventions, et il faut les tenir ensemble :
+ *
+ *  - un champ a `null` est ABSENT du corps : le serveur n'y touche pas ;
+ *  - un champ texte a `""` EFFACE la donnee ;
+ *  - l'album, la date et la duree n'ont pas de « chaine vide » pour dire
+ *    « enleve-le », d'ou les trois drapeaux. Sans eux ces champs pouvaient
+ *    etre poses mais jamais retires.
+ *
+ * Le titre ne peut pas etre efface, et la chanson doit conserver au moins
+ * des paroles, un solfa ou un media : le serveur refuse les deux cas par un
+ * 400 plutot que de laisser une chanson vide.
+ */
+@kotlinx.serialization.Serializable
+data class ModifierChansonDto(
+    val titre: String? = null,
+    val paroles: String? = null,
+    val solfa: String? = null,
+    val langue: String? = null,
+    val urlAudio: String? = null,
+    val urlVideo: String? = null,
+    val urlKaraoke: String? = null,
+    val urlPlayback: String? = null,
+    val auteurCompositeur: String? = null,
+    val arrangeur: String? = null,
+    val dureeSecondes: Int? = null,
+    val dateSortie: String? = null,
+    val idAlbum: Long? = null,
+    val idsGenres: List<Long>? = null,
+    val effacerAlbum: Boolean? = null,
+    val effacerDateSortie: Boolean? = null,
+    val effacerDuree: Boolean? = null
+)
+
+// POST /paroles/recherche
+@kotlinx.serialization.Serializable
+data class RechercheParolesDto(
+    val titre: String,
+    val artiste: String? = null
+)
+
+/**
+ * Un candidat trouve sur le site de paroles, sans son texte.
+ *
+ * [score] aide a presenter les plus probables en premier ; c'est l'artiste
+ * qui tranche, parce que les deux catalogues ne nomment pas toujours les
+ * memes choses de la meme facon.
+ */
+@kotlinx.serialization.Serializable
+data class CandidatParolesDto(
+    val titre: String = "",
+    val artiste: String = "",
+    val url: String = "",
+    val score: Double = 0.0
+)
+
+// GET /paroles?url=...
+@kotlinx.serialization.Serializable
+data class ParolesTrouveesDto(
+    val titre: String = "",
+    val artiste: String = "",
+    val url: String = "",
+    val texte: String = "",
+    val lignes: Int = 0
+)

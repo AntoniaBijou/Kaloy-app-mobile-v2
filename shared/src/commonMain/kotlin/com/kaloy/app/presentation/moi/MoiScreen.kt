@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
@@ -23,6 +24,7 @@ import com.kaloy.app.presentation.chanson.EcranDetailChansonVoyager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.moi.components.*
 import com.kaloy.app.presentation.notifications.EcranNotificationsVoyager
+import com.kaloy.app.presentation.mesChansons.EcranMesChansonsVoyager
 import com.kaloy.app.presentation.organisation.EcranMesEvenementsVoyager
 import com.kaloy.app.presentation.calendrier.EcranMonCalendrierVoyager
 import com.kaloy.app.data.api.KaloyApi
@@ -79,6 +81,7 @@ class MoiScreen : Screen {
         // Nombre d'invitations en attente, pour la pastille. Recharge a chaque
         // retour sur l'onglet : l'artiste vient peut-etre d'en traiter une.
         var invitationsEnAttente by remember { mutableStateOf(0) }
+        var chansonsDeclarees by remember { mutableStateOf(0) }
         var evenementsOrganises by remember { mutableStateOf(0) }
         var concertsConfirmes by remember { mutableStateOf(0) }
         // null tant que l appel n a pas abouti : la carte reste muette
@@ -98,6 +101,13 @@ class MoiScreen : Screen {
                 } catch (_: Exception) {
                     // Un echec ici ne doit pas empecher l'affichage du profil :
                     // la pastille disparait, l'ecran reste utilisable.
+                    0
+                }
+                chansonsDeclarees = try {
+                    api.getMesChansons().data?.size ?: 0
+                } catch (_: Exception) {
+                    // Comme pour les autres compteurs : un echec laisse la
+                    // carte muette, il n'empeche pas l'affichage du profil.
                     0
                 }
                 evenementsOrganises = try {
@@ -165,20 +175,19 @@ class MoiScreen : Screen {
                             )
                         },
                         navigationIcon = {
-                            IconButton(
-                                onClick = {
-                                    if (selectedActivitySection != null) {
-                                        selectedActivitySection = null
-                                    } else {
-                                        navigator.pop()
-                                    }
+                            // La fleche ne sert plus QUE dans une section
+                            // d'activite, pour revenir a la liste des sections.
+                            // Hors de la, « Moi » est un ONGLET : il n'y a rien
+                            // derriere lui, et depiler serait sorti des trois
+                            // onglets d'un coup.
+                            if (selectedActivitySection != null) {
+                                IconButton(onClick = { selectedActivitySection = null }) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowBack,
+                                        contentDescription = "Retour aux sections",
+                                        tint = KaloyTextPrimary
+                                    )
                                 }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "Retour",
-                                    tint = KaloyTextPrimary
-                                )
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = KaloyDarkSurface)
@@ -213,7 +222,17 @@ class MoiScreen : Screen {
                     }
                 }
             },
-            containerColor = KaloyDarkBg
+            // La photo de fond, comme sur l'accueil et la recherche. Le
+            // containerColor passe en transparent, sinon le Scaffold
+            // peindrait son aplat par-dessus.
+            //
+            // La barre du haut garde son aplat KaloyDarkSurface : dans la
+            // maquette de reference, la barre est une bande opaque et la
+            // photo court derriere le contenu en dessous d'elle.
+            // Pas de fond ici : il est pose une fois sur le conteneur du
+            // pager, dans EcranPrincipal, pour qu'il ne glisse pas avec la
+            // page. containerColor reste transparent pour le laisser voir.
+            containerColor = Color.Transparent
         ) { innerPadding ->
             when (val state = uiState) {
                 is MoiUiState.Loading -> {
@@ -263,7 +282,7 @@ class MoiScreen : Screen {
                     } else {
                         when (selectedTab) {
                             MoiTab.PROFILE -> LazyColumn(
-                                modifier = Modifier.fillMaxSize().padding(innerPadding).background(KaloyDarkBg),
+                                modifier = Modifier.fillMaxSize().padding(innerPadding),
                                 contentPadding = PaddingValues(bottom = 16.dp)
                             ) {
                                 item {
@@ -336,7 +355,7 @@ class MoiScreen : Screen {
                     } else {
                         when (selectedTab) {
                             MoiTab.PROFILE -> LazyColumn(
-                                modifier = Modifier.fillMaxSize().padding(innerPadding).background(KaloyDarkBg),
+                                modifier = Modifier.fillMaxSize().padding(innerPadding),
                                 contentPadding = PaddingValues(bottom = 16.dp)
                             ) {
                                 item {
@@ -378,6 +397,14 @@ class MoiScreen : Screen {
                                     CarteNotifications(
                                         nombreEnAttente = invitationsEnAttente,
                                         onClick = { navigator.push(EcranNotificationsVoyager()) }
+                                    )
+                                }
+                                // Son repertoire : declarer ses chansons est le
+                                // premier geste d'un artiste sur la plateforme.
+                                item {
+                                    CarteMesChansons(
+                                        nombreChansons = chansonsDeclarees,
+                                        onClick = { navigator.push(EcranMesChansonsVoyager()) }
                                     )
                                 }
                                 // Organiser est l'autre moitie de la vie evenementielle
@@ -588,7 +615,7 @@ class MoiScreen : Screen {
     @Composable
     private fun MoiTabPlaceholder(tab: MoiTab, modifier: Modifier = Modifier) {
         Box(
-            modifier = modifier.background(KaloyDarkBg).padding(24.dp),
+            modifier = modifier.padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(

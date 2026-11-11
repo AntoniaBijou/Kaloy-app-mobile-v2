@@ -206,10 +206,19 @@ data class Song(
     @SerialName("releaseDate") val releaseDate: String? = null,
     val language: String = "fr",
     @SerialName("authorComposer") val authorComposer: String? = null,
+    @SerialName("musicalArranger") val musicalArranger: String? = null,
     @SerialName("storagetypeidAudioStorageTypes") val storageType: AudioStorageType? = null,
     @SerialName("audioUrl") val audioUrl: String? = null,
     @SerialName("videoUrl") val videoUrl: String? = null,
+    // Karaoke et playback : des chemins, dans karaoke_audio_url et
+    // playback_url. Les colonnes karaoke_audio et playback, en BYTEA, sont le
+    // dessin d'origine -- le fichier dans la base -- et restent inutilisees.
+    @SerialName("karaokeAudioUrl") val karaokeAudioUrl: String? = null,
+    @SerialName("playbackUrl") val playbackUrl: String? = null,
     val lyrics: String? = null,
+    // Le solfa est du texte, dans la colonne solfa. Il ne faut pas le
+    // confondre avec solfaUrl, reserve a un envoi de fichier a venir.
+    val solfa: String? = null,
     @SerialName("isDownloadable") val isDownloadable: Boolean = true,
     @SerialName("createdAt") val createdAt: String? = null
 )
@@ -448,6 +457,10 @@ data class SongPlayerResponse(
     val isDownloadable: Boolean = true,
     val lyrics: String? = null,
     val lyricsSyncData: String? = null,
+    // Le solfa en TEXTE, a ne pas confondre avec solfaUrl plus bas, reservee
+    // a un envoi de fichier qui n'existe pas encore. Le champ manquait, donc
+    // le solfa n'atteignait jamais cet ecran.
+    val solfa: String? = null,
     val authorComposer: String? = null,
     val musicalArranger: String? = null,
     val artistId: Long = 0,

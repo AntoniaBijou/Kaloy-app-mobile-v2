@@ -89,14 +89,19 @@ fun ProfileSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard)
+        // Voilee : c'est la carte des sections du profil -- Informations
+        // personnelles, Securite, Compte -- et des memes sections cote
+        // artiste. Un seul composant, donc un seul endroit a changer.
+        colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = KaloyPurpleLight
+                // Sable et non l'indigo clair : sur la carte voilee ce
+                // dernier tombe a 3,30, sous le seuil. Le sable tient 7,71.
+                color = KaloySable
             )
             HorizontalDivider(color = KaloyDarkElevated)
             content()

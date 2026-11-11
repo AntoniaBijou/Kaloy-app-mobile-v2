@@ -4,6 +4,22 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface AudioPlayerController {
     val isPlaying: StateFlow<Boolean>
+
+    /**
+     * L'adresse de la piste chargee, ou null si le lecteur est vide.
+     *
+     * Renseignee par play(), effacee par release(), inchangee par
+     * pause() : une piste en pause reste chargee.
+     *
+     * Elle existe pour que l'appelant puisse savoir s'il est deja sur
+     * cette piste. Sans elle, rouvrir le lecteur rappelait play(), qui
+     * repart de zero : la position etait perdue des qu'on touchait la
+     * barre du bas pour revenir au morceau en cours.
+     *
+     * L'adresse et non l'identifiant de la chanson : elle encode aussi
+     * le mode. Un meme morceau en Audio et en Playback a deux adresses.
+     */
+    val currentUrl: StateFlow<String?>
     val currentPositionMs: StateFlow<Long>
     val durationMs: StateFlow<Long>
     val errorMessage: StateFlow<String?>

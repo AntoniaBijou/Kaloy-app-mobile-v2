@@ -14,7 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.kaloy.app.ui.theme.KaloyDarkSurface
-import com.kaloy.app.ui.theme.KaloyPurple
+import com.kaloy.app.ui.theme.KaloyOrange
 import com.kaloy.app.ui.theme.KaloyTextMuted
 
 /** Les quatre destinations de la barre du bas. */
@@ -69,10 +69,22 @@ private fun RowScope.Onglet(
         onClick = onClick,
         icon = { Icon(icone, contentDescription = description) },
         label = { Text(onglet.libelle) },
+        // L'onglet actif est en ORANGE et non dans la couleur principale.
+        //
+        // Mesure : l'indigo #32317F sur le fond de la barre #191A3E donne un
+        // contraste de 1,49 -- la meme couleur a l'oeil. Le defaut existait
+        // deja avec l'ancien violet, a 2,99, soit sous le seuil de 3 : il
+        // etait seulement moins visible. La nouvelle palette l'a rendu franc,
+        // et il compte davantage depuis que cette barre s'affiche sur les
+        // trois onglets et non sur le seul accueil.
+        //
+        // L'orange monte a 4,68, et c'est l'usage que la maquette lui reserve :
+        // dans « type de background.jpeg », l'element de navigation actif et
+        // la pastille de filtre selectionnee sont orange.
         colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = KaloyPurple,
-            selectedTextColor = KaloyPurple,
-            indicatorColor = KaloyPurple.copy(alpha = 0.15f),
+            selectedIconColor = KaloyOrange,
+            selectedTextColor = KaloyOrange,
+            indicatorColor = KaloyOrange.copy(alpha = 0.15f),
             unselectedIconColor = KaloyTextMuted,
             unselectedTextColor = KaloyTextMuted
         )

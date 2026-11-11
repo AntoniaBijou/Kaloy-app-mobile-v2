@@ -19,6 +19,8 @@ import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.subdataWithRange
 import platform.Foundation.writeToFile
 import platform.UIKit.UIApplication
+import platform.UIKit.UIDocumentPickerDelegateProtocol
+import platform.UIKit.UIDocumentPickerViewController
 import platform.UIKit.UIImage
 import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIImagePickerController
@@ -82,10 +84,14 @@ actual fun rememberSelecteurMedia(
     // conservee il serait libere avant que l'utilisateur ait choisi, et le
     // rappel n'arriverait jamais.
     val delegue = remember { DelegueSelecteurMedia() }
+    // Un second delegue : le selecteur de documents a son propre protocole,
+    // il ne peut pas partager celui du selecteur de photos.
+    val delegueDocument = remember { DelegueDocumentAudio() }
 
-    return remember(delegue) {
+    return remember(delegue, delegueDocument) {
         { source ->
             delegue.onResultat = onMediaSelectionne
+            delegueDocument.onResultat = onMediaSelectionne
 
             val racine = UIApplication.sharedApplication.keyWindow?.rootViewController
             val appareil = source == SourceMedia.PHOTO_CAMERA || source == SourceMedia.VIDEO_CAMERA
@@ -97,6 +103,29 @@ actual fun rememberSelecteurMedia(
 
             when {
                 racine == null -> onMediaSelectionne(null)
+
+                // Les fichiers audio ne passent pas par la photothèque :
+                // UIImagePickerController ne connait que public.image et
+                // public.movie. On ouvre le selecteur de documents.
+                //
+                // Les deux sources partagent ce selecteur et ne different que
+                // par la liste des types. Le karaoke accepte la video, parce
+                // qu'un karaoke affiche les paroles : sans public.mpeg-4 un
+                // .mp4 serait grise, ce qui etait le defaut sur Android.
+                source == SourceMedia.AUDIO_FICHIER ||
+                    source == SourceMedia.AUDIO_OU_VIDEO_FICHIER -> {
+                    val types = if (source == SourceMedia.AUDIO_OU_VIDEO_FICHIER) {
+                        listOf("public.mp3", "public.mpeg-4-audio", "public.mpeg-4")
+                    } else {
+                        listOf("public.mp3", "public.mpeg-4-audio")
+                    }
+                    val controleur = UIDocumentPickerViewController(
+                        documentTypes = types,
+                        inMode = platform.UIKit.UIDocumentPickerMode.UIDocumentPickerModeImport
+                    )
+                    controleur.delegate = delegueDocument
+                    racine.presentViewController(controleur, animated = true, completion = null)
+                }
 
                 // Le simulateur n'a pas d'appareil photo : sans ce test, la
                 // presentation echoue et l'ecran reste muet.
@@ -120,6 +149,81 @@ actual fun rememberSelecteurMedia(
                 }
             }
         }
+    }
+}
+
+/**
+ * Delegue du selecteur de documents, pour les fichiers audio.
+ *
+ * UIDocumentPickerModeImport fait deposer par iOS une copie dans le dossier
+ * temporaire de l'application. Cette copie peut etre purgee sans prevenir, on
+ * la deplace donc tout de suite dans notre dossier d'envois — meme raison que
+ * pour les videos : l'envoi par morceaux doit survivre a la purge et a la
+ * fermeture de l'application.
+ *
+ * NON VERIFIE A L'EXECUTION, comme le reste de ce fichier.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private class DelegueDocumentAudio : NSObject(), UIDocumentPickerDelegateProtocol {
+
+    var onResultat: ((MediaSelectionne?) -> Unit)? = null
+
+    override fun documentPicker(
+        controller: UIDocumentPickerViewController,
+        didPickDocumentAtURL: NSURL
+    ) {
+        val media = deplacerAudio(didPickDocumentAtURL)
+        controller.dismissViewControllerAnimated(true) {
+            onResultat?.invoke(media)
+        }
+    }
+
+    override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) {
+        controller.dismissViewControllerAnimated(true) {
+            onResultat?.invoke(null)
+        }
+    }
+
+    private fun deplacerAudio(source: NSURL): MediaSelectionne? {
+        val dossier = dossierEnvois() ?: return null
+        val cheminSource = source.path ?: return null
+        val nomOrigine = source.lastPathComponent ?: "audio"
+
+        // Le type se deduit de l'extension : le selecteur de documents ne
+        // renvoie pas de type MIME, contrairement au resolveur Android.
+        //
+        // Le .mp4 est traite depuis que le karaoke accepte la video. Sans
+        // cette branche un karaoke video aurait ete declare « audio/mpeg » et
+        // renomme « .mp3 » : le serveur l'aurait accepte, puisqu'il annonce un
+        // type qu'il connait, et le fichier aurait porte une extension
+        // mensongere en base jusqu'a ce qu'un lecteur s'en etonne.
+        val bas = nomOrigine.lowercase()
+        val extension = when {
+            bas.endsWith(".m4a") -> ".m4a"
+            bas.endsWith(".mp4") -> ".mp4"
+            else -> ".mp3"
+        }
+        val typeMime = when (extension) {
+            ".m4a" -> "audio/x-m4a"
+            ".mp4" -> "video/mp4"
+            else -> "audio/mpeg"
+        }
+        val nom = "media_${NSUUID().UUIDString()}$extension"
+        val destination = "$dossier/$nom"
+
+        val deplace = NSFileManager.defaultManager.moveItemAtPath(
+            srcPath = cheminSource,
+            toPath = destination,
+            error = null
+        )
+        if (!deplace) return null
+
+        return MediaSelectionne(
+            uri = destination,
+            nomFichier = nom,
+            typeMime = typeMime,
+            taille = tailleFichier(destination)
+        )
     }
 }
 

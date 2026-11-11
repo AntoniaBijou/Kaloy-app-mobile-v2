@@ -55,8 +55,9 @@ import androidx.compose.runtime.setValue
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.model.FollowArtisteInfo
 import com.kaloy.app.data.repository.HistoriqueEcouteRepository
+import com.kaloy.app.ui.theme.KaloyCarteVoilee
 import com.kaloy.app.ui.theme.KaloyCyan
-import com.kaloy.app.ui.theme.KaloyDarkBg
+import com.kaloy.app.ui.theme.KaloySable
 import com.kaloy.app.ui.theme.KaloyDarkCard
 import com.kaloy.app.ui.theme.KaloyDarkElevated
 import com.kaloy.app.ui.theme.KaloyGreen
@@ -131,7 +132,7 @@ fun ActivityOverview(
     }
 
     LazyColumn(
-        modifier = modifier.background(KaloyDarkBg),
+        modifier = modifier,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
@@ -244,7 +245,7 @@ private fun ActivityStatCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = KaloyDarkCard)
+        colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 14.dp),
@@ -300,7 +301,7 @@ private fun ActivityBlock(
                 onClick = { onOpenSection(section) },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("Voir", color = KaloyPurpleLight, style = MaterialTheme.typography.labelLarge)
+                Text("Voir", color = KaloySable, style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.width(2.dp))
                 Icon(
                     Icons.Default.ArrowForward,
@@ -313,7 +314,7 @@ private fun ActivityBlock(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
-            color = KaloyDarkCard
+            color = KaloyCarteVoilee
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -354,7 +355,7 @@ private fun ActivitySongRow(song: ActivitySong, showMore: Boolean = false, onPla
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(song.detail, color = KaloyTextMuted, style = MaterialTheme.typography.labelSmall)
+            Text(song.detail, color = KaloyTextSecondary, style = MaterialTheme.typography.labelSmall)
         }
         IconButton(onClick = if (showMore) ({}) else onPlay) {
             Icon(
@@ -463,12 +464,11 @@ fun ActivityDetailScreen(
 
     Column(
         modifier = modifier
-            .background(KaloyDarkBg)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Surface(shape = RoundedCornerShape(18.dp), color = KaloyDarkCard) {
+        Surface(shape = RoundedCornerShape(18.dp), color = KaloyCarteVoilee) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(18.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),

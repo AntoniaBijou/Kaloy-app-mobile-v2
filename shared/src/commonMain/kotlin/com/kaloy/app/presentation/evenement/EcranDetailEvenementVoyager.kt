@@ -90,6 +90,14 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
 
     // Settings vient de Koin, comme pour AuthSessionManager : la memoire des
     // envois doit survivre a la fermeture de l'application.
+    /**
+     * Cle de rangement de l'envoi de cet evenement.
+     *
+     * Les envois sont retenus par cible : celui-ci ne peut donc plus etre
+     * efface par un envoi venu d'un autre ecran, ni l'effacer.
+     */
+    private val cibleEnvoi = "evenement:$idEvenement"
+
     private val envoyeur = EnvoyeurParMorceaux(
         api, MemoireEnvois(KoinPlatform.getKoin().get())
     )
@@ -523,7 +531,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
             envoiPhotoEnCours = true
             envoiEnAttente = null
             try {
-                envoyeur.envoyer(media, idEvenement) { etape ->
+                envoyeur.envoyer(media, cibleEnvoi) { etape ->
                     traiterEtape(etape, idType, estVideo)
                 }
             } finally {
@@ -539,10 +547,10 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
      * decide, il ne se declenche pas a l'insu de l'utilisateur.
      */
     fun chercherEnvoiInterrompu() {
-        val attente = envoyeur.envoiRetenu() ?: return
-        if (attente.idEvenement == idEvenement) {
-            envoiEnAttente = attente
-        }
+        // La cible est la cle de rangement : on demande directement celle de
+        // cet evenement, au lieu de lire l'unique envoi retenu puis de
+        // verifier qu'il nous concerne.
+        envoiEnAttente = envoyeur.envoiRetenu(cibleEnvoi)
     }
 
     /** Reprend l'envoi interrompu. Le serveur dit ou il s'etait arrete. */
@@ -567,7 +575,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
 
     /** Abandonne l'envoi en attente et supprime la copie locale. */
     fun abandonnerEnvoi() {
-        envoyeur.abandonner()
+        envoyeur.abandonner(cibleEnvoi)
         envoiEnAttente = null
         etapeEnvoi = null
     }
@@ -586,7 +594,7 @@ class DetailEvenementViewModel(private val idEvenement: Long) : ViewModel() {
             // Un echec reprenable laisse la session en memoire, donc l'ecran
             // peut proposer « Reprendre ». Un echec definitif l'efface.
             is EnvoyeurParMorceaux.Etape.Echec ->
-                envoiEnAttente = if (etape.reprenable) envoyeur.envoiRetenu() else null
+                envoiEnAttente = if (etape.reprenable) envoyeur.envoiRetenu(cibleEnvoi) else null
             else -> Unit
         }
     }

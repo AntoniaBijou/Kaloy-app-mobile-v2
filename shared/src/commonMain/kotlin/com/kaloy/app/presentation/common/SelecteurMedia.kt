@@ -12,7 +12,35 @@ enum class SourceMedia {
     PHOTO_CAMERA,
     PHOTO_GALERIE,
     VIDEO_CAMERA,
-    VIDEO_GALERIE
+    VIDEO_GALERIE,
+
+    /**
+     * Un fichier audio pris dans les documents de l'appareil, pour une
+     * chanson declaree par un artiste.
+     *
+     * Pas une source visuelle, et c'est tout le probleme : les selecteurs
+     * utilises pour les photos et les videos — PickVisualMedia sur Android,
+     * UIImagePickerController sur iOS — sont visuels par conception et ne
+     * proposeront jamais un MP3. Chaque plateforme ouvre donc ici un
+     * selecteur de documents a la place.
+     */
+    AUDIO_FICHIER,
+
+    /**
+     * Un fichier audio OU video pris dans les documents, pour un karaoke.
+     *
+     * Une source a part et non AUDIO_FICHIER elargie : un karaoke affiche
+     * les paroles, donc c'est une video dans la plupart des cas -- celui du
+     * jeu de donnees du projet en est une, 13 Mo en H.264. Mais l'audio de
+     * la chanson, lui, doit rester de l'audio : le formulaire a deja un
+     * champ separe pour l'adresse de la video, et accepter une video dans
+     * audio_url brouillerait les deux colonnes.
+     *
+     * Le defaut corrige ici : le selecteur du karaoke ne listait que des
+     * types audio, donc un .mp4 apparaissait GRISE sur le telephone, sans
+     * aucun message. Un refus muet est le pire des refus.
+     */
+    AUDIO_OU_VIDEO_FICHIER
 }
 
 /**

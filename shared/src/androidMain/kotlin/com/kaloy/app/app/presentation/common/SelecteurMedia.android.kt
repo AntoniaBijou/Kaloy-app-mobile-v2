@@ -70,7 +70,16 @@ actual fun rememberSelecteurMedia(
         onResult = { uri -> onMediaSelectionne(uri?.let { decrire(contexte, it) }) }
     )
 
-    return remember(lanceurPhotoCamera, lanceurVideoCamera, lanceurGalerie, contexte) {
+    // OpenDocument et non PickVisualMedia : ce dernier ne liste que des
+    // images et des videos, un fichier audio n'y apparaitrait pas.
+    val lanceurFichierAudio = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri -> onMediaSelectionne(uri?.let { decrire(contexte, it) }) }
+    )
+
+    return remember(
+        lanceurPhotoCamera, lanceurVideoCamera, lanceurGalerie, lanceurFichierAudio, contexte
+    ) {
         { source ->
             when (source) {
                 // Un echec de preparation previent l'appelant par null, comme
@@ -94,6 +103,27 @@ actual fun rememberSelecteurMedia(
 
                 SourceMedia.VIDEO_GALERIE -> lanceurGalerie.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                )
+
+                // Les types sont enumeres et non laisses a "*/*" : le serveur
+                // n'accepte qu'une liste precise, autant ne pas laisser
+                // l'artiste choisir un fichier qui sera refuse apres l'envoi.
+                // audio/* en plus des types precis, parce que certains
+                // fournisseurs de documents annoncent mal leurs fichiers.
+                SourceMedia.AUDIO_FICHIER -> lanceurFichierAudio.launch(
+                    arrayOf("audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/*")
+                )
+
+                // Le karaoke accepte la video : il affiche les paroles, donc
+                // c'est une video dans la plupart des cas. Sans video/mp4 ici,
+                // un .mp4 apparaissait GRISE dans le selecteur, sans aucun
+                // message -- c'est le defaut trouve a la recette du 04/11 sur
+                // un vrai telephone. video/* pour la meme raison que audio/*.
+                SourceMedia.AUDIO_OU_VIDEO_FICHIER -> lanceurFichierAudio.launch(
+                    arrayOf(
+                        "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/*",
+                        "video/mp4", "video/*"
+                    )
                 )
             }
         }
@@ -156,7 +186,11 @@ private fun resultatCapture(reussi: Boolean, capture: Capture?): MediaSelectionn
  */
 private fun decrire(contexte: Context, uri: Uri): MediaSelectionne? = try {
     val type = contexte.contentResolver.getType(uri) ?: return null
-    var nom = if (type.startsWith("video/")) "video" else "photo"
+    var nom = when {
+        type.startsWith("video/") -> "video"
+        type.startsWith("audio/") -> "audio"
+        else -> "photo"
+    }
     var taille = 0L
 
     contexte.contentResolver.query(uri, null, null, null, null)?.use { curseur ->

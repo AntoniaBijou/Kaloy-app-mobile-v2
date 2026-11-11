@@ -13,11 +13,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +40,7 @@ import com.kaloy.app.presentation.lecteur.ModeEcoute
 import com.kaloy.app.ui.components.ErrorState
 import com.kaloy.app.ui.components.LoadingIndicator
 import com.kaloy.app.ui.theme.*
+import com.kaloy.app.ui.theme.KaloyOrange
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -106,16 +109,20 @@ private fun FicheChansonContent(
     var isLiked by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf("Audio") }
 
+    // La rangee du haut ne porte plus que les MEDIAS. Les paroles et le solfa
+    // sont du texte : ils ont leur propre rangee plus bas, et restent affiches
+    // en permanence. Avant, choisir « Audio » faisait disparaitre les paroles.
     val tabs = remember(chanson) {
         buildList {
             add("Audio")
             if (!chanson.videoStreamUrl.isNullOrBlank()) add("Vidéo")
             if (!chanson.karaokeStreamUrl.isNullOrBlank()) add("Karaoké")
             if (!chanson.playbackStreamUrl.isNullOrBlank()) add("Playback")
-            if (!chanson.solfaUrl.isNullOrBlank()) add("Solfa")
-            add("Paroles")
         }
     }
+
+    /** « Paroles » ou « Solfa ». Les paroles a l'arrivee, comme avant. */
+    var texteAffiche by remember { mutableStateOf("Paroles") }
 
     Column(
         modifier = Modifier
@@ -137,8 +144,12 @@ private fun FicheChansonContent(
                 TextButton(
                     onClick = { selectedTab = tab },
                     colors = ButtonDefaults.textButtonColors(
-                        containerColor = if (selectedTab == tab) KaloyPurple.copy(alpha = 0.2f) else Color.Transparent,
-                        contentColor = if (selectedTab == tab) KaloyPurple else KaloyTextMuted
+                        // Orange et non la couleur principale : l'indigo sur le
+                        // fond de l'ecran donne un contraste de 1,58, soit la meme
+                        // couleur a l'oeil. L'orange monte a 4,94, et c'est l'usage
+                        // que la maquette reserve a la pastille selectionnee.
+                        containerColor = if (selectedTab == tab) KaloyOrange.copy(alpha = 0.2f) else Color.Transparent,
+                        contentColor = if (selectedTab == tab) KaloyOrange else KaloyTextMuted
                     ),
                     shape = RoundedCornerShape(20.dp)
                 ) {
@@ -156,6 +167,13 @@ private fun FicheChansonContent(
             chanson = chanson,
             onPlay = { mode -> navigator.push(LecteurScreen(idChanson, mode)) },
             onOpenUri = { uri -> uriHandler.openUri(uri) }
+        )
+
+        SectionTexte(
+            choix = texteAffiche,
+            onChoisir = { texteAffiche = it },
+            paroles = chanson.lyrics,
+            solfa = chanson.solfa
         )
 
         Spacer(Modifier.height(16.dp))
@@ -457,43 +475,126 @@ private fun TabContent(
                 }
             }
 
-            "Solfa" -> Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(Icons.Default.LibraryMusic, contentDescription = null, tint = KaloyPurpleLight, modifier = Modifier.size(40.dp))
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = { chanson.solfaUrl?.let { onOpenUri(it) } },
-                    colors = ButtonDefaults.buttonColors(containerColor = KaloyPurpleLight),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Voir les partitions", color = KaloyDarkBg)
-                }
-            }
+        }
+    }
+}
 
-            "Paroles" -> Column(modifier = Modifier.padding(20.dp)) {
-                if (!chanson.lyrics.isNullOrBlank()) {
-                    Text(
-                        text = chanson.lyrics,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = KaloyTextSecondary,
-                        lineHeight = 26.sp
-                    )
-                } else {
-                    Text(
-                        text = "Les paroles ne sont pas disponibles pour cette chanson.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = KaloyTextMuted,
-                        fontStyle = FontStyle.Italic,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+/**
+ * Le texte de la chanson : les paroles, ou le solfa.
+ *
+ * Une rangee a part et non deux onglets de plus en haut. Les medias se
+ * LANCENT, le texte se LIT : melanger les deux obligeait a choisir entre
+ * ecouter et lire, puisque selectionner « Audio » faisait disparaitre les
+ * paroles. Ici le texte reste affiche en permanence, et le bouton ne decide
+ * que de ce qu'on y lit.
+ *
+ * Le rendu des paroles n'a pas bouge d'un caractere : meme style, meme
+ * couleur, meme interligne de 26 qu'avant.
+ *
+ * Le bouton Solfa est montre meme quand la chanson n'en a pas, contrairement
+ * aux medias qui n'apparaissent que s'ils existent. Il affiche alors un
+ * message, comme le fait deja la carte des paroles absentes : la fonction se
+ * voit, au lieu de rester invisible sur les 35 chansons du catalogue dont
+ * aucune ne porte encore de solfa.
+ */
+@Composable
+private fun SectionTexte(
+    choix: String,
+    onChoisir: (String) -> Unit,
+    paroles: String?,
+    solfa: String?
+) {
+    Spacer(Modifier.height(4.dp))
+
+    Row(modifier = Modifier.padding(horizontal = 12.dp)) {
+        listOf("Paroles", "Solfa").forEach { nom ->
+            val actif = choix == nom
+            TextButton(
+                onClick = { onChoisir(nom) },
+                colors = ButtonDefaults.textButtonColors(
+                    containerColor = if (actif) KaloyOrange.copy(alpha = 0.2f) else Color.Transparent,
+                    contentColor = if (actif) KaloyOrange else KaloyTextMuted
+                ),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Text(
+                    text = nom,
+                    fontWeight = if (actif) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 14.sp
+                )
             }
         }
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        color = KaloyDarkCard,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        // Les DEUX textes sont poses l'un sur l'autre, le masque a opacite
+        // nulle. La boite prend donc la hauteur du PLUS GRAND des deux, et
+        // cette hauteur ne change plus quand on bascule.
+        //
+        // Avant, seul le texte choisi etait compose : passer de vingt lignes
+        // de paroles a trois de solfa raccourcissait la page, la position de
+        // defilement n'existait plus, elle etait ramenee au nouveau maximum,
+        // et l'ecran sautait. Aucune manipulation du defilement ne pouvait y
+        // remedier : on ne reste pas a une position qui n'existe plus.
+        //
+        // La contrepartie est assumee : sur une chanson aux paroles longues,
+        // l'onglet Solfa laisse du vide sous son texte. C'est le prix d'une
+        // page qui ne bouge pas.
+        Box(modifier = Modifier.padding(20.dp)) {
+            TexteDeChanson(
+                contenu = paroles,
+                absent = "Les paroles ne sont pas disponibles pour cette chanson.",
+                visible = choix == "Paroles"
+            )
+            TexteDeChanson(
+                contenu = solfa,
+                absent = "Le solfa n'est pas disponible pour cette chanson.",
+                visible = choix == "Solfa"
+            )
+        }
+    }
+}
+
+/**
+ * Un des deux textes de la carte, visible ou masque.
+ *
+ * Le texte masque reste MESURE et MIS EN PAGE : c'est lui qui donne sa
+ * hauteur a la boite lorsqu'il est le plus long, et c'est precisement ce qui
+ * empeche la page de bouger. Une condition `if` l'aurait retire de la mise en
+ * page, et le saut serait revenu.
+ *
+ * clearAndSetSemantics sur le masque : sans cela un lecteur d'ecran lirait
+ * les deux textes a la suite, le visible et l'invisible.
+ */
+@Composable
+private fun TexteDeChanson(contenu: String?, absent: String, visible: Boolean) {
+    val apparence = Modifier
+        .alpha(if (visible) 1f else 0f)
+        .then(if (visible) Modifier else Modifier.clearAndSetSemantics {})
+
+    if (!contenu.isNullOrBlank()) {
+        Text(
+            text = contenu,
+            style = MaterialTheme.typography.bodyMedium,
+            color = KaloyTextSecondary,
+            lineHeight = 26.sp,
+            modifier = apparence
+        )
+    } else {
+        Text(
+            text = absent,
+            style = MaterialTheme.typography.bodyMedium,
+            color = KaloyTextMuted,
+            fontStyle = FontStyle.Italic,
+            textAlign = TextAlign.Center,
+            modifier = apparence.fillMaxWidth()
+        )
     }
 }
 
