@@ -28,7 +28,7 @@ import com.kaloy.app.core.network.refreshStoredSession
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.repository.MeRepository
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
-import com.kaloy.app.presentation.home.HomeScreen
+import com.kaloy.app.presentation.common.EcranPrincipal
 import com.kaloy.app.ui.theme.KaloyTheme
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
@@ -64,7 +64,7 @@ fun App() {
             }
 
             meRepository.getProfile()
-            initialScreen = HomeScreen(username = sessionManager.getDisplayName())
+            initialScreen = EcranPrincipal(username = sessionManager.getDisplayName())
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {

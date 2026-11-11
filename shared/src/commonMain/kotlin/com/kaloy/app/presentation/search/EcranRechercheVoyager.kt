@@ -334,6 +334,7 @@ class EcranRechercheVoyager : Screen {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .fondKaloy()
                 .padding(espaceInterieur)
         ) {
             // ---- Barre de recherche ----
