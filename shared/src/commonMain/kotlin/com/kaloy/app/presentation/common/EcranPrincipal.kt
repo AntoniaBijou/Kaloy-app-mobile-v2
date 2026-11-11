@@ -11,7 +11,8 @@ import cafe.adriel.voyager.core.screen.Screen
 import com.kaloy.app.ui.theme.fondKaloy
 import com.kaloy.app.presentation.home.HomeScreen
 import com.kaloy.app.presentation.moi.MoiScreen
-import com.kaloy.app.presentation.search.EcranRechercheVoyager
+import com.kaloy.app.presentation.playlist.PlaylistScreen
+import com.kaloy.app.presentation.radio.RadioScreen
 import kotlinx.coroutines.flow.filterNotNull
 import org.koin.compose.koinInject
 
@@ -108,7 +109,9 @@ data class EcranPrincipal(
                 OngletPrincipal.ACCUEIL ->
                     HomeScreen(username = username, isVisitor = isVisitor).Content()
 
-                OngletPrincipal.RECHERCHE -> EcranRechercheVoyager().Content()
+                OngletPrincipal.PLAYLIST -> PlaylistScreen().Content()
+
+                OngletPrincipal.RADIO -> RadioScreen().Content()
 
                 OngletPrincipal.MOI -> MoiScreen().Content()
             }

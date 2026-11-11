@@ -139,7 +139,8 @@ fun BarreDuBas(navigateur: Navigator) {
                 // glisse. L'ancien allerA empilait ou depilait des ecrans, ce
                 // qui n'a plus de sens quand les trois vivent ensemble.
                 onAccueil = { etatBarre.ongletDemande = OngletPrincipal.ACCUEIL },
-                onRecherche = { etatBarre.ongletDemande = OngletPrincipal.RECHERCHE },
+                onPlaylist = { etatBarre.ongletDemande = OngletPrincipal.PLAYLIST },
+                onRadio = { etatBarre.ongletDemande = OngletPrincipal.RADIO },
                 onMoi = { etatBarre.ongletDemande = OngletPrincipal.MOI }
             )
         }

@@ -21,12 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import cafe.adriel.voyager.navigator.CurrentScreen
+import com.kaloy.app.presentation.common.BarreDuBas
 import cafe.adriel.voyager.navigator.Navigator
 import com.kaloy.app.core.network.refreshStoredSession
 import com.kaloy.app.core.session.AuthSessionManager

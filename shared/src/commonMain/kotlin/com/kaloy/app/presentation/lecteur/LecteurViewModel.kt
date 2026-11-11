@@ -9,6 +9,7 @@ import com.kaloy.app.data.model.Album
 import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.core.error.UserErrorMessages
+import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.data.repository.LecteurRepository
 import com.kaloy.app.presentation.favoris.FavorisViewModel

@@ -220,13 +220,6 @@ data class HomeScreen(
                     }
                 }
             },
-            containerColor = KaloyDarkBg
-            // Le fond photographique des ecrans d'entree. containerColor
-            // passe en transparent, sinon le Scaffold peindrait son aplat
-            // par-dessus la photo.
-            // Pas de fond ici : il est pose une fois sur le conteneur du
-            // pager, dans EcranPrincipal, pour qu'il ne glisse pas avec la
-            // page. containerColor reste transparent pour le laisser voir.
             containerColor = Color.Transparent
         ) { espaceInterieur ->
             LazyColumn(
@@ -280,7 +273,7 @@ data class HomeScreen(
                             // la recherche est l'onglet voisin, et le
                             // pager y glisse comme sous le doigt.
                             onClick = {
-                                etatBarre.ongletDemande = OngletPrincipal.RECHERCHE
+                                navigateur.push(EcranRechercheVoyager())
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
