@@ -51,7 +51,6 @@ import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.common.BarreNavigationPrincipale
-import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.PlaylistScreen
