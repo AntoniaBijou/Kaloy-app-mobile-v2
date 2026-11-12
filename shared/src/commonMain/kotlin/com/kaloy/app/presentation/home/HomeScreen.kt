@@ -8,9 +8,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -46,18 +43,9 @@ import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
 import com.kaloy.app.presentation.chanson.EcranToutesChansonsVoyager
 import com.kaloy.app.presentation.auth.welcome.WelcomeScreen
-import com.kaloy.app.presentation.common.EtatBarreDuBas
-import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.lecteur.LecteurScreen
-import com.kaloy.app.presentation.lecteur.LecteurViewModel
-import com.kaloy.app.presentation.common.BarreNavigationPrincipale
-import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.evenement.EcranDetailEvenementVoyager
-import com.kaloy.app.presentation.moi.MoiScreen
-import com.kaloy.app.presentation.playlist.PlaylistScreen
-import com.kaloy.app.presentation.radio.RadioScreen
 import com.kaloy.app.presentation.search.EcranRechercheVoyager
-import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.ui.components.*
 import com.kaloy.app.ui.theme.*
@@ -181,12 +169,6 @@ data class HomeScreen(
         val gestionSession = koinInject<AuthSessionManager>()
         val modeleVue: AccueilViewModel = viewModel { AccueilViewModel() }
         val fileAttente = koinInject<QueueManager>()
-        val lecteur = koinInject<LecteurViewModel>()
-        val chansonCourante by fileAttente.currentSong.collectAsState()
-        val chansonsSuivantes by fileAttente.upNext.collectAsState()
-        val historique by fileAttente.history.collectAsState()
-        val lectureActive by lecteur.isPlaying.collectAsState()
-        val positionCourante by lecteur.currentPositionMs.collectAsState()
 
         LaunchedEffect(Unit) {
             if (!isVisitor && !gestionSession.isLoggedIn()) {
@@ -195,38 +177,6 @@ data class HomeScreen(
         }
 
         Scaffold(
-            bottomBar = {
-                if (!isVisitor) {
-                    Column {
-                        chansonCourante?.let { chanson ->
-                            MiniPlayer(
-                                song = chanson,
-                                isPlaying = lectureActive,
-                                onClick = { navigateur.push(LecteurScreen(chanson.id)) },
-                                onTogglePlay = { lecteur.togglePlayPause() },
-                                onPrevious = { lecteur.jouerPrecedent() },
-                                onNext = { lecteur.jouerSuivant() },
-                                canPrevious = historique.isNotEmpty() || positionCourante > 3_000L,
-                                canNext = chansonsSuivantes.isNotEmpty()
-                            )
-                        }
-                        BarreNavigationPrincipale(
-                            ongletActif = OngletPrincipal.ACCUEIL,
-                            onAccueil = {},
-                            onPlaylist = { navigateur.push(PlaylistScreen()) },
-                            onRadio = { navigateur.push(RadioScreen()) },
-                            onMoi = { navigateur.push(MoiScreen()) }
-                        )
-                    }
-                }
-            },
-            containerColor = KaloyDarkBg
-            // Le fond photographique des ecrans d'entree. containerColor
-            // passe en transparent, sinon le Scaffold peindrait son aplat
-            // par-dessus la photo.
-            // Pas de fond ici : il est pose une fois sur le conteneur du
-            // pager, dans EcranPrincipal, pour qu'il ne glisse pas avec la
-            // page. containerColor reste transparent pour le laisser voir.
             containerColor = Color.Transparent
         ) { espaceInterieur ->
             LazyColumn(
@@ -280,7 +230,7 @@ data class HomeScreen(
                             // la recherche est l'onglet voisin, et le
                             // pager y glisse comme sous le doigt.
                             onClick = {
-                                etatBarre.ongletDemande = OngletPrincipal.RECHERCHE
+                                navigateur.push(EcranRechercheVoyager())
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),

@@ -4,11 +4,13 @@ import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.audio.MediaMetadata
 import com.kaloy.app.core.offline.OfflineFileStore
 import com.kaloy.app.core.offline.OfflinePlaylistCatalog
+import com.kaloy.app.core.queue.ModeLecture
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.model.Album
 import com.kaloy.app.data.model.Artist
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.core.error.UserErrorMessages
+import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.data.repository.LecteurRepository
 import com.kaloy.app.presentation.favoris.FavorisViewModel
@@ -83,6 +85,23 @@ class LecteurViewModel(
         // Délègue le toggle depuis la notification à FavorisViewModel (gère optimiste + API + rollback).
         audioPlayer.setOnToggleFavorite {
             activeSongId?.let { favorisViewModel.toggleFavoriChansonId(it) }
+        }
+
+        // Synchronise l'icône mode dans la notification avec le QueueManager.
+        scope.launch {
+            queueManager.modeLecture.collect { mode ->
+                audioPlayer.updateModeLectureState(mode)
+            }
+        }
+
+        // Délègue le cycle de mode depuis la notification au QueueManager.
+        audioPlayer.setOnCycleMode {
+            val next = when (queueManager.modeLecture.value) {
+                ModeLecture.BOUCLE    -> ModeLecture.ALEATOIRE
+                ModeLecture.ALEATOIRE -> ModeLecture.UNIQUE
+                ModeLecture.UNIQUE    -> ModeLecture.BOUCLE
+            }
+            queueManager.setModeLecture(next)
         }
     }
 
@@ -275,14 +294,29 @@ class LecteurViewModel(
 
     fun jouerSuivant() {
         if (autoPlayTriggered) return
-        val nextSong = queueManager.upNext.value.firstOrNull() ?: return
+        val mode = queueManager.modeLecture.value
+
+        if (mode == ModeLecture.UNIQUE) {
+            val current = queueManager.currentSong.value ?: return
+            autoPlayTriggered = true
+            charger(current.id, silencieux = true, offlinePlaylistId = activeOfflinePlaylistId)
+            return
+        }
+
+        val nextSong = queueManager.upNext.value.firstOrNull()
+        if (nextSong == null) {
+            if (mode == ModeLecture.BOUCLE) {
+                queueManager.reboucler()
+                val first = queueManager.upNext.value.firstOrNull() ?: return
+                autoPlayTriggered = true
+                queueManager.playFromQueue(first)
+                charger(first.id, silencieux = true, offlinePlaylistId = activeOfflinePlaylistId)
+            }
+            return
+        }
         autoPlayTriggered = true
         queueManager.playFromQueue(nextSong)
-        charger(
-            nextSong.id,
-            silencieux = true,
-            offlinePlaylistId = activeOfflinePlaylistId
-        )
+        charger(nextSong.id, silencieux = true, offlinePlaylistId = activeOfflinePlaylistId)
     }
 
     fun jouerDepuisFile(song: Song) {

@@ -110,8 +110,9 @@ class PlaylistDownloadsScreen : Screen {
                 showingLocalCache = false
                 try {
                     coordinator.syncPendingDeletes()
-                    playlists = repository.getOfflineDownloads()
-                    catalog.syncServerState(sessionManager.getUserId(), playlists)
+                    val serverPlaylists = repository.getOfflineDownloads()
+                    catalog.syncServerState(sessionManager.getUserId(), serverPlaylists)
+                    playlists = catalog.displayPlaylists(sessionManager.getUserId())
                     localPlaylistIds = catalog.localPlaylists(sessionManager.getUserId())
                         .map { it.playlistId }.toSet()
                 } catch (exception: Exception) {
@@ -164,7 +165,8 @@ class PlaylistDownloadsScreen : Screen {
                 error = null
                 try {
                     coordinator.delete(playlist)
-                    loadDownloads()
+                    playlists = playlists.filterNot { it.playlistId == playlist.playlistId }
+                    localPlaylistIds = localPlaylistIds - playlist.playlistId
                 } catch (exception: Exception) {
                     if (catalog.get(sessionManager.getUserId())
                             .none { it.playlistId == playlist.playlistId }

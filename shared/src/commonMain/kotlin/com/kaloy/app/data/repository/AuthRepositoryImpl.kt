@@ -57,6 +57,7 @@ class AuthRepositoryImpl(
 
     override suspend fun registerClient(request: RegisterClientRequest): RegisterResponse {
         return client.post("$BASE_URL/auth/register/client") {
+            contentType(ContentType.Application.Json)
             setBody(request)
         }.decodeData()
     }

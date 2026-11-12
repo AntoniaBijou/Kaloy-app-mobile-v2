@@ -14,6 +14,7 @@ import cafe.adriel.voyager.navigator.Navigator
 import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
+import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.presentation.queue.UpNextSheet
 import org.koin.compose.koinInject
@@ -100,9 +101,11 @@ fun BarreDuBas(navigateur: Navigator) {
 
     val fileAttente = koinInject<QueueManager>()
     val lecteurAudio = koinInject<AudioPlayerController>()
+    val lecteurModeleVue = koinInject<LecteurViewModel>()
 
     val chansonCourante by fileAttente.currentSong.collectAsState()
     val chansonsSuivantes by fileAttente.upNext.collectAsState()
+    val historique by fileAttente.history.collectAsState()
     val lectureActive by lecteurAudio.isPlaying.collectAsState()
 
     var afficherFile by remember { mutableStateOf(false) }
@@ -119,7 +122,10 @@ fun BarreDuBas(navigateur: Navigator) {
                 onTogglePlay = {
                     if (lectureActive) lecteurAudio.pause() else lecteurAudio.resume()
                 },
-                onQueueClick = { afficherFile = true },
+                onPrevious = { lecteurModeleVue.jouerPrecedent() },
+                onNext = { lecteurModeleVue.jouerSuivant() },
+                canPrevious = historique.isNotEmpty(),
+                canNext = chansonsSuivantes.isNotEmpty(),
                 // L'application dessine bord a bord : sans marge, la barre
                 // passerait sous la barre de gestes d'Android. Le Scaffold
                 // s'en chargeait tant que la barre vivait dans son
@@ -139,7 +145,8 @@ fun BarreDuBas(navigateur: Navigator) {
                 // glisse. L'ancien allerA empilait ou depilait des ecrans, ce
                 // qui n'a plus de sens quand les trois vivent ensemble.
                 onAccueil = { etatBarre.ongletDemande = OngletPrincipal.ACCUEIL },
-                onRecherche = { etatBarre.ongletDemande = OngletPrincipal.RECHERCHE },
+                onPlaylist = { etatBarre.ongletDemande = OngletPrincipal.PLAYLIST },
+                onRadio = { etatBarre.ongletDemande = OngletPrincipal.RADIO },
                 onMoi = { etatBarre.ongletDemande = OngletPrincipal.MOI }
             )
         }

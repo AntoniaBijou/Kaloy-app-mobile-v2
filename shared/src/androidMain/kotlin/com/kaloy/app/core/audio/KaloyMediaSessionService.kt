@@ -27,6 +27,7 @@ import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.kaloy.app.core.offline.OfflineAudioDataSourceFactory
+import com.kaloy.app.core.queue.ModeLecture
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -183,6 +184,7 @@ class KaloyMediaSessionService : MediaSessionService() {
                             MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                                 .buildUpon()
                                 .add(TOGGLE_FAVORITE_CMD)
+                                .add(CYCLE_MODE_CMD)
                                 .build()
                         )
                         .build()
@@ -197,15 +199,24 @@ class KaloyMediaSessionService : MediaSessionService() {
                         AndroidAudioPlayerController.toggleFavorite.tryEmit(Unit)
                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     }
+                    if (customCommand == CYCLE_MODE_CMD) {
+                        AndroidAudioPlayerController.cycleMode.tryEmit(Unit)
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
                     return super.onCustomCommand(session, controller, customCommand, args)
                 }
             })
             .build()
 
-        // Observe l'état favori → met à jour le custom layout (bouton cœur)
+        // Observe l'état favori → met à jour le custom layout (bouton cœur + mode)
         serviceScope.launch {
             AndroidAudioPlayerController.isFavorite.collect { isFav ->
-                updateHeartLayout(isFav)
+                updateNotificationLayout(isFav, AndroidAudioPlayerController.currentModeLecture.value)
+            }
+        }
+        serviceScope.launch {
+            AndroidAudioPlayerController.currentModeLecture.collect { mode ->
+                updateNotificationLayout(AndroidAudioPlayerController.isFavorite.value, mode)
             }
         }
 
@@ -226,8 +237,8 @@ class KaloyMediaSessionService : MediaSessionService() {
         }
     }
 
-    private fun updateHeartLayout(isFav: Boolean) {
-        val btn = CommandButton.Builder()
+    private fun updateNotificationLayout(isFav: Boolean, mode: ModeLecture) {
+        val heartBtn = CommandButton.Builder()
             .setSessionCommand(TOGGLE_FAVORITE_CMD)
             .setIconResId(
                 if (isFav) com.kaloy.app.shared.R.drawable.ic_kaloy_heart_filled
@@ -235,7 +246,22 @@ class KaloyMediaSessionService : MediaSessionService() {
             )
             .setDisplayName(if (isFav) "Retirer des favoris" else "Ajouter aux favoris")
             .build()
-        mediaSession.setCustomLayout(listOf(btn))
+        val modeIconRes = when (mode) {
+            ModeLecture.BOUCLE    -> com.kaloy.app.shared.R.drawable.ic_kaloy_repeat
+            ModeLecture.ALEATOIRE -> com.kaloy.app.shared.R.drawable.ic_kaloy_shuffle
+            ModeLecture.UNIQUE    -> com.kaloy.app.shared.R.drawable.ic_kaloy_repeat_one
+        }
+        val modeDisplayName = when (mode) {
+            ModeLecture.BOUCLE    -> "Lecture en boucle"
+            ModeLecture.ALEATOIRE -> "Lecture aléatoire"
+            ModeLecture.UNIQUE    -> "Répéter une fois"
+        }
+        val modeBtn = CommandButton.Builder()
+            .setSessionCommand(CYCLE_MODE_CMD)
+            .setIconResId(modeIconRes)
+            .setDisplayName(modeDisplayName)
+            .build()
+        mediaSession.setCustomLayout(listOf(heartBtn, modeBtn))
     }
 
     private fun loadArtwork(mediaId: String, uri: Uri, requestId: Long) {
@@ -370,6 +396,7 @@ class KaloyMediaSessionService : MediaSessionService() {
         private const val MAX_ARTWORK_BYTES = 10 * 1024 * 1024
         private const val MAX_ARTWORK_DIMENSION = 512
         val TOGGLE_FAVORITE_CMD = SessionCommand("kaloy.TOGGLE_FAVORITE", Bundle.EMPTY)
+        val CYCLE_MODE_CMD = SessionCommand("kaloy.CYCLE_MODE", Bundle.EMPTY)
     }
 }
 

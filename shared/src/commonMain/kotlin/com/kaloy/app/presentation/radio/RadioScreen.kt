@@ -38,13 +38,6 @@ import coil3.compose.AsyncImage
 import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.data.repository.RadioRepository
 import com.kaloy.app.data.repository.TypeRadio
-import com.kaloy.app.presentation.common.BarreNavigationPrincipale
-import com.kaloy.app.presentation.common.OngletPrincipal
-import com.kaloy.app.presentation.lecteur.LecteurScreen
-import com.kaloy.app.presentation.lecteur.LecteurViewModel
-import com.kaloy.app.presentation.moi.MoiScreen
-import com.kaloy.app.presentation.playlist.PlaylistScreen
-import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.ui.components.EmptyState
 import com.kaloy.app.ui.components.SectionHeader
 import com.kaloy.app.ui.theme.*
@@ -57,14 +50,7 @@ class RadioScreen : Screen {
         val navigateur = LocalNavigator.currentOrThrow
         val repository = koinInject<RadioRepository>()
         val fileAttente = koinInject<QueueManager>()
-        val lecteur = koinInject<LecteurViewModel>()
         val modeleVue = remember { RadioViewModel(repository, fileAttente) }
-
-        val chansonCourante by fileAttente.currentSong.collectAsState()
-        val chansonsSuivantes by fileAttente.upNext.collectAsState()
-        val historiqueFile by fileAttente.history.collectAsState()
-        val lectureActive by lecteur.isPlaying.collectAsState()
-        val positionCourante by lecteur.currentPositionMs.collectAsState()
 
         DisposableEffect(Unit) { onDispose { modeleVue.dispose() } }
 
@@ -89,29 +75,6 @@ class RadioScreen : Screen {
         }
 
         Scaffold(
-            bottomBar = {
-                Column {
-                    chansonCourante?.let { chanson ->
-                        MiniPlayer(
-                            song = chanson,
-                            isPlaying = lectureActive,
-                            onClick = { navigateur.push(LecteurScreen(chanson.id)) },
-                            onTogglePlay = { lecteur.togglePlayPause() },
-                            onPrevious = { lecteur.jouerPrecedent() },
-                            onNext = { lecteur.jouerSuivant() },
-                            canPrevious = historiqueFile.isNotEmpty() || positionCourante > 3_000L,
-                            canNext = chansonsSuivantes.isNotEmpty()
-                        )
-                    }
-                    BarreNavigationPrincipale(
-                        ongletActif = OngletPrincipal.RADIO,
-                        onAccueil = { navigateur.pop() },
-                        onPlaylist = { navigateur.push(PlaylistScreen()) },
-                        onRadio = {},
-                        onMoi = { navigateur.push(MoiScreen()) }
-                    )
-                }
-            },
             containerColor = KaloyDarkBg
         ) { espaceInterieur ->
             LazyColumn(

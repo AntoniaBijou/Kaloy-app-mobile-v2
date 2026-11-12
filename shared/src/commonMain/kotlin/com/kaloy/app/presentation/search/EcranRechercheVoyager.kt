@@ -329,17 +329,12 @@ class EcranRechercheVoyager : Screen {
                     onMoi = { navigateur.push(MoiScreen()) }
                 )
             },
-            containerColor = KaloyDarkBg
-            // Voir l'accueil : le fond photographique demande un
-            // containerColor transparent pour ne pas etre recouvert.
-            // Pas de fond ici : il est pose une fois sur le conteneur du
-            // pager, dans EcranPrincipal, pour qu'il ne glisse pas avec la
-            // page. containerColor reste transparent pour le laisser voir.
             containerColor = Color.Transparent
         ) { espaceInterieur ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .fondKaloy()
                 .padding(espaceInterieur)
         ) {
             // ---- Barre de recherche ----
