@@ -10,7 +10,7 @@ class QueueManager {
     private val _currentSong = MutableStateFlow<Song?>(null)
     private val _upNext = MutableStateFlow<List<Song>>(emptyList())
     private val _history = MutableStateFlow<List<Song>>(emptyList())
-    private val _modeLecture = MutableStateFlow(ModeLecture.ALEATOIRE)
+    private val _modeLecture = MutableStateFlow(ModeLecture.BOUCLE)
     private var _contexteSongs: List<Song> = emptyList()
 
     val currentSong: StateFlow<Song?> = _currentSong

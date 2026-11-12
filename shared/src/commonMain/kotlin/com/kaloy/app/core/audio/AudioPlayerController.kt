@@ -1,5 +1,6 @@
 package com.kaloy.app.core.audio
 
+import com.kaloy.app.core.queue.ModeLecture
 import kotlinx.coroutines.flow.StateFlow
 
 interface AudioPlayerController {
@@ -41,4 +42,10 @@ interface AudioPlayerController {
 
     /** Enregistre le callback déclenché quand l'utilisateur tape le bouton cœur. */
     fun setOnToggleFavorite(callback: () -> Unit) {}
+
+    /** Met à jour l'icône du mode de lecture dans la notification. */
+    fun updateModeLectureState(mode: ModeLecture) {}
+
+    /** Enregistre le callback déclenché quand l'utilisateur tape le bouton mode dans la notification. */
+    fun setOnCycleMode(callback: () -> Unit) {}
 }

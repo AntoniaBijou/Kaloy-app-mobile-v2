@@ -1,6 +1,7 @@
 package com.kaloy.app.core.audio
 
 import android.content.Context
+import com.kaloy.app.core.queue.ModeLecture
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,14 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
         /** Émis par KaloyMediaSessionService quand l'utilisateur tape le bouton cœur. */
         val toggleFavorite = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
+        /** Émis par KaloyMediaSessionService quand l'utilisateur tape le bouton mode. */
+        val cycleMode = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+        private val _currentModeLecture = MutableStateFlow(ModeLecture.BOUCLE)
+        val currentModeLecture = _currentModeLecture.asStateFlow()
+
         fun setFavoriteState(isFav: Boolean) { _isFavorite.value = isFav }
+        fun setModeLectureState(mode: ModeLecture) { _currentModeLecture.value = mode }
     }
 
     private val _isPlaying = MutableStateFlow(false)
@@ -47,6 +55,7 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
     private var onTrackCompletedCallback: () -> Unit = {}
     private var onSkipToPreviousCallback: () -> Unit = {}
     private var onToggleFavoriteCallback: () -> Unit = {}
+    private var onCycleModeCallback: () -> Unit = {}
 
     override fun setOnTrackCompleted(callback: () -> Unit) {
         onTrackCompletedCallback = callback
@@ -64,6 +73,9 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
         onToggleFavoriteCallback = callback
     }
 
+    override fun updateModeLectureState(mode: ModeLecture) = Companion.setModeLectureState(mode)
+    override fun setOnCycleMode(callback: () -> Unit) { onCycleModeCallback = callback }
+
     init {
         scope.launch {
             skipToNext.collect { onTrackCompletedCallback() }
@@ -73,6 +85,9 @@ class AndroidAudioPlayerController(private val context: Context) : AudioPlayerCo
         }
         scope.launch {
             toggleFavorite.collect { onToggleFavoriteCallback() }
+        }
+        scope.launch {
+            cycleMode.collect { onCycleModeCallback() }
         }
         scope.launch {
             controller.state.collect { state ->

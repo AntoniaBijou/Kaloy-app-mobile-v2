@@ -86,6 +86,23 @@ class LecteurViewModel(
         audioPlayer.setOnToggleFavorite {
             activeSongId?.let { favorisViewModel.toggleFavoriChansonId(it) }
         }
+
+        // Synchronise l'icône mode dans la notification avec le QueueManager.
+        scope.launch {
+            queueManager.modeLecture.collect { mode ->
+                audioPlayer.updateModeLectureState(mode)
+            }
+        }
+
+        // Délègue le cycle de mode depuis la notification au QueueManager.
+        audioPlayer.setOnCycleMode {
+            val next = when (queueManager.modeLecture.value) {
+                ModeLecture.BOUCLE    -> ModeLecture.ALEATOIRE
+                ModeLecture.ALEATOIRE -> ModeLecture.UNIQUE
+                ModeLecture.UNIQUE    -> ModeLecture.BOUCLE
+            }
+            queueManager.setModeLecture(next)
+        }
     }
 
     private fun ModeEcoute.toPlayModeId(): Long = when (this) {

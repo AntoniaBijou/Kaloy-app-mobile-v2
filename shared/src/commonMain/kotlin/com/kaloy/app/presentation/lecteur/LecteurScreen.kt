@@ -27,8 +27,9 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
-import com.kaloy.app.data.model.SongPlayerResponse
+import com.kaloy.app.core.queue.ModeLecture
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
 import com.kaloy.app.presentation.common.rememberBrowserLauncher
 import com.kaloy.app.presentation.favoris.BoutonFavori
@@ -61,6 +62,7 @@ data class LecteurScreen(
         val upNext by viewModel.upNext.collectAsState()
         val history by viewModel.history.collectAsState()
         val currentSong by queueManager.currentSong.collectAsState()
+        val modeLecture by queueManager.modeLecture.collectAsState()
         var afficherFile by remember { mutableStateOf(false) }
 
         LaunchedEffect(songId, startMode, offlinePlaylistId) {
@@ -133,6 +135,7 @@ data class LecteurScreen(
                         errorMessage = errorMessage,
                         statusMessage = statusMessage,
                         modeEcoute = modeEcoute,
+                        modeLecture = modeLecture,
                         aSuivant = upNext.isNotEmpty(),
                         aPrecedent = history.isNotEmpty() || currentPositionMs > 3_000L,
                         isFavori = favorisSongIds.contains(state.song.id),
@@ -141,6 +144,7 @@ data class LecteurScreen(
                         onTogglePlay = { viewModel.togglePlayPause() },
                         onSeek = { viewModel.seekTo(it) },
                         onChangerMode = { viewModel.changerMode(it) },
+                        onChangerModeLecture = { queueManager.setModeLecture(it) },
                         onSuivant = { viewModel.jouerSuivant() },
                         onPrecedent = { viewModel.jouerPrecedent() },
                         onToggleFavori = { favorisViewModel.toggleFavoriChansonId(state.song.id) }
@@ -174,6 +178,7 @@ private fun LecteurContenu(
     errorMessage: String?,
     statusMessage: String,
     modeEcoute: ModeEcoute,
+    modeLecture: ModeLecture,
     aSuivant: Boolean,
     aPrecedent: Boolean,
     isFavori: Boolean,
@@ -182,6 +187,7 @@ private fun LecteurContenu(
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
     onChangerMode: (ModeEcoute) -> Unit,
+    onChangerModeLecture: (ModeLecture) -> Unit,
     onSuivant: () -> Unit,
     onPrecedent: () -> Unit,
     onToggleFavori: () -> Unit
@@ -225,6 +231,18 @@ private fun LecteurContenu(
                     tint = KaloyTextSecondary
                 )
             }
+        }
+
+        // ---- Icône + cycle du mode de lecture ----
+        val iconeMode = when (modeLecture) {
+            ModeLecture.BOUCLE    -> Icons.Default.Repeat
+            ModeLecture.ALEATOIRE -> Icons.Default.Shuffle
+            ModeLecture.UNIQUE    -> Icons.Default.RepeatOne
+        }
+        val prochainMode = when (modeLecture) {
+            ModeLecture.BOUCLE    -> ModeLecture.ALEATOIRE
+            ModeLecture.ALEATOIRE -> ModeLecture.UNIQUE
+            ModeLecture.UNIQUE    -> ModeLecture.BOUCLE
         }
 
         // ---- Zone principale : SmartVideoPlayer (YouTube/MP4) ou Pochette + Contrôles ----
@@ -330,6 +348,19 @@ private fun LecteurContenu(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Bouton mode cyclique
+                IconButton(
+                    onClick = { onChangerModeLecture(prochainMode) },
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Icon(
+                        imageVector = iconeMode,
+                        contentDescription = null,
+                        tint = KaloyOrangeVif,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
                 IconButton(
                     onClick = onPrecedent,
                     enabled = aPrecedent,
