@@ -18,7 +18,7 @@ class RadioRepositoryImpl(
 
     private val api = KaloyApi()
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
-    private val CLE_HISTORIQUE = "radio_historique"
+    private fun cleHistorique(): String = "radio_historique_${sessionManager.getUserId()}"
 
     override suspend fun rechercherGenres(query: String): List<Genre> {
         if (query.isBlank()) return emptyList()
@@ -59,7 +59,7 @@ class RadioRepositoryImpl(
     }
 
     override fun getHistorique(): List<RadioHistoriqueEntree> {
-        val brut = settings.getStringOrNull(CLE_HISTORIQUE) ?: return emptyList()
+        val brut = settings.getStringOrNull(cleHistorique()) ?: return emptyList()
         return try {
             json.decodeFromString<List<RadioHistoriqueEntree>>(brut)
         } catch (_: Exception) {
@@ -71,6 +71,6 @@ class RadioRepositoryImpl(
         val liste = getHistorique().toMutableList()
         liste.removeAll { it.sourceId == entree.sourceId && it.type == entree.type }
         liste.add(0, entree)
-        settings.putString(CLE_HISTORIQUE, json.encodeToString(liste.take(10)))
+        settings.putString(cleHistorique(), json.encodeToString(liste.take(10)))
     }
 }
