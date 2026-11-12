@@ -1,7 +1,10 @@
 package com.kaloy.app.presentation.lecteur
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,15 +30,22 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
+import com.kaloy.app.core.offline.OfflineDownloadCoordinator
+import com.kaloy.app.presentation.common.InAppPdfViewer
 import com.kaloy.app.core.queue.ModeLecture
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.data.dto.playlist.AddSongsRequest
+import com.kaloy.app.data.dto.playlist.PlaylistUiItem
+import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.model.SongPlayerResponse
+import com.kaloy.app.data.repository.PlaylistRepository
 import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
 import com.kaloy.app.presentation.common.rememberBrowserLauncher
 import com.kaloy.app.presentation.favoris.BoutonFavori
 import com.kaloy.app.presentation.favoris.FavorisViewModel
 import com.kaloy.app.presentation.queue.UpNextSheet
 import com.kaloy.app.ui.theme.*
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 data class LecteurScreen(
@@ -169,6 +179,7 @@ data class LecteurScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LecteurContenu(
     song: SongPlayerResponse,
@@ -192,296 +203,748 @@ private fun LecteurContenu(
     onPrecedent: () -> Unit,
     onToggleFavori: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // ---- Barre du haut ----
-        Row(
+    val queueManager = koinInject<QueueManager>()
+    val playlistRepository = koinInject<PlaylistRepository>()
+    val downloadCoordinator = koinInject<OfflineDownloadCoordinator>()
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var afficherMenuOptions by remember { mutableStateOf(false) }
+    var afficherChoisirPlaylist by remember { mutableStateOf(false) }
+    var afficherTelecharger by remember { mutableStateOf(false) }
+
+    val iconeMode = when (modeLecture) {
+        ModeLecture.BOUCLE    -> Icons.Default.Repeat
+        ModeLecture.ALEATOIRE -> Icons.Default.Shuffle
+        ModeLecture.UNIQUE    -> Icons.Default.RepeatOne
+    }
+    val prochainMode = when (modeLecture) {
+        ModeLecture.BOUCLE    -> ModeLecture.ALEATOIRE
+        ModeLecture.ALEATOIRE -> ModeLecture.UNIQUE
+        ModeLecture.UNIQUE    -> ModeLecture.BOUCLE
+    }
+
+    val videoUrl = when (modeEcoute) {
+        ModeEcoute.VIDEO   -> song.videoStreamUrl?.takeIf { it.isNotBlank() }
+        ModeEcoute.KARAOKE -> song.karaokeStreamUrl?.takeIf { it.isNotBlank() }
+        else               -> null
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            IconButton(onClick = onRetour) {
-                Icon(
-                    Icons.Default.KeyboardArrowDown,
-                    contentDescription = "Retour",
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-            Text(
-                text = "Lecteur",
-                modifier = Modifier.weight(1f),
-                color = KaloyTextSecondary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
-            )
-            IconButton(onClick = onAfficherFile) {
-                Icon(
-                    Icons.Default.QueueMusic,
-                    contentDescription = "Ouvrir la file Up Next",
-                    tint = KaloyTextSecondary
-                )
-            }
-        }
-
-        // ---- Icône + cycle du mode de lecture ----
-        val iconeMode = when (modeLecture) {
-            ModeLecture.BOUCLE    -> Icons.Default.Repeat
-            ModeLecture.ALEATOIRE -> Icons.Default.Shuffle
-            ModeLecture.UNIQUE    -> Icons.Default.RepeatOne
-        }
-        val prochainMode = when (modeLecture) {
-            ModeLecture.BOUCLE    -> ModeLecture.ALEATOIRE
-            ModeLecture.ALEATOIRE -> ModeLecture.UNIQUE
-            ModeLecture.UNIQUE    -> ModeLecture.BOUCLE
-        }
-
-        // ---- Zone principale : SmartVideoPlayer (YouTube/MP4) ou Pochette + Contrôles ----
-        val videoUrl = when (modeEcoute) {
-            ModeEcoute.VIDEO   -> song.videoStreamUrl?.takeIf { it.isNotBlank() }
-            ModeEcoute.KARAOKE -> song.karaokeStreamUrl?.takeIf { it.isNotBlank() }
-            else               -> null
-        }
-
-        if (videoUrl != null) {
-            SmartVideoPlayerComposable(
-                url = videoUrl,
+            // ---- Barre du haut ----
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(12.dp))
-            )
-            Spacer(Modifier.height(16.dp))
-            TitreArtiste(
-                song = song,
-                isFavori = isFavori,
-                onToggleFavori = onToggleFavori
-            )
-        } else {
-            // ---- Pochette de l'album ----
-            Box(
-                modifier = Modifier
-                    .size(260.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        Brush.linearGradient(listOf(KaloyPurple, KaloyPink))
-                    )
-            ) {
-                if (song.albumCoverUrl != null) {
-                    AsyncImage(
-                        model = song.albumCoverUrl,
-                        contentDescription = "Pochette ${song.albumTitle}",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Text(
-                        text = "♪",
-                        color = Color.White,
-                        fontSize = 80.sp,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(28.dp))
-
-            TitreArtiste(
-                song = song,
-                isFavori = isFavori,
-                onToggleFavori = onToggleFavori
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            // ---- Barre de progression ----
-            val progress = if (durationMs > 0) currentPositionMs.toFloat() / durationMs.toFloat() else 0f
-            Slider(
-                value = progress,
-                onValueChange = { onSeek((it * durationMs).toLong()) },
-                onValueChangeFinished = { },
-                modifier = Modifier.fillMaxWidth(),
-                colors = SliderDefaults.colors(
-                    thumbColor = KaloyPurple,
-                    activeTrackColor = KaloyPurple,
-                    inactiveTrackColor = KaloyDarkElevated
-                )
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = formatDuree(currentPositionMs), color = KaloyTextMuted, fontSize = 12.sp)
-                Text(text = formatDuree(durationMs), color = KaloyTextMuted, fontSize = 12.sp)
-            }
-
-            if (errorMessage != null) {
-                Text(
-                    text = "Lecture impossible: $errorMessage",
-                    color = KaloyRed,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                )
-            }
-
-            Text(
-                text = statusMessage,
-                color = KaloyTextMuted,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            // ---- Contrôles de lecture ----
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                    .padding(top = 8.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Bouton mode cyclique
-                IconButton(
-                    onClick = { onChangerModeLecture(prochainMode) },
-                    modifier = Modifier.size(44.dp)
-                ) {
+                IconButton(onClick = onRetour) {
                     Icon(
-                        imageVector = iconeMode,
-                        contentDescription = null,
-                        tint = KaloyOrangeVif,
-                        modifier = Modifier.size(24.dp)
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Retour",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
-
-                IconButton(
-                    onClick = onPrecedent,
-                    enabled = aPrecedent,
-                    modifier = Modifier.size(52.dp)
-                ) {
+                Text(
+                    text = "Lecteur",
+                    modifier = Modifier.weight(1f),
+                    color = KaloyTextSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+                IconButton(onClick = onAfficherFile) {
                     Icon(
-                        Icons.Default.SkipPrevious,
-                        contentDescription = "Précédent",
-                        tint = KaloyTextSecondary.copy(alpha = if (aPrecedent) 1f else 0.4f),
-                        modifier = Modifier.size(36.dp)
+                        Icons.Default.QueueMusic,
+                        contentDescription = "Ouvrir la file Up Next",
+                        tint = KaloyTextSecondary
                     )
                 }
+            }
 
+            // ---- Zone principale : SmartVideoPlayer ou Pochette ----
+            if (videoUrl != null) {
+                SmartVideoPlayerComposable(
+                    url = videoUrl,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(12.dp))
+                )
+                Spacer(Modifier.height(16.dp))
+            } else {
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(KaloyPurple),
-                    contentAlignment = Alignment.Center
+                        .size(260.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.linearGradient(listOf(KaloyPurple, KaloyPink))
+                        )
                 ) {
-                    IconButton(onClick = onTogglePlay, modifier = Modifier.fillMaxSize()) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pause" else "Lecture",
-                            tint = Color.White,
-                            modifier = Modifier.size(40.dp)
+                    if (song.albumCoverUrl != null) {
+                        AsyncImage(
+                            model = song.albumCoverUrl,
+                            contentDescription = "Pochette ${song.albumTitle}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            text = "♪",
+                            color = Color.White,
+                            fontSize = 80.sp,
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     }
                 }
+                Spacer(Modifier.height(28.dp))
+            }
 
-                IconButton(
-                    onClick = onSuivant,
-                    enabled = aSuivant,
-                    modifier = Modifier.size(52.dp)
+            // ---- Titre / Artiste / Album + Année ----
+            TitreArtiste(
+                song = song,
+                isFavori = isFavori,
+                onToggleFavori = onToggleFavori
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            // ---- Barre de progression + Contrôles (mode audio/playback uniquement) ----
+            if (videoUrl == null) {
+                val progress = if (durationMs > 0) currentPositionMs.toFloat() / durationMs.toFloat() else 0f
+                Slider(
+                    value = progress,
+                    onValueChange = { onSeek((it * durationMs).toLong()) },
+                    onValueChangeFinished = { },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = KaloyPurple,
+                        activeTrackColor = KaloyPurple,
+                        inactiveTrackColor = KaloyDarkElevated
+                    )
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        Icons.Default.SkipNext,
-                        contentDescription = "Suivant",
-                        tint = KaloyTextSecondary.copy(alpha = if (aSuivant) 1f else 0.4f),
-                        modifier = Modifier.size(36.dp)
+                    Text(text = formatDuree(currentPositionMs), color = KaloyTextMuted, fontSize = 12.sp)
+                    Text(text = formatDuree(durationMs), color = KaloyTextMuted, fontSize = 12.sp)
+                }
+
+                if (errorMessage != null) {
+                    Text(
+                        text = "Lecture impossible: $errorMessage",
+                        color = KaloyRed,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    )
+                }
+
+                Text(
+                    text = statusMessage,
+                    color = KaloyTextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+
+                Spacer(Modifier.height(20.dp))
+
+                // ---- Contrôles de lecture ----
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { onChangerModeLecture(prochainMode) },
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = iconeMode,
+                            contentDescription = null,
+                            tint = KaloyOrangeVif,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onPrecedent,
+                        enabled = aPrecedent,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.SkipPrevious,
+                            contentDescription = "Précédent",
+                            tint = KaloyTextSecondary.copy(alpha = if (aPrecedent) 1f else 0.4f),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(KaloyPurple),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        IconButton(onClick = onTogglePlay, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Lecture",
+                                tint = Color.White,
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onSuivant,
+                        enabled = aSuivant,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.SkipNext,
+                            contentDescription = "Suivant",
+                            tint = KaloyTextSecondary.copy(alpha = if (aSuivant) 1f else 0.4f),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    // ---- Menu ⋮ ----
+                    IconButton(
+                        onClick = { afficherMenuOptions = true },
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "Plus d'options",
+                            tint = KaloyTextSecondary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ---- Sélecteur de mode ----
+            val modesDisponibles = buildList {
+                add(ModeEcoute.AUDIO to "Audio")
+                if (!song.videoStreamUrl.isNullOrBlank()) add(ModeEcoute.VIDEO to "Vidéo")
+                if (!song.karaokeStreamUrl.isNullOrBlank()) add(ModeEcoute.KARAOKE to "Karaoké")
+                if (!song.playbackStreamUrl.isNullOrBlank()) add(ModeEcoute.PLAYBACK to "Playback")
+            }
+
+            if (modesDisponibles.size > 1) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(KaloyDarkSurface),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    modesDisponibles.forEach { (mode, label) ->
+                        val selectionne = modeEcoute == mode
+                        TextButton(
+                            onClick = { onChangerMode(mode) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .then(
+                                    if (selectionne) Modifier
+                                        .padding(4.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(KaloyPurple.copy(alpha = 0.2f))
+                                    else Modifier.padding(4.dp)
+                                )
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (selectionne) KaloyPurple else KaloyTextMuted,
+                                fontSize = 12.sp,
+                                fontWeight = if (selectionne) FontWeight.SemiBold else FontWeight.Normal,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ---- Paroles / Solfa ----
+            SectionTexteLecteur(song)
+            Spacer(Modifier.height(16.dp))
+
+            // ---- Crédits ----
+            if (!song.authorComposer.isNullOrBlank() || !song.musicalArranger.isNullOrBlank()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(KaloyDarkSurface)
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Crédits",
+                        color = KaloyTextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    if (!song.authorComposer.isNullOrBlank()) {
+                        InfoLigne("Auteur/Compositeur", song.authorComposer)
+                    }
+                    if (!song.musicalArranger.isNullOrBlank()) {
+                        InfoLigne("Arrangeur", song.musicalArranger)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ---- Commentaires (UI statique) ----
+            SectionCommentaires()
+            Spacer(Modifier.height(8.dp))
+
+            // ---- Barre d'interactions (UI-only) ----
+            BarreInteractions()
+
+            Spacer(Modifier.height(32.dp))
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp)
+        )
+    }
+
+    // ---- Bottom sheets ----
+    if (afficherMenuOptions) {
+        MoreOptionsSheet(
+            song = song,
+            onDismiss = { afficherMenuOptions = false },
+            onAddToQueue = {
+                afficherMenuOptions = false
+                queueManager.addToQueue(
+                    Song(
+                        id = song.id,
+                        title = song.title,
+                        durationSeconds = song.durationSeconds
+                    )
+                )
+                scope.launch { snackbarHostState.showSnackbar("Ajouté à la file d'attente") }
+            },
+            onAjouterAPlaylist = {
+                afficherMenuOptions = false
+                afficherChoisirPlaylist = true
+            },
+            onTelecharger = {
+                afficherMenuOptions = false
+                afficherTelecharger = true
+            }
+        )
+    }
+
+    if (afficherChoisirPlaylist) {
+        ChoisirPlaylistSheet(
+            songId = song.id,
+            pourTelecharger = false,
+            playlistRepository = playlistRepository,
+            downloadCoordinator = downloadCoordinator,
+            onDismiss = { afficherChoisirPlaylist = false },
+            onSuccess = { message ->
+                afficherChoisirPlaylist = false
+                scope.launch { snackbarHostState.showSnackbar(message) }
+            }
+        )
+    }
+
+    if (afficherTelecharger) {
+        ChoisirPlaylistSheet(
+            songId = song.id,
+            pourTelecharger = true,
+            playlistRepository = playlistRepository,
+            downloadCoordinator = downloadCoordinator,
+            onDismiss = { afficherTelecharger = false },
+            onSuccess = { message ->
+                afficherTelecharger = false
+                scope.launch { snackbarHostState.showSnackbar(message) }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoreOptionsSheet(
+    song: SongPlayerResponse,
+    onDismiss: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onAjouterAPlaylist: () -> Unit,
+    onTelecharger: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = KaloyDarkCard,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = KaloyTextMuted) }
+    ) {
+        Column(modifier = Modifier.padding(bottom = 32.dp)) {
+            OptionLigne(
+                icone = Icons.Default.Add,
+                label = "Ajouter à la file d'attente",
+                tint = KaloyCyan,
+                onClick = onAddToQueue
+            )
+            OptionLigne(
+                icone = Icons.Default.PlaylistAdd,
+                label = "Ajouter à une playlist",
+                tint = KaloyPurple,
+                onClick = onAjouterAPlaylist
+            )
+            if (song.isDownloadable) {
+                OptionLigne(
+                    icone = Icons.Default.CloudDownload,
+                    label = "Télécharger",
+                    tint = KaloyGreen,
+                    onClick = onTelecharger
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionLigne(
+    icone: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icone,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            text = label,
+            color = KaloyTextPrimary,
+            fontSize = 15.sp
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChoisirPlaylistSheet(
+    songId: Long,
+    pourTelecharger: Boolean,
+    playlistRepository: PlaylistRepository,
+    downloadCoordinator: OfflineDownloadCoordinator,
+    onDismiss: () -> Unit,
+    onSuccess: (String) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    var playlists by remember { mutableStateOf<List<PlaylistUiItem>>(emptyList()) }
+    var chargement by remember { mutableStateOf(true) }
+    var erreur by remember { mutableStateOf<String?>(null) }
+    var enCours by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        try {
+            playlists = playlistRepository.getMesPlaylists()
+        } catch (e: Exception) {
+            erreur = e.message ?: "Impossible de charger les playlists"
+        } finally {
+            chargement = false
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = KaloyDarkCard,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = KaloyTextMuted) }
+    ) {
+        Column(modifier = Modifier.padding(bottom = 32.dp)) {
+            Text(
+                text = if (pourTelecharger) "Télécharger vers..." else "Ajouter à une playlist",
+                color = KaloyTextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+            HorizontalDivider(color = KaloyDarkElevated)
+
+            when {
+                chargement -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = KaloyPurple)
+                    }
+                }
+                erreur != null -> {
+                    Text(
+                        text = erreur!!,
+                        color = KaloyRed,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+                playlists.isEmpty() -> {
+                    Text(
+                        text = "Aucune playlist disponible.\nCréez-en une depuis l'onglet Playlist.",
+                        color = KaloyTextMuted,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp)
+                    )
+                }
+                else -> {
+                    LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                        items(playlists) { playlist ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !enCours) {
+                                        scope.launch {
+                                            enCours = true
+                                            try {
+                                                playlistRepository.addSongsToPlaylist(
+                                                    playlist.id,
+                                                    AddSongsRequest(listOf(songId))
+                                                )
+                                                if (pourTelecharger) {
+                                                    downloadCoordinator.download(playlist.id)
+                                                    onSuccess("Téléchargement vers « ${playlist.name} » démarré")
+                                                } else {
+                                                    onSuccess("Ajouté à « ${playlist.name} »")
+                                                }
+                                            } catch (e: Exception) {
+                                                erreur = e.message ?: "Une erreur est survenue"
+                                            } finally {
+                                                enCours = false
+                                            }
+                                        }
+                                    }
+                                    .padding(horizontal = 24.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.QueueMusic,
+                                    contentDescription = null,
+                                    tint = KaloyPurple,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(Modifier.width(14.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = playlist.name,
+                                        color = KaloyTextPrimary,
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${playlist.nombreTitres} titre${if (playlist.nombreTitres > 1) "s" else ""}",
+                                        color = KaloyTextMuted,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                if (enCours) {
+                                    CircularProgressIndicator(
+                                        color = KaloyPurple,
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                }
+                            }
+                            HorizontalDivider(
+                                color = KaloyDarkElevated.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionCommentaires() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(KaloyDarkSurface)
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Comment,
+                    contentDescription = null,
+                    tint = KaloyTextSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "Commentaires (12)",
+                    color = KaloyTextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+            }
+            TextButton(
+                onClick = {},
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text("Voir tout", color = KaloyPurple, fontSize = 12.sp)
+                Spacer(Modifier.width(2.dp))
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = null,
+                    tint = KaloyPurple,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+
+        HorizontalDivider(
+            color = KaloyDarkElevated,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+
+        // Commentaire exemple
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(KaloyDarkElevated)
+                .padding(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    tint = KaloyTextMuted,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = "Jean K.",
+                        color = KaloyTextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "il y a 2h",
+                        color = KaloyTextMuted,
+                        fontSize = 11.sp
                     )
                 }
             }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // ---- Sélecteur de mode ----
-        val modesDisponibles = buildList {
-            add(ModeEcoute.AUDIO to "Audio")
-            if (!song.videoStreamUrl.isNullOrBlank()) add(ModeEcoute.VIDEO to "Vidéo")
-            if (!song.karaokeStreamUrl.isNullOrBlank()) add(ModeEcoute.KARAOKE to "Karaoké")
-            if (!song.playbackStreamUrl.isNullOrBlank()) add(ModeEcoute.PLAYBACK to "Playback")
-        }
-
-        if (modesDisponibles.size > 1) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(KaloyDarkSurface),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                modesDisponibles.forEach { (mode, label) ->
-                    val selectionne = modeEcoute == mode
-                    TextButton(
-                        onClick = { onChangerMode(mode) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .then(
-                                if (selectionne) Modifier
-                                    .padding(4.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(KaloyPurple.copy(alpha = 0.2f))
-                                else Modifier.padding(4.dp)
-                            )
-                    ) {
-                        Text(
-                            text = label,
-                            color = if (selectionne) KaloyPurple else KaloyTextMuted,
-                            fontSize = 12.sp,
-                            fontWeight = if (selectionne) FontWeight.SemiBold else FontWeight.Normal,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-
-        // ---- Paroles ou solfa ----
-        SectionTexteLecteur(song)
-        Spacer(Modifier.height(16.dp))
-
-        // ---- Crédits ----
-        if (!song.authorComposer.isNullOrBlank() || !song.musicalArranger.isNullOrBlank()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(KaloyDarkSurface)
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "Crédits",
-                    color = KaloyTextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 8.dp)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Magnifique chanson ! 🙏",
+                color = KaloyTextSecondary,
+                fontSize = 13.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.FavoriteBorder,
+                    contentDescription = null,
+                    tint = KaloyRed,
+                    modifier = Modifier.size(16.dp)
                 )
-                if (!song.authorComposer.isNullOrBlank()) {
-                    InfoLigne("Auteur/Compositeur", song.authorComposer)
-                }
-                if (!song.musicalArranger.isNullOrBlank()) {
-                    InfoLigne("Arrangeur", song.musicalArranger)
+                Spacer(Modifier.width(4.dp))
+                Text(text = "5", color = KaloyTextMuted, fontSize = 12.sp)
+                Spacer(Modifier.width(16.dp))
+                TextButton(
+                    onClick = {},
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text("Répondre", color = KaloyTextMuted, fontSize = 12.sp)
                 }
             }
         }
-
-        Spacer(Modifier.height(32.dp))
     }
+}
+
+@Composable
+private fun BarreInteractions() {
+    HorizontalDivider(color = KaloyDarkElevated)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(onClick = {}) {
+            Icon(
+                Icons.Default.FavoriteBorder,
+                contentDescription = null,
+                tint = KaloyTextSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("Like", color = KaloyTextSecondary, fontSize = 13.sp)
+        }
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(28.dp)
+                .background(KaloyDarkElevated)
+        )
+        TextButton(onClick = {}) {
+            Icon(
+                Icons.Default.Comment,
+                contentDescription = null,
+                tint = KaloyTextSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("Commenter", color = KaloyTextSecondary, fontSize = 13.sp)
+        }
+    }
+    HorizontalDivider(color = KaloyDarkElevated)
 }
 
 @Composable
@@ -522,9 +985,18 @@ private fun TitreArtiste(
                     )
                 }
             }
-            if (song.albumTitle != null) {
+            // Ligne : Album • Année
+            val year = (song.albumReleaseDate ?: song.releaseDate)?.take(4)
+            val infoLine = buildString {
+                if (!song.albumTitle.isNullOrBlank()) append(song.albumTitle)
+                if (!year.isNullOrBlank()) {
+                    if (isNotEmpty()) append(" • ")
+                    append(year)
+                }
+            }
+            if (infoLine.isNotEmpty()) {
                 Text(
-                    text = song.albumTitle,
+                    text = infoLine,
                     color = KaloyTextMuted,
                     fontSize = 12.sp,
                     maxLines = 1,
@@ -556,28 +1028,8 @@ private fun InfoLigne(label: String, valeur: String) {
     }
 }
 
-/**
- * Le texte de la chanson sur le lecteur : les paroles, ou le solfa.
- *
- * Meme comportement que sur la fiche de chanson : les deux boutons restent
- * la, le texte s'affiche en permanence dessous, et un message prend la place
- * du contenu quand il manque. Sans cela la fonction resterait invisible, car
- * aucune des chansons du catalogue ne porte encore de solfa.
- *
- * Le rendu reste celui du lecteur -- police 14, interligne 22, texte clair
- * sur KaloyDarkSurface -- et non celui de la fiche. Les deux ecrans n'ont
- * jamais eu la meme mise en forme des paroles, et les aligner aurait change
- * l'aspect de l'ecran le plus vu de l'application.
- *
- * Remplace un bouton « Partition Solfa » conditionne a solfaUrl, qui ouvrait
- * un navigateur. Cette colonne est reservee a un envoi de fichier qui
- * n'existe pas encore, donc vide partout : le bouton ne s'affichait jamais.
- * Le solfa saisi au formulaire est du TEXTE, dans la colonne solfa.
- */
 @Composable
 private fun SectionTexteLecteur(song: SongPlayerResponse) {
-    // Remis sur « Paroles » quand la file passe a une autre chanson : le
-    // lecteur garde le meme composant d'un morceau au suivant.
     var choix by remember(song.id) { mutableStateOf("Paroles") }
 
     Column(
@@ -593,11 +1045,6 @@ private fun SectionTexteLecteur(song: SongPlayerResponse) {
                 TextButton(
                     onClick = { choix = nom },
                     colors = ButtonDefaults.textButtonColors(
-                        // L'orange VIF remplit la pastille, l'orange CLAIR
-                        // ecrit dessus. Mesure : le voile d'orange a 20 pour
-                        // cent eclaircit la surface vers l'orange, et un
-                        // libelle en orange vif n'y tient que 3,76 -- sous le
-                        // seuil de 4,5. L'orange clair monte a 5,71.
                         containerColor = if (actif) KaloyOrange.copy(alpha = 0.2f) else Color.Transparent,
                         contentColor = if (actif) KaloyPink else KaloyTextMuted
                     ),
@@ -613,26 +1060,41 @@ private fun SectionTexteLecteur(song: SongPlayerResponse) {
             }
         }
 
-        val contenu = if (choix == "Paroles") song.lyrics else song.solfa
-        if (!contenu.isNullOrBlank()) {
-            Text(
-                text = cleanLyrics(contenu),
-                color = KaloyTextPrimary,
-                fontSize = 14.sp,
-                lineHeight = 22.sp
-            )
-        } else {
-            Text(
-                text = if (choix == "Paroles")
+        when {
+            choix == "Solfa" && !song.solfaUrl.isNullOrBlank() -> {
+                InAppPdfViewer(
+                    url = song.solfaUrl!!,
+                    modifier = Modifier.fillMaxWidth().height(500.dp)
+                )
+            }
+            else -> {
+                val texte = when {
+                    choix == "Paroles" && !song.lyrics.isNullOrBlank() -> cleanLyrics(song.lyrics)
+                    choix == "Solfa" && !song.solfa.isNullOrBlank() -> cleanLyrics(song.solfa)
+                    else -> null
+                }
+                val absent = if (choix == "Paroles")
                     "Les paroles ne sont pas disponibles pour cette chanson."
                 else
-                    "Le solfa n'est pas disponible pour cette chanson.",
-                color = KaloyTextMuted,
-                fontSize = 13.sp,
-                fontStyle = FontStyle.Italic,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+                    "Le solfa n'est pas disponible pour cette chanson."
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 280.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = texte ?: absent,
+                        color = if (texte != null) KaloyTextPrimary else KaloyTextMuted,
+                        fontSize = 14.sp,
+                        lineHeight = 22.sp,
+                        fontStyle = if (texte != null) FontStyle.Normal else FontStyle.Italic,
+                        textAlign = if (texte != null) TextAlign.Start else TextAlign.Center,
+                        modifier = if (texte != null) Modifier else Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
     }
 }

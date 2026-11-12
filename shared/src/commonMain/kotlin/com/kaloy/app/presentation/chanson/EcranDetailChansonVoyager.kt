@@ -1,5 +1,6 @@
 package com.kaloy.app.presentation.chanson
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -13,14 +14,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontStyle
+import com.kaloy.app.presentation.common.InAppPdfViewer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -173,7 +173,8 @@ private fun FicheChansonContent(
             choix = texteAffiche,
             onChoisir = { texteAffiche = it },
             paroles = chanson.lyrics,
-            solfa = chanson.solfa
+            solfa = chanson.solfa,
+            solfaUrl = chanson.solfaUrl
         )
 
         Spacer(Modifier.height(16.dp))
@@ -479,31 +480,16 @@ private fun TabContent(
     }
 }
 
-/**
- * Le texte de la chanson : les paroles, ou le solfa.
- *
- * Une rangee a part et non deux onglets de plus en haut. Les medias se
- * LANCENT, le texte se LIT : melanger les deux obligeait a choisir entre
- * ecouter et lire, puisque selectionner « Audio » faisait disparaitre les
- * paroles. Ici le texte reste affiche en permanence, et le bouton ne decide
- * que de ce qu'on y lit.
- *
- * Le rendu des paroles n'a pas bouge d'un caractere : meme style, meme
- * couleur, meme interligne de 26 qu'avant.
- *
- * Le bouton Solfa est montre meme quand la chanson n'en a pas, contrairement
- * aux medias qui n'apparaissent que s'ils existent. Il affiche alors un
- * message, comme le fait deja la carte des paroles absentes : la fonction se
- * voit, au lieu de rester invisible sur les 35 chansons du catalogue dont
- * aucune ne porte encore de solfa.
- */
 @Composable
 private fun SectionTexte(
     choix: String,
     onChoisir: (String) -> Unit,
     paroles: String?,
-    solfa: String?
+    solfa: String?,
+    solfaUrl: String? = null
 ) {
+    val solfaPdf = !solfaUrl.isNullOrBlank()
+
     Spacer(Modifier.height(4.dp))
 
     Row(modifier = Modifier.padding(horizontal = 12.dp)) {
@@ -529,72 +515,41 @@ private fun SectionTexte(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .animateContentSize(),
         color = KaloyDarkCard,
         shape = RoundedCornerShape(16.dp)
     ) {
-        // Les DEUX textes sont poses l'un sur l'autre, le masque a opacite
-        // nulle. La boite prend donc la hauteur du PLUS GRAND des deux, et
-        // cette hauteur ne change plus quand on bascule.
-        //
-        // Avant, seul le texte choisi etait compose : passer de vingt lignes
-        // de paroles a trois de solfa raccourcissait la page, la position de
-        // defilement n'existait plus, elle etait ramenee au nouveau maximum,
-        // et l'ecran sautait. Aucune manipulation du defilement ne pouvait y
-        // remedier : on ne reste pas a une position qui n'existe plus.
-        //
-        // La contrepartie est assumee : sur une chanson aux paroles longues,
-        // l'onglet Solfa laisse du vide sous son texte. C'est le prix d'une
-        // page qui ne bouge pas.
-        Box(modifier = Modifier.padding(20.dp)) {
-            TexteDeChanson(
-                contenu = paroles,
-                absent = "Les paroles ne sont pas disponibles pour cette chanson.",
-                visible = choix == "Paroles"
+        if (choix == "Solfa" && solfaPdf) {
+            InAppPdfViewer(
+                url = solfaUrl!!,
+                modifier = Modifier.fillMaxWidth().height(500.dp)
             )
-            TexteDeChanson(
-                contenu = solfa,
-                absent = "Le solfa n'est pas disponible pour cette chanson.",
-                visible = choix == "Solfa"
-            )
+        } else {
+            val texte = if (choix == "Paroles") paroles else solfa
+            val absent = if (choix == "Paroles")
+                "Les paroles ne sont pas disponibles pour cette chanson."
+            else
+                "Le solfa n'est pas disponible pour cette chanson."
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 280.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
+                Text(
+                    text = texte ?: absent,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (texte != null) KaloyTextSecondary else KaloyTextMuted,
+                    fontStyle = if (texte != null) FontStyle.Normal else FontStyle.Italic,
+                    textAlign = if (texte != null) TextAlign.Start else TextAlign.Center,
+                    lineHeight = 26.sp,
+                    modifier = if (texte != null) Modifier else Modifier.fillMaxWidth()
+                )
+            }
         }
-    }
-}
-
-/**
- * Un des deux textes de la carte, visible ou masque.
- *
- * Le texte masque reste MESURE et MIS EN PAGE : c'est lui qui donne sa
- * hauteur a la boite lorsqu'il est le plus long, et c'est precisement ce qui
- * empeche la page de bouger. Une condition `if` l'aurait retire de la mise en
- * page, et le saut serait revenu.
- *
- * clearAndSetSemantics sur le masque : sans cela un lecteur d'ecran lirait
- * les deux textes a la suite, le visible et l'invisible.
- */
-@Composable
-private fun TexteDeChanson(contenu: String?, absent: String, visible: Boolean) {
-    val apparence = Modifier
-        .alpha(if (visible) 1f else 0f)
-        .then(if (visible) Modifier else Modifier.clearAndSetSemantics {})
-
-    if (!contenu.isNullOrBlank()) {
-        Text(
-            text = contenu,
-            style = MaterialTheme.typography.bodyMedium,
-            color = KaloyTextSecondary,
-            lineHeight = 26.sp,
-            modifier = apparence
-        )
-    } else {
-        Text(
-            text = absent,
-            style = MaterialTheme.typography.bodyMedium,
-            color = KaloyTextMuted,
-            fontStyle = FontStyle.Italic,
-            textAlign = TextAlign.Center,
-            modifier = apparence.fillMaxWidth()
-        )
     }
 }
 
