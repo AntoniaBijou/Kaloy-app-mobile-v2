@@ -18,8 +18,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontStyle
+import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
 import com.kaloy.app.presentation.common.InAppPdfViewer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -104,8 +104,6 @@ private fun FicheChansonContent(
 ) {
     val navigator = LocalNavigator.currentOrThrow
     val queueManager = koinInject<QueueManager>()
-    val uriHandler = LocalUriHandler.current
-
     var isLiked by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf("Audio") }
 
@@ -165,8 +163,7 @@ private fun FicheChansonContent(
         TabContent(
             tab = selectedTab,
             chanson = chanson,
-            onPlay = { mode -> navigator.push(LecteurScreen(idChanson, mode)) },
-            onOpenUri = { uri -> uriHandler.openUri(uri) }
+            onPlay = { mode -> navigator.push(LecteurScreen(idChanson, mode)) }
         )
 
         SectionTexte(
@@ -388,9 +385,22 @@ private fun ActionButton(label: String, onClick: () -> Unit, icon: @Composable (
 private fun TabContent(
     tab: String,
     chanson: SongPlayerResponse,
-    onPlay: (ModeEcoute) -> Unit,
-    onOpenUri: (String) -> Unit
+    onPlay: (ModeEcoute) -> Unit
 ) {
+    if (tab == "Vidéo") {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            SmartVideoPlayerComposable(
+                url = chanson.videoStreamUrl!!,
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+            )
+        }
+        return
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -422,23 +432,6 @@ private fun TabContent(
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Lire en audio")
-                }
-            }
-
-            "Vidéo" -> Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(Icons.Default.Videocam, contentDescription = null, tint = KaloyCyan, modifier = Modifier.size(40.dp))
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = { chanson.videoStreamUrl?.let { onOpenUri(it) } },
-                    colors = ButtonDefaults.buttonColors(containerColor = KaloyCyan),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Ouvrir le clip", color = Color.Black)
                 }
             }
 
@@ -475,7 +468,6 @@ private fun TabContent(
                     Text("Mode Playback", color = Color.Black)
                 }
             }
-
         }
     }
 }
