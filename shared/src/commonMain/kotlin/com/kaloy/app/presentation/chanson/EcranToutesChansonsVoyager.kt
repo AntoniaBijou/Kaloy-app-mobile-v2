@@ -38,14 +38,9 @@ import com.kaloy.app.core.queue.QueueManager
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Song
-import com.kaloy.app.presentation.common.BarreNavigationPrincipale
-import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
 import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
-import com.kaloy.app.presentation.moi.MoiScreen
-import com.kaloy.app.presentation.playlist.PlaylistScreen
-import com.kaloy.app.presentation.radio.RadioScreen
 import com.kaloy.app.ui.components.EmptyState
 import com.kaloy.app.ui.components.ErrorState
 import com.kaloy.app.ui.components.LoadingIndicator
@@ -159,30 +154,7 @@ class EcranToutesChansonsVoyager : Screen {
                 .map { it.title }
         }
 
-        Scaffold(
-            containerColor = Color.Transparent,
-            bottomBar = {
-                BarreNavigationPrincipale(
-                    ongletActif = OngletPrincipal.ACCUEIL,
-                    onAccueil = { navigateur.pop() },
-                    onPlaylist = {
-                        protegerAction("gérer vos playlists") {
-                            navigateur.push(PlaylistScreen())
-                        }
-                    },
-                    onRadio = {
-                        protegerAction("utiliser le mode radio") {
-                            navigateur.push(RadioScreen())
-                        }
-                    },
-                    onMoi = {
-                        protegerAction("accéder à votre espace personnel") {
-                            navigateur.push(MoiScreen())
-                        }
-                    }
-                )
-            }
-        ) { espaceInterieur ->
+        Scaffold(containerColor = Color.Transparent) { espaceInterieur ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()

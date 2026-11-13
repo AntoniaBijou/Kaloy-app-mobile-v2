@@ -17,10 +17,14 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
 import com.kaloy.app.presentation.auth.gate.AuthGateHost
 import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
+import com.kaloy.app.presentation.chanson.EcranToutesChansonsVoyager
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
+import com.kaloy.app.presentation.moi.MoiScreen
+import com.kaloy.app.presentation.playlist.PlaylistScreen
 import com.kaloy.app.presentation.queue.MiniPlayer
 import com.kaloy.app.presentation.queue.UpNextSheet
+import com.kaloy.app.presentation.radio.RadioScreen
 import org.koin.compose.koinInject
 
 /**
@@ -185,14 +189,24 @@ fun BarreDuBas(navigateur: Navigator) {
                 // On ne navigue plus : on demande une page, et le pager y
                 // glisse. L'ancien allerA empilait ou depilait des ecrans, ce
                 // qui n'a plus de sens quand les trois vivent ensemble.
-                onAccueil = { etatBarre.ongletDemande = OngletPrincipal.ACCUEIL },
+                onAccueil = {
+                    if (ecran is EcranToutesChansonsVoyager) {
+                        navigateur.pop()
+                    } else {
+                        etatBarre.ongletDemande = OngletPrincipal.ACCUEIL
+                    }
+                },
                 onPlaylist = {
                     executerOuDemanderAuthentification(
                         sessionManager,
                         authGateCoordinator,
                         "gérer vos playlists"
                     ) {
-                        etatBarre.ongletDemande = OngletPrincipal.PLAYLIST
+                        if (ecran is EcranToutesChansonsVoyager) {
+                            navigateur.push(PlaylistScreen())
+                        } else {
+                            etatBarre.ongletDemande = OngletPrincipal.PLAYLIST
+                        }
                     }
                 },
                 onRadio = {
@@ -201,7 +215,11 @@ fun BarreDuBas(navigateur: Navigator) {
                         authGateCoordinator,
                         "utiliser le mode radio"
                     ) {
-                        etatBarre.ongletDemande = OngletPrincipal.RADIO
+                        if (ecran is EcranToutesChansonsVoyager) {
+                            navigateur.push(RadioScreen())
+                        } else {
+                            etatBarre.ongletDemande = OngletPrincipal.RADIO
+                        }
                     }
                 },
                 onMoi = {
@@ -210,7 +228,11 @@ fun BarreDuBas(navigateur: Navigator) {
                         authGateCoordinator,
                         "accéder à votre espace personnel"
                     ) {
-                        etatBarre.ongletDemande = OngletPrincipal.MOI
+                        if (ecran is EcranToutesChansonsVoyager) {
+                            navigateur.push(MoiScreen())
+                        } else {
+                            etatBarre.ongletDemande = OngletPrincipal.MOI
+                        }
                     }
                 }
             )
@@ -271,7 +293,11 @@ fun BarreDuBas(navigateur: Navigator) {
  * lecteur, un formulaire -- il n'y a pas d'onglet actif.
  */
 private fun ongletDe(ecran: Screen, etatBarre: EtatBarreDuBas): OngletPrincipal? =
-    if (ecran is EcranPrincipal) etatBarre.onglet else null
+    when (ecran) {
+        is EcranPrincipal -> etatBarre.onglet
+        is EcranToutesChansonsVoyager -> OngletPrincipal.ACCUEIL
+        else -> null
+    }
 
 /**
  * Va vers un onglet sans faire grossir la pile.
