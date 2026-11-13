@@ -46,6 +46,9 @@ import com.kaloy.app.core.error.UserErrorMessages
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.dto.LoginRequest
 import com.kaloy.app.data.repository.AuthRepository
+import com.kaloy.app.presentation.auth.gate.AnnulerActionSiSortieDuFlux
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.EcranFluxAuthentification
 import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
 import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.presentation.common.EcranPrincipal
@@ -107,14 +110,16 @@ class LoginViewModel(
     fun dispose() = scope.cancel()
 }
 
-class LoginScreen : Screen, SansBarreDuBas {
+class LoginScreen : Screen, SansBarreDuBas, EcranFluxAuthentification {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<AuthRepository>()
         val sessionManager = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
         val viewModel = remember { LoginViewModel(repository, sessionManager) }
         val uiState by viewModel.uiState.collectAsState()
+        AnnulerActionSiSortieDuFlux(navigator, authGateCoordinator)
 
         var email by remember { mutableStateOf("") }
         var password by remember { mutableStateOf("") }
@@ -125,10 +130,21 @@ class LoginScreen : Screen, SansBarreDuBas {
         LaunchedEffect(uiState) {
             if (uiState is LoginUiState.Success) {
                 val username = (uiState as LoginUiState.Success).email.substringBefore("@")
-                // L'ecran hote des trois onglets, et non l'accueil seul :
-                // Accueil, Recherche et Moi sont desormais trois pages
-                // d'un meme ecran, que l'on fait glisser.
-                navigator.replace(EcranPrincipal(username = username))
+                val actionEnAttente = authGateCoordinator.actionAuthentifieeSansNavigation()
+                if (actionEnAttente != null) {
+                    navigator.popUntil { screen ->
+                        screen !is EcranFluxAuthentification
+                    }
+                    if (navigator.lastItem is EcranPrincipal) {
+                        navigator.replace(EcranPrincipal(username = username))
+                    }
+                    actionEnAttente()
+                } else {
+                    // L'ecran hote des trois onglets, et non l'accueil seul :
+                    // Accueil, Recherche et Moi sont desormais trois pages
+                    // d'un meme ecran, que l'on fait glisser.
+                    navigator.replace(EcranPrincipal(username = username))
+                }
             }
         }
 

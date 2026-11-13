@@ -25,10 +25,13 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Album
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.presentation.favoris.BoutonFavori
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.presentation.favoris.FavorisViewModel
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.ui.components.ErrorState
@@ -84,6 +87,8 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val fileAttente = koinInject<QueueManager>()
+        val gestionSession = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
         val favorisVm: FavorisViewModel = koinInject()
         val favorisAlbumIds by favorisVm.favorisAlbumIds.collectAsState()
         val modeleVue: DetailAlbumViewModel = viewModel(key = "album_$idAlbum") {
@@ -164,7 +169,15 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
                                     }
                                     BoutonFavori(
                                         isFavori = favorisAlbumIds.contains(idAlbum),
-                                        onToggle = { favorisVm.toggleFavoriAlbumId(idAlbum) }
+                                        onToggle = {
+                                            executerOuDemanderAuthentification(
+                                                gestionSession,
+                                                authGateCoordinator,
+                                                "ajouter cet album à vos favoris"
+                                            ) {
+                                                favorisVm.toggleFavoriAlbumId(idAlbum)
+                                            }
+                                        }
                                     )
                                 }
 
@@ -230,8 +243,14 @@ data class EcranDetailAlbumVoyager(val idAlbum: Long) : Screen {
                                 song = chanson,
                                 index = index,
                                 onClick = {
-                                    fileAttente.setContext(modeleVue.chansons, chanson)
-                                    navigateur.push(LecteurScreen(songId = chanson.id))
+                                    executerOuDemanderAuthentification(
+                                        gestionSession,
+                                        authGateCoordinator,
+                                        "écouter cette chanson"
+                                    ) {
+                                        fileAttente.setContext(modeleVue.chansons, chanson)
+                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                    }
                                 }
                             )
                             if (index < modeleVue.chansons.size - 1) {

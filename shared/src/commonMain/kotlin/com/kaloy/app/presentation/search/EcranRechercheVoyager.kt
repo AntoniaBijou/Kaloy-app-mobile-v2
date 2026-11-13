@@ -43,6 +43,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.api.AlbumSearch
 import com.kaloy.app.data.api.ArtistSearch
 import com.kaloy.app.data.api.GenreSearch
@@ -55,6 +56,8 @@ import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.repository.HistoriqueRechercheRepository
 import com.kaloy.app.presentation.album.EcranDetailAlbumVoyager
 import com.kaloy.app.presentation.artist.EcranDetailArtisteVoyager
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.presentation.common.EtatBarreDuBas
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.genre.EcranGenreVoyager
@@ -291,6 +294,8 @@ class EcranRechercheVoyager : Screen {
         val navigateur = LocalNavigator.currentOrThrow
         val historiqueRepo = koinInject<HistoriqueRechercheRepository>()
         val fileAttente = koinInject<QueueManager>()
+        val gestionSession = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
         val modeleVue: RechercheViewModel = viewModel { RechercheViewModel(historiqueRepo) }
         val gestionnaireFocus = LocalFocusManager.current
         val etatBarre = koinInject<EtatBarreDuBas>()
@@ -319,14 +324,26 @@ class EcranRechercheVoyager : Screen {
             navigateur.push(destination)
         }
 
+        fun ouvrirFonctionnaliteProtegee(action: String, destination: Screen) {
+            executerOuDemanderAuthentification(gestionSession, authGateCoordinator, action) {
+                navigateur.push(destination)
+            }
+        }
+
         Scaffold(
             bottomBar = {
                 BarreNavigationPrincipale(
                     ongletActif = OngletPrincipal.ACCUEIL,
                     onAccueil = { navigateur.pop() },
-                    onPlaylist = { navigateur.push(PlaylistScreen()) },
-                    onRadio = { navigateur.push(RadioScreen()) },
-                    onMoi = { navigateur.push(MoiScreen()) }
+                    onPlaylist = {
+                        ouvrirFonctionnaliteProtegee("gérer vos playlists", PlaylistScreen())
+                    },
+                    onRadio = {
+                        ouvrirFonctionnaliteProtegee("utiliser le mode radio", RadioScreen())
+                    },
+                    onMoi = {
+                        ouvrirFonctionnaliteProtegee("accéder à votre espace personnel", MoiScreen())
+                    }
                 )
             },
             containerColor = Color.Transparent

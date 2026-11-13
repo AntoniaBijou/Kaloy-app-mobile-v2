@@ -12,6 +12,9 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.data.repository.AuthRepository
+import com.kaloy.app.presentation.auth.gate.AnnulerActionSiSortieDuFlux
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.EcranFluxAuthentification
 import com.kaloy.app.presentation.auth.otp.OtpScreen
 import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.presentation.common.rememberSingleImagePicker
@@ -23,11 +26,12 @@ data class RegisterArtistDetailsScreen(
     val password: String,
     val otpChannel: String,
     val artistType: String
-) : Screen, SansBarreDuBas {
+) : Screen, SansBarreDuBas, EcranFluxAuthentification {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        AnnulerActionSiSortieDuFlux(navigator, koinInject<AuthGateCoordinator>())
         val repository = koinInject<AuthRepository>()
         val viewModel = remember { RegisterViewModel(repository) }
         val uiState by viewModel.uiState.collectAsState()

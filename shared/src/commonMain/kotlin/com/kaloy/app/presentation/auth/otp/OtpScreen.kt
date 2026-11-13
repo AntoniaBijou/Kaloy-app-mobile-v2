@@ -31,20 +31,25 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.presentation.auth.gate.AnnulerActionSiSortieDuFlux
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.EcranFluxAuthentification
 import org.koin.compose.koinInject
 
 data class OtpScreen(
     val userId: Long,
     val email: String
-) : Screen, SansBarreDuBas {
+) : Screen, SansBarreDuBas, EcranFluxAuthentification {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<com.kaloy.app.data.repository.AuthRepository>()
         val sessionManager = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
         val viewModel = remember { OtpViewModel(repository, userId) }
         val uiState by viewModel.uiState.collectAsState()
+        AnnulerActionSiSortieDuFlux(navigator, authGateCoordinator)
 
         var otpValue by remember { mutableStateOf("") }
         var verificationChannel by remember { mutableStateOf("EMAIL") }
@@ -81,9 +86,22 @@ data class OtpScreen(
             if (uiState is OtpUiState.Success) {
                 sessionManager.saveSession((uiState as OtpUiState.Success).response)
                 val username = (uiState as OtpUiState.Success).response.email.substringBefore("@")
-                navigator.replace(
-                    com.kaloy.app.presentation.common.EcranPrincipal(username = username)
-                )
+                val actionEnAttente = authGateCoordinator.actionAuthentifieeSansNavigation()
+                if (actionEnAttente != null) {
+                    navigator.popUntil { screen ->
+                        screen !is EcranFluxAuthentification
+                    }
+                    if (navigator.lastItem is com.kaloy.app.presentation.common.EcranPrincipal) {
+                        navigator.replace(
+                            com.kaloy.app.presentation.common.EcranPrincipal(username = username)
+                        )
+                    }
+                    actionEnAttente()
+                } else {
+                    navigator.replaceAll(
+                        com.kaloy.app.presentation.common.EcranPrincipal(username = username)
+                    )
+                }
             }
         }
 

@@ -31,6 +31,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
 import com.kaloy.app.core.offline.OfflineDownloadCoordinator
+import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.presentation.common.InAppPdfViewer
 import com.kaloy.app.core.queue.ModeLecture
 import com.kaloy.app.core.queue.QueueManager
@@ -43,6 +44,8 @@ import com.kaloy.app.presentation.common.SmartVideoPlayerComposable
 import com.kaloy.app.presentation.common.rememberBrowserLauncher
 import com.kaloy.app.presentation.favoris.BoutonFavori
 import com.kaloy.app.presentation.favoris.FavorisViewModel
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.presentation.queue.UpNextSheet
 import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -57,6 +60,31 @@ data class LecteurScreen(
     @Composable
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
+        val gestionSession = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
+
+        if (!gestionSession.isLoggedIn()) {
+            LaunchedEffect(songId, startMode, offlinePlaylistId) {
+                executerOuDemanderAuthentification(
+                    gestionSession,
+                    authGateCoordinator,
+                    "écouter ce contenu"
+                ) {
+                    navigateur.replace(LecteurScreen(songId, startMode, offlinePlaylistId))
+                }
+            }
+            Box(
+                modifier = Modifier.fillMaxSize().background(KaloyDarkBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "La lecture est réservée aux membres.",
+                    color = KaloyTextSecondary
+                )
+            }
+            return
+        }
+
         val queueManager = koinInject<QueueManager>()
         val viewModel = koinInject<LecteurViewModel>()
         val favorisViewModel = koinInject<FavorisViewModel>()

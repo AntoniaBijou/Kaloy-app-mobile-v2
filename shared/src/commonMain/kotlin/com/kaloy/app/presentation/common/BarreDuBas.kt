@@ -13,6 +13,10 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.Navigator
 import com.kaloy.app.core.audio.AudioPlayerController
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.AuthGateHost
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.LecteurViewModel
 import com.kaloy.app.presentation.queue.MiniPlayer
@@ -94,11 +98,14 @@ class EtatBarreDuBas {
 @Composable
 fun BarreDuBas(navigateur: Navigator) {
     val ecran = navigateur.lastItem
+    AuthGateHost(navigateur, koinInject<AuthGateCoordinator>())
     if (ecran is SansBarreDuBas) return
 
     val etatBarre = koinInject<EtatBarreDuBas>()
     if (etatBarre.estVisiteur) return
 
+    val sessionManager = koinInject<AuthSessionManager>()
+    val authGateCoordinator = koinInject<AuthGateCoordinator>()
     val fileAttente = koinInject<QueueManager>()
     val lecteurAudio = koinInject<AudioPlayerController>()
     val lecteurModeleVue = koinInject<LecteurViewModel>()
@@ -118,12 +125,46 @@ fun BarreDuBas(navigateur: Navigator) {
             MiniPlayer(
                 song = chanson,
                 isPlaying = lectureActive,
-                onClick = { navigateur.push(LecteurScreen(chanson.id)) },
-                onTogglePlay = {
-                    if (lectureActive) lecteurAudio.pause() else lecteurAudio.resume()
+                onClick = {
+                    executerOuDemanderAuthentification(
+                        sessionManager,
+                        authGateCoordinator,
+                        "écouter cette chanson"
+                    ) {
+                        navigateur.push(LecteurScreen(chanson.id))
+                    }
                 },
-                onPrevious = { lecteurModeleVue.jouerPrecedent() },
-                onNext = { lecteurModeleVue.jouerSuivant() },
+                onTogglePlay = {
+                    if (lectureActive) {
+                        lecteurAudio.pause()
+                    } else {
+                        executerOuDemanderAuthentification(
+                            sessionManager,
+                            authGateCoordinator,
+                            "reprendre la lecture"
+                        ) {
+                            lecteurAudio.resume()
+                        }
+                    }
+                },
+                onPrevious = {
+                    executerOuDemanderAuthentification(
+                        sessionManager,
+                        authGateCoordinator,
+                        "lancer la chanson précédente"
+                    ) {
+                        lecteurModeleVue.jouerPrecedent()
+                    }
+                },
+                onNext = {
+                    executerOuDemanderAuthentification(
+                        sessionManager,
+                        authGateCoordinator,
+                        "lancer la chanson suivante"
+                    ) {
+                        lecteurModeleVue.jouerSuivant()
+                    }
+                },
                 canPrevious = historique.isNotEmpty(),
                 canNext = chansonsSuivantes.isNotEmpty(),
                 // L'application dessine bord a bord : sans marge, la barre
@@ -145,9 +186,33 @@ fun BarreDuBas(navigateur: Navigator) {
                 // glisse. L'ancien allerA empilait ou depilait des ecrans, ce
                 // qui n'a plus de sens quand les trois vivent ensemble.
                 onAccueil = { etatBarre.ongletDemande = OngletPrincipal.ACCUEIL },
-                onPlaylist = { etatBarre.ongletDemande = OngletPrincipal.PLAYLIST },
-                onRadio = { etatBarre.ongletDemande = OngletPrincipal.RADIO },
-                onMoi = { etatBarre.ongletDemande = OngletPrincipal.MOI }
+                onPlaylist = {
+                    executerOuDemanderAuthentification(
+                        sessionManager,
+                        authGateCoordinator,
+                        "gérer vos playlists"
+                    ) {
+                        etatBarre.ongletDemande = OngletPrincipal.PLAYLIST
+                    }
+                },
+                onRadio = {
+                    executerOuDemanderAuthentification(
+                        sessionManager,
+                        authGateCoordinator,
+                        "utiliser le mode radio"
+                    ) {
+                        etatBarre.ongletDemande = OngletPrincipal.RADIO
+                    }
+                },
+                onMoi = {
+                    executerOuDemanderAuthentification(
+                        sessionManager,
+                        authGateCoordinator,
+                        "accéder à votre espace personnel"
+                    ) {
+                        etatBarre.ongletDemande = OngletPrincipal.MOI
+                    }
+                }
             )
         }
     }
@@ -158,12 +223,34 @@ fun BarreDuBas(navigateur: Navigator) {
             songs = chansonsSuivantes,
             onDismiss = { afficherFile = false },
             onPlay = { choisie ->
-                fileAttente.playFromQueue(choisie)
-                afficherFile = false
-                navigateur.push(LecteurScreen(choisie.id))
+                executerOuDemanderAuthentification(
+                    sessionManager,
+                    authGateCoordinator,
+                    "lancer une chanson de la file d'attente"
+                ) {
+                    fileAttente.playFromQueue(choisie)
+                    afficherFile = false
+                    navigateur.push(LecteurScreen(choisie.id))
+                }
             },
-            onRemove = fileAttente::remove,
-            onClear = fileAttente::clear
+            onRemove = { chanson ->
+                executerOuDemanderAuthentification(
+                    sessionManager,
+                    authGateCoordinator,
+                    "modifier la file d'attente"
+                ) {
+                    fileAttente.remove(chanson)
+                }
+            },
+            onClear = {
+                executerOuDemanderAuthentification(
+                    sessionManager,
+                    authGateCoordinator,
+                    "vider la file d'attente"
+                ) {
+                    fileAttente.clear()
+                }
+            }
         )
     }
 }
@@ -195,4 +282,3 @@ private fun ongletDe(ecran: Screen, etatBarre: EtatBarreDuBas): OngletPrincipal?
  * porte lui aussi la barre, cette hypothese ne tient plus : revenir du profil
  * par un `pop()` aurait ramene sur la recherche, pas sur l'accueil.
  */
-

@@ -5,6 +5,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import cafe.adriel.voyager.core.screen.Screen
@@ -13,6 +14,7 @@ import com.kaloy.app.presentation.home.HomeScreen
 import com.kaloy.app.presentation.moi.MoiScreen
 import com.kaloy.app.presentation.playlist.PlaylistScreen
 import com.kaloy.app.presentation.radio.RadioScreen
+import com.kaloy.app.core.session.AuthSessionManager
 import kotlinx.coroutines.flow.filterNotNull
 import org.koin.compose.koinInject
 
@@ -51,9 +53,21 @@ data class EcranPrincipal(
     @Composable
     override fun Content() {
         val etatBarre = koinInject<EtatBarreDuBas>()
-        val onglets = OngletPrincipal.entries
+        val sessionManager = koinInject<AuthSessionManager>()
+        val modeVisiteur = isVisitor && !sessionManager.isLoggedIn()
+        val onglets = if (modeVisiteur) {
+            listOf(OngletPrincipal.ACCUEIL)
+        } else {
+            OngletPrincipal.entries
+        }
 
-        val etatPages = rememberPagerState(initialPage = ongletInitial.ordinal) {
+        SideEffect {
+            etatBarre.estVisiteur = modeVisiteur
+        }
+
+        val etatPages = rememberPagerState(
+            initialPage = ongletInitial.ordinal.coerceAtMost(onglets.lastIndex)
+        ) {
             onglets.size
         }
 
@@ -107,7 +121,7 @@ data class EcranPrincipal(
             // les modeles de vue, qui eux sont partages.
             when (onglets[page]) {
                 OngletPrincipal.ACCUEIL ->
-                    HomeScreen(username = username, isVisitor = isVisitor).Content()
+                    HomeScreen(username = username, isVisitor = modeVisiteur).Content()
 
                 OngletPrincipal.PLAYLIST -> PlaylistScreen().Content()
 

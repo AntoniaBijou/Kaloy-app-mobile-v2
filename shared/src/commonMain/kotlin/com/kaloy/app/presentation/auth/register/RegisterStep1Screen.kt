@@ -17,6 +17,9 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.presentation.auth.gate.AnnulerActionSiSortieDuFlux
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.EcranFluxAuthentification
 import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.ui.theme.KaloyDarkCard
 import com.kaloy.app.ui.theme.KaloyCarteVoilee
@@ -28,12 +31,14 @@ import com.kaloy.app.ui.theme.KaloyTextMuted
 import com.kaloy.app.ui.theme.KaloyTextPrimary
 import com.kaloy.app.ui.theme.KaloyTextSecondary
 import com.kaloy.app.ui.theme.fondKaloy
+import org.koin.compose.koinInject
 
-class RegisterStep1Screen : Screen, SansBarreDuBas {
+class RegisterStep1Screen : Screen, SansBarreDuBas, EcranFluxAuthentification {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        AnnulerActionSiSortieDuFlux(navigator, koinInject<AuthGateCoordinator>())
 
         var email by remember { mutableStateOf("") }
         var phone by remember { mutableStateOf("") }

@@ -10,6 +10,9 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.kaloy.app.presentation.auth.gate.AnnulerActionSiSortieDuFlux
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.EcranFluxAuthentification
 import com.kaloy.app.presentation.common.SansBarreDuBas
 
 data class RegisterArtistTypeScreen(
@@ -17,11 +20,12 @@ data class RegisterArtistTypeScreen(
     val phone: String,
     val password: String,
     val otpChannel: String
-) : Screen, SansBarreDuBas {
+) : Screen, SansBarreDuBas, EcranFluxAuthentification {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        AnnulerActionSiSortieDuFlux(navigator, org.koin.compose.koinInject<AuthGateCoordinator>())
         var artistType by remember { mutableStateOf("SOLO") }
 
         Column(

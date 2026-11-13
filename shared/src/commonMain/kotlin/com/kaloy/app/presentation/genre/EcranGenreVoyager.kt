@@ -21,8 +21,11 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Song
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.ui.components.EmptyState
 import com.kaloy.app.ui.components.ErrorState
@@ -80,6 +83,8 @@ data class EcranGenreVoyager(
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val fileAttente = koinInject<QueueManager>()
+        val gestionSession = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
         val modeleVue: GenreViewModel = viewModel { GenreViewModel(idGenre) }
 
         Column(
@@ -142,8 +147,14 @@ data class EcranGenreVoyager(
                             song = chanson,
                             index = index,
                             onClick = {
-                                fileAttente.setContext(modeleVue.chansons, chanson)
-                                navigateur.push(LecteurScreen(songId = chanson.id))
+                                executerOuDemanderAuthentification(
+                                    gestionSession,
+                                    authGateCoordinator,
+                                    "écouter cette chanson"
+                                ) {
+                                    fileAttente.setContext(modeleVue.chansons, chanson)
+                                    navigateur.push(LecteurScreen(songId = chanson.id))
+                                }
                             }
                         )
                     }
