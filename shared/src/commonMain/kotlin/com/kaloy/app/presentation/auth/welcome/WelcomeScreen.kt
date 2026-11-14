@@ -1,10 +1,11 @@
 package com.kaloy.app.presentation.auth.welcome
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,28 +20,29 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import kaloy.shared.generated.resources.Res
+import kaloy.shared.generated.resources.baloo2
+import org.jetbrains.compose.resources.Font
 import com.kaloy.app.presentation.auth.login.LoginScreen
 import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
 import com.kaloy.app.presentation.common.SansBarreDuBas
-import com.kaloy.app.ui.theme.KaloyDarkCard
 import com.kaloy.app.ui.theme.KaloyCarteVoilee
-import com.kaloy.app.ui.theme.KaloySable
-import com.kaloy.app.ui.theme.KaloyPurple
+import com.kaloy.app.ui.theme.KaloyOrange
+import com.kaloy.app.ui.theme.KaloyNuit
 import com.kaloy.app.ui.theme.KaloyPurpleLight
-import com.kaloy.app.ui.theme.KaloyTextPrimary
 import com.kaloy.app.ui.theme.KaloyTextSecondary
 import com.kaloy.app.ui.theme.fondKaloy
-import org.koin.compose.koinInject
 
 class WelcomeScreen : Screen, SansBarreDuBas {
 
@@ -73,12 +75,7 @@ class WelcomeScreen : Screen, SansBarreDuBas {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        Text(
-                            text = "Kaloy",
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = KaloyTextPrimary
-                        )
+                        KaloyWordmark()
 
                         Text(
                             text = "Votre musique, partout.",
@@ -98,11 +95,12 @@ class WelcomeScreen : Screen, SansBarreDuBas {
 
                         Button(
                             onClick = { navigator.push(RegisterStep1Screen()) },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = KaloyPurple
+                                containerColor = KaloyOrange,
+                                contentColor = KaloyNuit
                             ),
-                            shape = RoundedCornerShape(18.dp)
+                            shape = RoundedCornerShape(14.dp)
                         ) {
                             Text(
                                 text = "Créer un compte",
@@ -112,8 +110,9 @@ class WelcomeScreen : Screen, SansBarreDuBas {
 
                         OutlinedButton(
                             onClick = { navigator.push(LoginScreen()) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp)
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.5.dp, KaloyTextSecondary.copy(alpha = 0.5f))
                         ) {
                             Text(
                                 text = "Se connecter",
@@ -131,7 +130,7 @@ class WelcomeScreen : Screen, SansBarreDuBas {
 
                         Text(
                             text = "Continuer en tant que visiteur",
-                            color = KaloySable,
+                            color = KaloyOrange,
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
@@ -148,6 +147,36 @@ class WelcomeScreen : Screen, SansBarreDuBas {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun KaloyWordmark() {
+    val style = MaterialTheme.typography.headlineLarge.copy(
+        fontFamily = FontFamily(Font(Res.font.baloo2, FontWeight.Black)),
+        fontSize = 58.sp,
+        fontWeight = FontWeight.Black,
+        letterSpacing = (-1).sp
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        "Kaloy".forEach { letter ->
+            Text(
+                text = letter.toString(),
+                style = style.copy(
+                    brush = Brush.horizontalGradient(
+                        colorStops = arrayOf(
+                            0f to KaloyPurpleLight,
+                            1f to KaloyOrange
+                        )
+                    )
+                )
+            )
         }
     }
 }
