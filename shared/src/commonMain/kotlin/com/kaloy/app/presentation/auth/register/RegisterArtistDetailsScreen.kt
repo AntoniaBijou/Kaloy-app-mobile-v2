@@ -117,7 +117,15 @@ data class RegisterArtistDetailsScreen(
             if (uiState is RegisterUiState.Success) {
                 val response = (uiState as RegisterUiState.Success).response
                 viewModel.resetUiState()
-                navigator.push(OtpScreen(userId = response.userId, email = email))
+                navigator.push(
+                    OtpScreen(
+                        userId = response.userId,
+                        email = email,
+                        phone = phone,
+                        password = password,
+                        accountType = "ARTISTE"
+                    )
+                )
             }
         }
 

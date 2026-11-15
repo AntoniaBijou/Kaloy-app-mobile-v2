@@ -1,0 +1,253 @@
+package com.kaloy.app.presentation.auth.otp
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
+import kaloy.shared.generated.resources.Res
+import kaloy.shared.generated.resources.baloo2
+import org.jetbrains.compose.resources.Font
+import com.kaloy.app.data.repository.AuthRepository
+import com.kaloy.app.presentation.auth.gate.AnnulerActionSiSortieDuFlux
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.EcranFluxAuthentification
+import com.kaloy.app.presentation.common.SansBarreDuBas
+import com.kaloy.app.ui.theme.KaloyCarteVoilee
+import com.kaloy.app.ui.theme.KaloyDarkElevated
+import com.kaloy.app.ui.theme.KaloyNuit
+import com.kaloy.app.ui.theme.KaloyOrange
+import com.kaloy.app.ui.theme.KaloyRed
+import com.kaloy.app.ui.theme.KaloyTextPrimary
+import com.kaloy.app.ui.theme.KaloyTextSecondary
+import com.kaloy.app.ui.theme.fondKaloy
+import org.koin.compose.koinInject
+
+data class AddPhoneScreen(
+    val userId: Long,
+    val email: String,
+    val password: String = "",
+    val accountType: String = ""
+) : Screen, SansBarreDuBas, EcranFluxAuthentification {
+
+    @Composable
+    override fun Content() {
+        val navigator = LocalNavigator.currentOrThrow
+        AnnulerActionSiSortieDuFlux(navigator, koinInject<AuthGateCoordinator>())
+        val repository = koinInject<AuthRepository>()
+        val viewModel = remember { OtpViewModel(repository, userId) }
+        val uiState by viewModel.uiState.collectAsState()
+
+        DisposableEffect(viewModel) {
+            onDispose { viewModel.dispose() }
+        }
+
+        var phoneInput by remember { mutableStateOf("") }
+        var phoneError by remember { mutableStateOf("") }
+
+        val formeChamp = RoundedCornerShape(14.dp)
+        val couleursChamp = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = KaloyTextPrimary,
+            unfocusedTextColor = KaloyTextPrimary,
+            focusedBorderColor = KaloyOrange,
+            unfocusedBorderColor = KaloyTextSecondary,
+            focusedLabelColor = KaloyOrange,
+            unfocusedLabelColor = KaloyTextSecondary,
+            focusedContainerColor = KaloyDarkElevated,
+            unfocusedContainerColor = KaloyDarkElevated,
+            errorBorderColor = KaloyRed,
+            errorLabelColor = KaloyRed
+        )
+
+        LaunchedEffect(uiState) {
+            if (uiState is OtpUiState.Resent) {
+                navigator.replace(
+                    OtpScreen(
+                        userId = userId,
+                        email = email,
+                        phone = phoneInput,
+                        password = password,
+                        accountType = accountType,
+                        initialChannel = "SMS"
+                    )
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .fondKaloy()
+        ) {
+            TextButton(
+                onClick = { navigator.pop() },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 8.dp, top = 48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Retour",
+                    tint = KaloyTextSecondary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Retour", color = KaloyTextSecondary)
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.55f)
+                    .align(Alignment.BottomCenter),
+                shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+                colors = CardDefaults.cardColors(containerColor = KaloyCarteVoilee)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(28.dp),
+                    verticalArrangement = Arrangement.spacedBy(28.dp)
+                ) {
+                    Text(
+                        text = "Ajouter un numéro",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = FontFamily(Font(Res.font.baloo2, FontWeight.Bold))
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = KaloyTextPrimary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        text = "Pour recevoir votre code de vérification par SMS.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = KaloyTextSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = phoneInput,
+                        onValueChange = { phoneInput = it; phoneError = "" },
+                        label = { Text("Numéro de téléphone") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Phone,
+                                contentDescription = null,
+                                tint = KaloyTextSecondary
+                            )
+                        },
+                        isError = phoneError.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = formeChamp,
+                        colors = couleursChamp
+                    )
+                    if (phoneError.isNotEmpty()) {
+                        Text(
+                            text = phoneError,
+                            color = KaloyRed,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
+                    }
+
+                    if (uiState is OtpUiState.Error) {
+                        Text(
+                            text = (uiState as OtpUiState.Error).message,
+                            color = KaloyRed,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            if (phoneInput.isBlank()) {
+                                phoneError = "Veuillez entrer un numéro de téléphone"
+                                return@Button
+                            }
+                            viewModel.resendOtpViaSms(phoneInput)
+                        },
+                        enabled = uiState !is OtpUiState.Loading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = formeChamp,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = KaloyOrange,
+                            contentColor = KaloyNuit
+                        )
+                    ) {
+                        if (uiState is OtpUiState.Loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = KaloyNuit
+                            )
+                        } else {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    text = "Recevoir le code par SMS",
+                                    modifier = Modifier.align(Alignment.Center),
+                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.align(Alignment.CenterEnd)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

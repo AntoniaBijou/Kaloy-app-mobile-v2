@@ -57,6 +57,19 @@ class OtpViewModel(
         }
     }
 
+    fun resendOtpViaSms(phone: String) {
+        scope.launch {
+            _uiState.value = OtpUiState.Loading
+            try {
+                repository.resendOtp(ResendOtpRequest(userId = userId, phone = phone, channel = "SMS"))
+                _uiState.value = OtpUiState.Resent
+            } catch (e: Exception) {
+                val message = UserErrorMessages.fromThrowable(e)
+                _uiState.value = OtpUiState.Error(message)
+            }
+        }
+    }
+
     fun resetUiState() {
         _uiState.value = OtpUiState.Idle
     }

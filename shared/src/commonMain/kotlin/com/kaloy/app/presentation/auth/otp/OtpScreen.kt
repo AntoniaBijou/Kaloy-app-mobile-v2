@@ -61,7 +61,6 @@ import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.presentation.auth.gate.AnnulerActionSiSortieDuFlux
 import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
 import com.kaloy.app.presentation.auth.gate.EcranFluxAuthentification
-import com.kaloy.app.presentation.auth.register.RegisterStep1Screen
 import com.kaloy.app.presentation.common.SansBarreDuBas
 import com.kaloy.app.ui.theme.KaloyCarteVoilee
 import com.kaloy.app.ui.theme.KaloyDarkElevated
@@ -76,7 +75,11 @@ import org.koin.compose.koinInject
 
 data class OtpScreen(
     val userId: Long,
-    val email: String
+    val email: String,
+    val phone: String = "",
+    val password: String = "",
+    val accountType: String = "",
+    val initialChannel: String = "EMAIL"
 ) : Screen, SansBarreDuBas, EcranFluxAuthentification {
 
     @Composable
@@ -90,7 +93,7 @@ data class OtpScreen(
         AnnulerActionSiSortieDuFlux(navigator, authGateCoordinator)
 
         var otpValue by remember { mutableStateOf("") }
-        var verificationChannel by remember { mutableStateOf("EMAIL") }
+        var verificationChannel by remember { mutableStateOf(initialChannel) }
         var resendCooldown by remember { mutableStateOf(0) }
         val focusRequester = remember { FocusRequester() }
 
@@ -100,8 +103,13 @@ data class OtpScreen(
             return "$maskedLocal@$domainPart"
         }
 
+        fun maskPhone(rawPhone: String): String {
+            return if (rawPhone.length >= 4) rawPhone.take(4) + " ** ** **" else rawPhone
+        }
+
         val headerText = if (verificationChannel == "SMS") {
-            "Entrez le code à 6 chiffres envoyé par SMS au +33 6 ** ** ** 45"
+            if (phone.isNotBlank()) "Entrez le code à 6 chiffres envoyé par SMS au ${maskPhone(phone)}"
+            else "Entrez le code à 6 chiffres envoyé par SMS"
         } else {
             "Entrez le code à 6 chiffres envoyé à ${maskEmail(email)}"
         }
@@ -206,13 +214,17 @@ data class OtpScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         modifier = Modifier.focusRequester(focusRequester),
                         decorationBox = {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 repeat(6) { index ->
                                     val char = otpValue.getOrNull(index)
                                     Box(
                                         contentAlignment = Alignment.Center,
                                         modifier = Modifier
-                                            .size(52.dp)
+                                            .weight(1f)
+                                            .aspectRatio(1f)
                                             .background(KaloyDarkElevated, RoundedCornerShape(12.dp))
                                             .border(
                                                 width = 2.dp,
@@ -327,27 +339,81 @@ data class OtpScreen(
                         }
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Préférez-vous recevoir le code par SMS ?",
-                            color = KaloyTextSecondary,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        TextButton(
-                            onClick = {
-                                verificationChannel = "SMS"
-                                otpValue = ""
-                            },
+                    if (verificationChannel == "SMS") {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "Recevoir par SMS",
-                                color = KaloyOrange,
-                                fontWeight = FontWeight.SemiBold
+                                text = "Préférez-vous recevoir le code par email ?",
+                                color = KaloyTextSecondary,
+                                style = MaterialTheme.typography.bodyMedium
                             )
+                            TextButton(
+                                onClick = { verificationChannel = "EMAIL"; otpValue = "" },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Recevoir par email",
+                                    color = KaloyOrange,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    } else {
+                        if (phone.isNotBlank()) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Préférez-vous recevoir le code par SMS ?",
+                                    color = KaloyTextSecondary,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                TextButton(
+                                    onClick = { verificationChannel = "SMS"; otpValue = "" },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Recevoir par SMS",
+                                        color = KaloyOrange,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Vous n'avez pas renseigné de numéro de téléphone.",
+                                    color = KaloyTextSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                TextButton(
+                                    onClick = {
+                                        navigator.push(
+                                            AddPhoneScreen(
+                                                userId = userId,
+                                                email = email,
+                                                password = password,
+                                                accountType = accountType
+                                            )
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Compléter mes informations",
+                                        color = KaloyOrange,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
                         }
                     }
                 }

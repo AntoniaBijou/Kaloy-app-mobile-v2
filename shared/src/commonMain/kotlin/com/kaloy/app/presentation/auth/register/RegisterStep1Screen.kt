@@ -70,17 +70,22 @@ import com.kaloy.app.ui.theme.KaloyTextSecondary
 import com.kaloy.app.ui.theme.fondKaloy
 import org.koin.compose.koinInject
 
-class RegisterStep1Screen : Screen, SansBarreDuBas, EcranFluxAuthentification {
+data class RegisterStep1Screen(
+    val prefillEmail: String = "",
+    val prefillPhone: String = "",
+    val prefillPassword: String = "",
+    val prefillAccountType: String = "CLIENT"
+) : Screen, SansBarreDuBas, EcranFluxAuthentification {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         AnnulerActionSiSortieDuFlux(navigator, koinInject<AuthGateCoordinator>())
 
-        var email by remember { mutableStateOf("") }
-        var phone by remember { mutableStateOf("") }
-        var password by remember { mutableStateOf("") }
-        var accountType by remember { mutableStateOf("CLIENT") }
+        var email by remember { mutableStateOf(prefillEmail) }
+        var phone by remember { mutableStateOf(prefillPhone) }
+        var password by remember { mutableStateOf(prefillPassword) }
+        var accountType by remember { mutableStateOf(prefillAccountType) }
         val otpChannel = "EMAIL"
         var emailError by remember { mutableStateOf("") }
         var passwordError by remember { mutableStateOf("") }
