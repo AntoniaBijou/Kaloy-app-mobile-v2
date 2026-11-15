@@ -37,6 +37,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.core.util.Calendrier
 import com.kaloy.app.core.util.aujourdHuiLocal
 import com.kaloy.app.data.api.ArtistIdDto
@@ -359,10 +361,21 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val fileAttente: QueueManager = KoinPlatform.getKoin().get()
+        val gestionSession = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
         val favorisVm: FavorisViewModel = koinInject()
         val favorisArtisteIds by favorisVm.favorisArtisteIds.collectAsState()
         val modeleVue: DetailArtisteViewModel = viewModel(key = "artiste_$idArtiste") {
             DetailArtisteViewModel(idArtiste)
+        }
+
+        fun protegerAction(action: String, reprendre: () -> Unit) {
+            executerOuDemanderAuthentification(
+                gestionSession,
+                authGateCoordinator,
+                action,
+                reprendre
+            )
         }
 
         when {
@@ -436,7 +449,11 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                     }
                                     BoutonFavori(
                                         isFavori = favorisArtisteIds.contains(idArtiste),
-                                        onToggle = { favorisVm.toggleFavoriArtisteId(idArtiste) }
+                                        onToggle = {
+                                            protegerAction("ajouter cet artiste à vos favoris") {
+                                                favorisVm.toggleFavoriArtisteId(idArtiste)
+                                            }
+                                        }
                                     )
                                 }
 
@@ -508,7 +525,11 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                     nombreAbonnes = modeleVue.nombreAbonnes,
                                     peutSuivre = modeleVue.peutSuivre,
                                     enCours = modeleVue.basculeEnCours,
-                                    onClick = { modeleVue.basculerAbonnement() }
+                                    onClick = {
+                                        protegerAction("suivre cet artiste") {
+                                            modeleVue.basculerAbonnement()
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -604,7 +625,9 @@ data class EcranDetailArtisteVoyager(val idArtiste: Long) : Screen {
                                     song = chanson,
                                     index = index,
                                     onClick = {
-                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                        protegerAction("écouter cette chanson") {
+                                            navigateur.push(LecteurScreen(songId = chanson.id))
+                                        }
                                     }
                                 )
                                 if (index < modeleVue.chansons.size - 1) {
@@ -711,33 +734,30 @@ private fun BoutonAbonnement(
             )
         }
 
-        if (peutSuivre) {
-            Spacer(modifier = Modifier.width(20.dp))
+        Spacer(modifier = Modifier.width(20.dp))
 
-            Button(
-                onClick = onClick,
-                enabled = !enCours,
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(
-                    // Abonne : bouton discret. Non abonne : appel a l'action.
-                    containerColor = if (estAbonne) Color.White.copy(alpha = 0.15f) else Color.White,
-                    contentColor = if (estAbonne) Color.White else KaloyPurple,
-                    disabledContainerColor = Color.White.copy(alpha = 0.15f),
-                    disabledContentColor = Color.White.copy(alpha = 0.5f)
+        Button(
+            onClick = onClick,
+            enabled = !enCours,
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (peutSuivre && estAbonne) Color.White.copy(alpha = 0.15f) else Color.White,
+                contentColor = if (peutSuivre && estAbonne) Color.White else KaloyPurple,
+                disabledContainerColor = Color.White.copy(alpha = 0.15f),
+                disabledContentColor = Color.White.copy(alpha = 0.5f)
+            )
+        ) {
+            if (enCours) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White
                 )
-            ) {
-                if (enCours) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = Color.White
-                    )
-                } else {
-                    Text(
-                        text = if (estAbonne) "Suivi" else "Suivre",
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+            } else {
+                Text(
+                    text = if (peutSuivre && estAbonne) "Suivi" else "Suivre",
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }

@@ -35,14 +35,12 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.queue.ModeLecture
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.core.session.AuthSessionManager
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Song
-import com.kaloy.app.presentation.common.BarreNavigationPrincipale
-import com.kaloy.app.presentation.common.OngletPrincipal
 import com.kaloy.app.presentation.lecteur.LecteurScreen
-import com.kaloy.app.presentation.moi.MoiScreen
-import com.kaloy.app.presentation.playlist.PlaylistScreen
-import com.kaloy.app.presentation.radio.RadioScreen
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.ui.components.EmptyState
 import com.kaloy.app.ui.components.ErrorState
 import com.kaloy.app.ui.components.LoadingIndicator
@@ -122,12 +120,23 @@ class EcranToutesChansonsVoyager : Screen {
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val fileAttente = koinInject<QueueManager>()
+        val gestionSession = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
         val modeleVue: ToutesChansonsViewModel = viewModel { ToutesChansonsViewModel() }
         val gestionnaireFocus = LocalFocusManager.current
         val modeLecture by fileAttente.modeLecture.collectAsState()
 
         var filtreTexte by remember { mutableStateOf("") }
         var suggestionsVisibles by remember { mutableStateOf(false) }
+
+        fun protegerAction(action: String, reprendre: () -> Unit) {
+            executerOuDemanderAuthentification(
+                gestionSession,
+                authGateCoordinator,
+                action,
+                reprendre
+            )
+        }
 
         val chansonsFiltrees = remember(filtreTexte, modeleVue.chansons) {
             if (filtreTexte.isBlank()) modeleVue.chansons
@@ -145,18 +154,7 @@ class EcranToutesChansonsVoyager : Screen {
                 .map { it.title }
         }
 
-        Scaffold(
-            containerColor = Color.Transparent,
-            bottomBar = {
-                BarreNavigationPrincipale(
-                    ongletActif = OngletPrincipal.ACCUEIL,
-                    onAccueil = { navigateur.pop() },
-                    onPlaylist = { navigateur.push(PlaylistScreen()) },
-                    onRadio = { navigateur.push(RadioScreen()) },
-                    onMoi = { navigateur.push(MoiScreen()) }
-                )
-            }
-        ) { espaceInterieur ->
+        Scaffold(containerColor = Color.Transparent) { espaceInterieur ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -358,15 +356,27 @@ class EcranToutesChansonsVoyager : Screen {
                                 song = chanson,
                                 index = index,
                                 onClick = {
-                                    fileAttente.setContext(chansonsFiltrees, chanson)
-                                    navigateur.push(LecteurScreen(songId = chanson.id))
+                                    protegerAction("écouter cette chanson") {
+                                        fileAttente.setContext(chansonsFiltrees, chanson)
+                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                    }
                                 },
                                 onPlayNow = {
-                                    fileAttente.setContext(chansonsFiltrees, chanson)
-                                    navigateur.push(LecteurScreen(songId = chanson.id))
+                                    protegerAction("lancer cette chanson") {
+                                        fileAttente.setContext(chansonsFiltrees, chanson)
+                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                    }
                                 },
-                                onAddNext = { fileAttente.addNext(chanson) },
-                                onAddToQueue = { fileAttente.addToQueue(chanson) }
+                                onAddNext = {
+                                    protegerAction("ajouter cette chanson à la file d'attente") {
+                                        fileAttente.addNext(chanson)
+                                    }
+                                },
+                                onAddToQueue = {
+                                    protegerAction("ajouter cette chanson à la file d'attente") {
+                                        fileAttente.addToQueue(chanson)
+                                    }
+                                }
                             )
                         }
 

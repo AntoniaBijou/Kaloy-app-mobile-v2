@@ -33,6 +33,8 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.api.ListeningHistorySearchDto
 import com.kaloy.app.data.api.UserIdDto
@@ -56,7 +58,9 @@ import org.koin.compose.koinInject
 // ViewModel de l'écran d'accueil (variables en français)
 // ============================================================
 
-class AccueilViewModel : ViewModel() {
+class AccueilViewModel(
+    private val gestionSession: AuthSessionManager
+) : ViewModel() {
     private val api = KaloyApi()
 
     // --- Données affichées ---
@@ -116,13 +120,19 @@ class AccueilViewModel : ViewModel() {
                 } catch (e: Exception) { null }
                 val resultatEvenements = try { api.getEvents(size = 50) } catch (e: Exception) { null }
 
-                // Simuler utilisateur ID = 1
-                val resultatHistorique = try {
-                    api.getListeningHistory(
-                        query = ListeningHistorySearchDto(UserIdDto(1L)),
-                        size = 10
-                    )
-                } catch (e: Exception) { null }
+                val idUtilisateur = gestionSession.getUserId()
+                val resultatHistorique = if (gestionSession.isLoggedIn() && idUtilisateur > 0) {
+                    try {
+                        api.getListeningHistory(
+                            query = ListeningHistorySearchDto(UserIdDto(idUtilisateur)),
+                            size = 10
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                } else {
+                    null
+                }
 
                 artistes = resultatArtistes?.data?.content ?: emptyList()
                 albums = resultatAlbums?.data?.content ?: emptyList()
@@ -167,11 +177,24 @@ data class HomeScreen(
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val gestionSession = koinInject<AuthSessionManager>()
-        val modeleVue: AccueilViewModel = viewModel { AccueilViewModel() }
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
+        val modeleVue: AccueilViewModel = viewModel {
+            AccueilViewModel(gestionSession)
+        }
         val fileAttente = koinInject<QueueManager>()
+        val estVisiteur = isVisitor && !gestionSession.isLoggedIn()
+
+        fun protegerAction(action: String, reprendre: () -> Unit) {
+            executerOuDemanderAuthentification(
+                gestionSession,
+                authGateCoordinator,
+                action,
+                reprendre
+            )
+        }
 
         LaunchedEffect(Unit) {
-            if (!isVisitor && !gestionSession.isLoggedIn()) {
+            if (!estVisiteur && !gestionSession.isLoggedIn()) {
                 navigateur.replace(WelcomeScreen())
             }
         }
@@ -421,18 +444,32 @@ data class HomeScreen(
                                     song = chanson,
                                     index = index,
                                     onClick = {
-                                        fileAttente.setContext(modeleVue.chansons, chanson)
-                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                        protegerAction("écouter cette chanson") {
+                                            fileAttente.setContext(modeleVue.chansons, chanson)
+                                            navigateur.push(LecteurScreen(songId = chanson.id))
+                                        }
                                     },
                                     onMoreClick = {
-                                        fileAttente.playNow(chanson)
+                                        protegerAction("lancer cette chanson") {
+                                            fileAttente.playNow(chanson)
+                                        }
                                     },
                                     onPlayNow = {
-                                        fileAttente.setContext(modeleVue.chansons, chanson)
-                                        navigateur.push(LecteurScreen(songId = chanson.id))
+                                        protegerAction("lancer cette chanson") {
+                                            fileAttente.setContext(modeleVue.chansons, chanson)
+                                            navigateur.push(LecteurScreen(songId = chanson.id))
+                                        }
                                     },
-                                    onAddNext = { fileAttente.addNext(chanson) },
-                                    onAddToQueue = { fileAttente.addToQueue(chanson) }
+                                    onAddNext = {
+                                        protegerAction("ajouter cette chanson à la file d'attente") {
+                                            fileAttente.addNext(chanson)
+                                        }
+                                    },
+                                    onAddToQueue = {
+                                        protegerAction("ajouter cette chanson à la file d'attente") {
+                                            fileAttente.addToQueue(chanson)
+                                        }
+                                    }
                                 )
                                 if (index < modeleVue.chansons.size - 1) {
                                     HorizontalDivider(
@@ -444,7 +481,7 @@ data class HomeScreen(
                         }
 
                         // Bouton visiteur
-                        if (isVisitor) {
+                        if (estVisiteur) {
                             item {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(

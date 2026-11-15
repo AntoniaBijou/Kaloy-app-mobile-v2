@@ -49,6 +49,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
 import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.data.api.CommentSearch
 import com.kaloy.app.data.api.ConcertSearch
 import com.kaloy.app.data.api.EventMediaSearch
@@ -79,6 +81,7 @@ import com.kaloy.app.ui.theme.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import org.koin.mp.KoinPlatform
+import org.koin.compose.koinInject
 
 // ============================================================
 // ViewModel — fiche evenement (Sprint 4) + interactions (Sprint 3)
@@ -667,8 +670,19 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
     @Composable
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
+        val gestionSession = koinInject<AuthSessionManager>()
+        val authGateCoordinator = koinInject<AuthGateCoordinator>()
         val modeleVue: DetailEvenementViewModel =
             viewModel(key = "evenement_$idEvenement") { DetailEvenementViewModel(idEvenement) }
+
+        fun protegerAction(action: String, reprendre: () -> Unit) {
+            executerOuDemanderAuthentification(
+                gestionSession,
+                authGateCoordinator,
+                action,
+                reprendre
+            )
+        }
 
         // Dialogues : commentaire en cours de signalement / de suppression.
         var commentaireASignaler by remember { mutableStateOf<Comment?>(null) }
@@ -775,9 +789,13 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                     BoutonLike(
                                         jAime = modeleVue.jAime,
                                         nombre = modeleVue.nombreLikes,
-                                        actif = modeleVue.estConnecte && modeleVue.interactionsDisponibles,
+                                        actif = modeleVue.interactionsDisponibles,
                                         enCours = modeleVue.likeEnCours,
-                                        onClick = { modeleVue.basculerLike() }
+                                        onClick = {
+                                            protegerAction("aimer cet événement") {
+                                                modeleVue.basculerLike()
+                                            }
+                                        }
                                     )
                                 }
                             }
@@ -874,11 +892,15 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                     if (galerieOuverte) {
                         item {
                             BoutonAjoutMedia(
-                                visible = modeleVue.peutAjouterPhoto,
+                                visible = modeleVue.peutAjouterPhoto || !modeleVue.estConnecte,
+                                autorise = modeleVue.peutAjouterPhoto,
                                 enCours = modeleVue.envoiPhotoEnCours,
                                 etape = modeleVue.etapeEnvoi,
                                 envoiEnAttente = modeleVue.envoiEnAttente != null,
                                 onMediaSelectionne = { media -> modeleVue.ajouterMedia(media) },
+                                onDemanderAuthentification = { reprendre ->
+                                    protegerAction("ajouter une photo ou une vidéo à cet événement", reprendre)
+                                },
                                 onReprendre = { modeleVue.reprendreEnvoi() },
                                 onAbandonner = { modeleVue.abandonnerEnvoi() }
                             )
@@ -931,7 +953,11 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                             VignetteVideo(
                                                 peutSignaler = modeleVue.estConnecte,
                                                 onSignaler = { mediaASignaler = video },
-                                                onLire = { videoPleinEcran = video }
+                                                onLire = {
+                                                    protegerAction("regarder une vidéo de cet événement") {
+                                                        videoPleinEcran = video
+                                                    }
+                                                }
                                             )
                                         }
                                     }
@@ -961,7 +987,16 @@ data class EcranDetailEvenementVoyager(val idEvenement: Long) : Screen {
                                 saisie = modeleVue.saisie,
                                 envoiEnCours = modeleVue.envoiEnCours,
                                 onSaisie = { modeleVue.surSaisie(it) },
-                                onPublier = { modeleVue.publierCommentaire() }
+                                onPublier = {
+                                    protegerAction("publier un commentaire") {
+                                        modeleVue.publierCommentaire()
+                                    }
+                                },
+                                onDemanderAuthentification = {
+                                    protegerAction("commenter cet événement") {
+                                        modeleVue.charger()
+                                    }
+                                }
                             )
                         }
 
@@ -1124,15 +1159,16 @@ private fun ZoneSaisieCommentaire(
     saisie: String,
     envoiEnCours: Boolean,
     onSaisie: (String) -> Unit,
-    onPublier: () -> Unit
+    onPublier: () -> Unit,
+    onDemanderAuthentification: () -> Unit
 ) {
     if (!estConnecte) {
-        Text(
-            text = "Connectez-vous pour commenter.",
-            style = MaterialTheme.typography.bodySmall,
-            color = KaloyTextSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+        TextButton(
+            onClick = onDemanderAuthentification,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text("Connectez-vous pour commenter.")
+        }
         return
     }
 
@@ -1504,10 +1540,12 @@ private fun VignettePhoto(
 @Composable
 private fun BoutonAjoutMedia(
     visible: Boolean,
+    autorise: Boolean,
     enCours: Boolean,
     etape: EnvoyeurParMorceaux.Etape?,
     envoiEnAttente: Boolean,
     onMediaSelectionne: (MediaSelectionne) -> Unit,
+    onDemanderAuthentification: (() -> Unit) -> Unit,
     onReprendre: () -> Unit,
     onAbandonner: () -> Unit
 ) {
@@ -1525,7 +1563,13 @@ private fun BoutonAjoutMedia(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Button(
-            onClick = { choixOuvert = true },
+            onClick = {
+                if (autorise) {
+                    choixOuvert = true
+                } else {
+                    onDemanderAuthentification { choixOuvert = true }
+                }
+            },
             enabled = !enCours,
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(containerColor = KaloyPurple)

@@ -431,18 +431,17 @@ class MoiScreen : Screen {
                                         onClick = { navigator.push(EcranStatistiquesVoyager()) }
                                     )
                                 }
-                                // Espace avant la zone de danger : coller ces
-                                // deux boutons aux cartes ferait appuyer sur
-                                // « Supprimer le compte » en visant la derniere
-                                // carte.
+                                // Séparer les actions de session et la suppression
+                                // des cartes de fonctionnalités du profil.
                                 item { Spacer(modifier = Modifier.height(32.dp)) }
-                                // Se deconnecter et supprimer le compte ferment
-                                // l'ecran. Ils etaient appeles depuis
-                                // ArtistProfileContent, donc avant les cartes, ce qui
-                                // les placait au milieu.
+                                item {
+                                    SessionCard(
+                                        onLogout = { activeDialog = ActiveDialog.ConfirmLogout }
+                                    )
+                                }
+                                item { Spacer(modifier = Modifier.height(16.dp)) }
                                 item {
                                     DangerZone(
-                                        onLogout = { activeDialog = ActiveDialog.ConfirmLogout },
                                         onDeleteAccount = { activeDialog = ActiveDialog.ConfirmDeleteAccount }
                                     )
                                 }

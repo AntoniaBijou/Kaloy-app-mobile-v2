@@ -32,9 +32,14 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
 import com.kaloy.app.core.queue.QueueManager
+import com.kaloy.app.core.session.AuthSessionManager
+import com.kaloy.app.core.network.urlMedia
+import com.kaloy.app.data.api.KaloyApi
 import com.kaloy.app.data.model.Song
 import com.kaloy.app.data.model.SongPlayerResponse
 import com.kaloy.app.data.repository.LecteurRepository
+import com.kaloy.app.presentation.auth.gate.AuthGateCoordinator
+import com.kaloy.app.presentation.auth.gate.executerOuDemanderAuthentification
 import com.kaloy.app.presentation.lecteur.LecteurScreen
 import com.kaloy.app.presentation.lecteur.ModeEcoute
 import com.kaloy.app.ui.components.ErrorState
@@ -43,11 +48,14 @@ import com.kaloy.app.ui.theme.*
 import com.kaloy.app.ui.theme.KaloyOrange
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import org.koin.mp.KoinPlatform
 
 class FicheChansonViewModel(
     private val repo: LecteurRepository,
-    private val songId: Long
+    private val songId: Long,
+    private val sessionManager: AuthSessionManager
 ) : ViewModel() {
+    private val api = KaloyApi()
     var chanson by mutableStateOf<SongPlayerResponse?>(null)
         private set
     var enChargement by mutableStateOf(true)
@@ -61,11 +69,40 @@ class FicheChansonViewModel(
         viewModelScope.launch {
             enChargement = true
             erreur = null
-            try { chanson = repo.getSongPlayerDetails(songId) }
+            try {
+                val song = api.getSongById(songId).data
+                    ?: throw IllegalStateException("Chanson introuvable")
+                chanson = if (sessionManager.isLoggedIn()) {
+                    repo.getSongPlayerDetails(songId)
+                } else {
+                    song.toPlayerPreview()
+                }
+            }
             catch (e: Exception) { erreur = e.message ?: "Erreur de chargement" }
             finally { enChargement = false }
         }
     }
+
+    private fun Song.toPlayerPreview() = SongPlayerResponse(
+        id = id,
+        title = title,
+        durationSeconds = durationSeconds,
+        language = language,
+        releaseDate = releaseDate,
+        isDownloadable = isDownloadable,
+        lyrics = lyrics,
+        solfa = solfa,
+        authorComposer = authorComposer,
+        musicalArranger = musicalArranger,
+        artistId = artist?.id ?: 0,
+        artistStageName = artist?.stageName.orEmpty(),
+        artistPhotoUrl = urlMedia(artist?.photoUrl),
+        artistIsCertified = artist?.isCertified ?: false,
+        albumId = album?.id,
+        albumTitle = album?.title,
+        albumCoverUrl = urlMedia(album?.coverUrl),
+        albumReleaseDate = album?.releaseDate
+    )
 }
 
 data class EcranDetailChansonVoyager(val idChanson: Long) : Screen {
@@ -74,7 +111,8 @@ data class EcranDetailChansonVoyager(val idChanson: Long) : Screen {
     override fun Content() {
         val navigateur = LocalNavigator.currentOrThrow
         val repo = koinInject<LecteurRepository>()
-        val vm = remember(idChanson) { FicheChansonViewModel(repo, idChanson) }
+        val gestionSession = koinInject<AuthSessionManager>()
+        val vm = remember(idChanson) { FicheChansonViewModel(repo, idChanson, gestionSession) }
 
         when {
             vm.enChargement -> Box(
@@ -104,8 +142,14 @@ private fun FicheChansonContent(
 ) {
     val navigator = LocalNavigator.currentOrThrow
     val queueManager = koinInject<QueueManager>()
+    val sessionManager = koinInject<AuthSessionManager>()
+    val authGateCoordinator = koinInject<AuthGateCoordinator>()
     var isLiked by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf("Audio") }
+
+    fun exigerAcces(action: String, reprendre: () -> Unit) {
+        executerOuDemanderAuthentification(sessionManager, authGateCoordinator, action, reprendre)
+    }
 
     // La rangee du haut ne porte plus que les MEDIAS. Les paroles et le solfa
     // sont du texte : ils ont leur propre rangee plus bas, et restent affiches
@@ -140,7 +184,13 @@ private fun FicheChansonContent(
         ) {
             tabs.forEach { tab ->
                 TextButton(
-                    onClick = { selectedTab = tab },
+                    onClick = {
+                        if (tab == "Vidéo") {
+                            exigerAcces("regarder le clip vidéo") { selectedTab = tab }
+                        } else {
+                            selectedTab = tab
+                        }
+                    },
                     colors = ButtonDefaults.textButtonColors(
                         // Orange et non la couleur principale : l'indigo sur le
                         // fond de l'ecran donne un contraste de 1,58, soit la meme
@@ -163,12 +213,22 @@ private fun FicheChansonContent(
         TabContent(
             tab = selectedTab,
             chanson = chanson,
-            onPlay = { mode -> navigator.push(LecteurScreen(idChanson, mode)) }
+            onPlay = { mode ->
+                exigerAcces("lancer la lecture") {
+                    navigator.push(LecteurScreen(idChanson, mode))
+                }
+            }
         )
 
         SectionTexte(
             choix = texteAffiche,
-            onChoisir = { texteAffiche = it },
+            onChoisir = { choix ->
+                if (choix == "Solfa") {
+                    exigerAcces("consulter le solfa") { texteAffiche = choix }
+                } else {
+                    texteAffiche = choix
+                }
+            },
             paroles = chanson.lyrics,
             solfa = chanson.solfa,
             solfaUrl = chanson.solfaUrl
@@ -183,13 +243,30 @@ private fun FicheChansonContent(
         ActionBar(
             chanson = chanson,
             isLiked = isLiked,
-            onPlay = { navigator.push(LecteurScreen(idChanson, ModeEcoute.AUDIO)) },
-            onQueue = {
-                queueManager.addToQueue(
-                    Song(id = chanson.id, title = chanson.title, durationSeconds = chanson.durationSeconds)
-                )
+            onPlay = {
+                exigerAcces("écouter cette chanson") {
+                    navigator.push(LecteurScreen(idChanson, ModeEcoute.AUDIO))
+                }
             },
-            onLike = { isLiked = !isLiked }
+            onQueue = {
+                exigerAcces("ajouter cette chanson à la file d'attente") {
+                    queueManager.addToQueue(
+                        Song(id = chanson.id, title = chanson.title, durationSeconds = chanson.durationSeconds)
+                    )
+                }
+            },
+            onLike = {
+                exigerAcces("aimer cette chanson") { isLiked = !isLiked }
+            },
+            onDownload = {
+                exigerAcces("télécharger cette chanson") {}
+            },
+            onShare = {
+                exigerAcces("partager cette chanson") {}
+            },
+            onFollow = {
+                exigerAcces("suivre cet artiste") {}
+            }
         )
 
         Spacer(Modifier.height(80.dp))
@@ -305,7 +382,10 @@ private fun ActionBar(
     isLiked: Boolean,
     onPlay: () -> Unit,
     onQueue: () -> Unit,
-    onLike: () -> Unit
+    onLike: () -> Unit,
+    onDownload: () -> Unit,
+    onShare: () -> Unit,
+    onFollow: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -338,7 +418,7 @@ private fun ActionBar(
                 modifier = Modifier.size(28.dp)
             )
         }
-        ActionButton(label = "Télécharger", onClick = {}) {
+        ActionButton(label = "Télécharger", onClick = onDownload) {
             Icon(
                 Icons.Default.CloudDownload,
                 contentDescription = "Télécharger",
@@ -354,10 +434,10 @@ private fun ActionBar(
                 modifier = Modifier.size(28.dp)
             )
         }
-        ActionButton(label = "Partager", onClick = {}) {
+        ActionButton(label = "Partager", onClick = onShare) {
             Icon(Icons.Default.Share, contentDescription = "Partager", tint = KaloyTextSecondary, modifier = Modifier.size(28.dp))
         }
-        ActionButton(label = "Suivre", onClick = {}) {
+        ActionButton(label = "Suivre", onClick = onFollow) {
             Icon(Icons.Default.PersonAdd, contentDescription = "Suivre", tint = KaloyTextSecondary, modifier = Modifier.size(28.dp))
         }
     }

@@ -1,17 +1,15 @@
 package com.kaloy.app.presentation.moi.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kaloy.app.data.dto.me.ClientProfile
@@ -78,7 +76,8 @@ fun ClientProfileContent(
             InfoRow(label = "Membre depuis", value = formatMemberSince(profile.memberSince))
         }
 
-        DangerZone(onLogout = onLogout, onDeleteAccount = onDeleteAccount)
+        SessionCard(onLogout = onLogout)
+        DangerZone(onDeleteAccount = onDeleteAccount)
 
         Spacer(Modifier.height(32.dp))
     }
@@ -127,7 +126,28 @@ fun InfoRow(label: String, value: String) {
 }
 
 @Composable
-fun DangerZone(onLogout: () -> Unit, onDeleteAccount: () -> Unit) {
+fun SessionCard(onLogout: () -> Unit) {
+    ProfileSection(title = "Session") {
+        OutlinedButton(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = KaloyPurpleLight)
+        ) {
+            Text("Se déconnecter")
+            Spacer(Modifier.width(6.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        Text(
+            text = "Vous pourrez vous reconnecter à tout moment avec votre compte.",
+            style = MaterialTheme.typography.bodySmall,
+            color = KaloyTextSecondary
+        )
+    }
+}
+
+@Composable
+fun DangerZone(onDeleteAccount: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -141,19 +161,11 @@ fun DangerZone(onLogout: () -> Unit, onDeleteAccount: () -> Unit) {
                 color = KaloyRed
             )
             HorizontalDivider(color = KaloyRed.copy(alpha = 0.2f))
-            Button(
-                onClick = onLogout,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = KaloyOrange
-                )
-            ) {
-                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Se déconnecter")
-            }
+            Text(
+                text = "La suppression du compte est définitive.",
+                style = MaterialTheme.typography.bodySmall,
+                color = KaloyTextSecondary
+            )
             Button(
                 onClick = onDeleteAccount,
                 modifier = Modifier.fillMaxWidth(),
